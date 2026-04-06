@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BookOpen, Calendar, Sparkles } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import LogMode from './pages/LogMode'
+import BrainstormMode from './pages/BrainstormMode'
 
 export default function App() {
   const [page, setPage]               = useState('log')
@@ -24,12 +25,10 @@ export default function App() {
         <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} />
       )}
       {page === 'brainstorm' && (
-        <div className="mobile-screen items-center justify-center text-gray-400 text-sm">
-          Brainstorm mode — coming soon
-        </div>
+        <BrainstormMode />
       )}
       {page === 'vault' && (
-        <div className="mobile-screen items-center justify-center text-gray-400 text-sm">
+        <div className="mobile-screen items-center justify-center text-gray-400 text-sm pb-28">
           Vault — coming soon
         </div>
       )}
