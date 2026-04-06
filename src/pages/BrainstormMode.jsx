@@ -13,17 +13,48 @@ import { getRecommendations } from '../lib/recommendations'
 const PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
 
 export default function BrainstormMode() {
-  const [lastWeek, setLastWeek]       = useState([])   // what was eaten last week
-  const [plan, setPlan]               = useState([])   // suggested Sun–Thu meals
-  const [vault, setVault]             = useState([])   // all vault items for the picker
-  const [swapDay, setSwapDay]         = useState(null) // which day's picker is open
-  const [loading, setLoading]         = useState(true)
-  const [sharing, setSharing]         = useState(false)
+  const [lastWeek, setLastWeek] = useState([])   // what was eaten last week
+  const [plan, setPlan] = useState([])   // suggested Sun–Thu meals
+  const [vault, setVault] = useState([])   // all vault items for the picker
+  const [swapDay, setSwapDay] = useState(null) // which day's picker is open
+  const [loading, setLoading] = useState(true)
+  const [sharing, setSharing] = useState(false)
 
   useEffect(() => {
     loadData()
   }, [])
+  const fetchWildcards = async (recentMeals) => {
+    const key = import.meta.env.VITE_SPOONACULAR_KEY
+    if (!key) return []
 
+    // Build a list of cuisines eaten recently so we can ask for something different
+    const recentCuisines = [...new Set(
+      recentMeals.map(m => m.cuisine_type).filter(Boolean)
+    )].join(',')
+
+    try {
+      const url = new URL('https://api.spoonacular.com/recipes/random')
+      url.searchParams.set('apiKey', key)
+      url.searchParams.set('number', '3')
+      if (recentCuisines) {
+        url.searchParams.set('tags', recentCuisines)
+      }
+
+      const res = await fetch(url)
+      const data = await res.json()
+
+      // Map Spoonacular's shape to match our vault item shape
+      return (data.recipes || []).map(r => ({
+        id: `wildcard-${r.id}`,
+        name: r.title,
+        is_wildcard: true,
+        source_url: r.sourceUrl,
+      }))
+    } catch (e) {
+      console.error('Spoonacular fetch failed:', e)
+      return []  // fail silently — vault suggestions still work fine
+    }
+  }
   const loadData = async () => {
     setLoading(true)
 
@@ -44,7 +75,7 @@ export default function BrainstormMode() {
     ])
 
     const recentMeals = mealsRes.data || []
-    const vaultItems  = vaultRes.data || []
+    const vaultItems = vaultRes.data || []
 
     setVault(vaultItems)
 
@@ -57,7 +88,8 @@ export default function BrainstormMode() {
     setLastWeek(buildLastWeekSlots(lastWeekMeals))
 
     // Generate the Sun–Thu plan using the recommendation engine
-    const suggestions = getRecommendations(vaultItems, recentMeals, [], 5)
+    const wildcards = await fetchWildcards(recentMeals)
+    const suggestions = getRecommendations(vaultItems, recentMeals, wildcards, 5)
     setPlan(buildPlan(suggestions))
 
     setLoading(false)
@@ -86,7 +118,7 @@ export default function BrainstormMode() {
     return PLAN_DAYS.map((day, i) => ({
       day,
       name: suggestions[i]?.name || 'Add meals to your Vault to get suggestions',
-      id:   suggestions[i]?.id   || null,
+      id: suggestions[i]?.id || null,
     }))
   }
 
