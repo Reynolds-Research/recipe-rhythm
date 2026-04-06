@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Mic, MicOff, Check } from 'lucide-react'
+import { Mic, MicOff, Check, BookOpen } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 
@@ -10,9 +10,10 @@ import { supabase } from '../lib/supabase'
 export default function LogMode({ recentMeals = [], onSave }) {
   const { transcript, isListening, error, toggleListening, setTranscript } = useSpeech()
   const [editableText, setEditableText] = useState('')
-  const [note, setNote] = useState('')
-  const [saved, setSaved] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [note, setNote]                 = useState('')
+  const [saved, setSaved]               = useState(false)
+  const [saving, setSaving]             = useState(false)
+  const [savedMealName, setSavedMealName] = useState('')
 
   // When the speech hook gives us a transcript, drop it into the editable box
   useEffect(() => {
@@ -24,8 +25,8 @@ export default function LogMode({ recentMeals = [], onSave }) {
     setSaving(true)
 
     const { error: dbError } = await supabase.from('meals').insert({
-      name: editableText.trim(),
-      notes: note.trim() || null,
+      name:    editableText.trim(),
+      notes:   note.trim() || null,
       eaten_on: new Date().toISOString().split('T')[0], // today's date: YYYY-MM-DD
     })
 
@@ -38,12 +39,22 @@ export default function LogMode({ recentMeals = [], onSave }) {
 
     // Success — show confirmation, reset form
     setSaved(true)
+    setSavedMealName(editableText.trim())
     setEditableText('')
     setNote('')
     setTranscript('')
     onSave?.()
 
-    setTimeout(() => setSaved(false), 2500)
+    setTimeout(() => setSaved(false), 4000)
+  }
+
+  const handleSaveToVault = async () => {
+    if (!savedMealName) return
+    await supabase.from('vault').insert({
+      name:        savedMealName,
+      is_wildcard: false,
+    })
+    setSavedMealName('')
   }
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
@@ -104,11 +115,22 @@ export default function LogMode({ recentMeals = [], onSave }) {
           <p className="text-xs text-red-500 text-center">{error}</p>
         )}
 
-        {/* Save confirmation */}
+        {/* Save confirmation + vault prompt */}
         {saved && (
-          <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-2xl py-3">
-            <Check size={16} className="text-green-600" />
-            <span className="text-sm font-medium text-green-700">Logged!</span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-2xl py-3">
+              <Check size={16} className="text-green-600" />
+              <span className="text-sm font-medium text-green-700">Logged!</span>
+            </div>
+            {savedMealName && (
+              <button
+                onClick={handleSaveToVault}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-brand-200 bg-brand-50 text-sm text-brand-700"
+              >
+                <BookOpen size={14} />
+                Save "{savedMealName}" to Vault
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -133,7 +155,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
             >
               {isListening
                 ? <MicOff size={24} className="text-brand-600" />
-                : <Mic size={24} className="text-brand-600" />
+                : <Mic    size={24} className="text-brand-600" />
               }
             </button>
           </div>

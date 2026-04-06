@@ -3,6 +3,7 @@ import { BookOpen, Calendar, Sparkles } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
+import Vault from './pages/Vault'
 
 export default function App() {
   const [page, setPage]               = useState('log')
@@ -28,9 +29,7 @@ export default function App() {
         <BrainstormMode />
       )}
       {page === 'vault' && (
-        <div className="mobile-screen items-center justify-center text-gray-400 text-sm pb-28">
-          Vault — coming soon
-        </div>
+        <Vault />
       )}
       <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex">
         {[
