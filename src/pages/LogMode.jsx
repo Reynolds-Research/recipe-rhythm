@@ -10,9 +10,9 @@ import { supabase } from '../lib/supabase'
 export default function LogMode({ recentMeals = [], onSave }) {
   const { transcript, isListening, error, toggleListening, setTranscript } = useSpeech()
   const [editableText, setEditableText] = useState('')
-  const [note, setNote]                 = useState('')
-  const [saved, setSaved]               = useState(false)
-  const [saving, setSaving]             = useState(false)
+  const [note, setNote] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   // When the speech hook gives us a transcript, drop it into the editable box
   useEffect(() => {
@@ -24,8 +24,8 @@ export default function LogMode({ recentMeals = [], onSave }) {
     setSaving(true)
 
     const { error: dbError } = await supabase.from('meals').insert({
-      name:    editableText.trim(),
-      notes:   note.trim() || null,
+      name: editableText.trim(),
+      notes: note.trim() || null,
       eaten_on: new Date().toISOString().split('T')[0], // today's date: YYYY-MM-DD
     })
 
@@ -57,7 +57,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
         <p className="text-lg font-medium text-gray-900 mt-1">What did you eat tonight?</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-28">
 
         {/* Recents shelf */}
         {recentMeals.length > 0 && (
@@ -133,7 +133,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
             >
               {isListening
                 ? <MicOff size={24} className="text-brand-600" />
-                : <Mic    size={24} className="text-brand-600" />
+                : <Mic size={24} className="text-brand-600" />
               }
             </button>
           </div>
