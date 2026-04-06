@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Pencil, Brain } from 'lucide-react'
+import { BookOpen, Pencil } from 'lucide-react'
+import ChefKnife from './components/ChefKnife'
 import { supabase } from './lib/supabase'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
@@ -34,7 +35,7 @@ export default function App() {
       <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },
-          { id: 'brainstorm', label: 'Prep Table',  Icon: Brain  },
+          { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },
           { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
         ].map(({ id, label, Icon }) => (
           <button

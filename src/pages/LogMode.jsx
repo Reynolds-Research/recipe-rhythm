@@ -3,6 +3,7 @@ import { Mic, MicOff, Check, BookOpen } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
+import Logo from '../components/Logo'
 
 /**
  * LogMode
@@ -92,9 +93,10 @@ export default function LogMode({ recentMeals = [], onSave }) {
     <div className="mobile-screen">
 
       {/* Header */}
-      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-4 text-center">
-        <p className="text-[10px] text-brand-600 font-bold tracking-[0.2em]">{today} · LOG MODE</p>
-        <p className="text-xl font-medium text-gray-900 mt-1.5 font-serif italic">What did you eat tonight?</p>
+      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
+        <Logo className="w-8 h-8 mb-2" />
+        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
+        <p className="text-lg text-gray-900 mt-1 font-serif italic">What did you eat tonight?</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-28">

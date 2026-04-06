@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, Check } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, Check, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
 import {
   DndContext,
@@ -344,6 +345,63 @@ Recently eaten: ${recentNames || 'none'}
     }
   }
 
+  const handleDownloadList = () => {
+    // 1. Gather all vault items active in the plan
+    const vaultItemsInPlan = plan.map(slot => vault.find(v => v.id === slot.id)).filter(Boolean)
+    
+    // 2. Extract categories
+    const categories = {
+      Proteins: new Set(),
+      Carbohydrates: new Set(),
+      Vegetables: new Set(),
+      Dairy: new Set(),
+      Fruits: new Set()
+    }
+    
+    vaultItemsInPlan.forEach(item => {
+      if (item.proteins) item.proteins.forEach(p => p !== 'None' && categories.Proteins.add(p))
+      if (item.main_carb && item.main_carb !== 'None') categories.Carbohydrates.add(item.main_carb)
+      if (item.vegetables) item.vegetables.forEach(v => categories.Vegetables.add(v))
+      if (item.dairy_components) item.dairy_components.forEach(v => categories.Dairy.add(v))
+      if (item.fruits) item.fruits.forEach(v => categories.Fruits.add(v))
+    })
+
+    // 3. Format as Text
+    let text = `GROCERY LIST\nFor My Wife — Meal Plan\n\n[ MEALS ]\n`
+    plan.forEach(slot => {
+      text += `- ${slot.day}: ${slot.name}\n`
+    })
+    
+    const catsToPrint = [
+      { name: 'PROTEINS', set: categories.Proteins },
+      { name: 'CARBOHYDRATES', set: categories.Carbohydrates },
+      { name: 'VEGETABLES', set: categories.Vegetables },
+      { name: 'DAIRY', set: categories.Dairy },
+      { name: 'FRUITS', set: categories.Fruits }
+    ]
+
+    catsToPrint.forEach(cat => {
+      if (cat.set.size > 0) {
+        text += `\n[ ${cat.name} ]\n`
+        Array.from(cat.set).sort().forEach(item => {
+          text += `- ${item}\n`
+        })
+      }
+    })
+
+    // 4. Download 
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'GroceryList.txt'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+
   if (loading) {
     return (
       <div className="mobile-screen items-center justify-center pb-28">
@@ -356,9 +414,10 @@ Recently eaten: ${recentNames || 'none'}
     <div className="mobile-screen pb-28">
 
       {/* Header */}
-      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-4 text-center">
-        <p className="text-[10px] text-brand-600 font-bold tracking-[0.2em]">BRAINSTORM MODE</p>
-        <p className="text-xl font-medium text-gray-900 mt-1.5 font-serif italic">Plan next week</p>
+      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
+        <Logo className="w-8 h-8 mb-2" />
+        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
+        <p className="text-lg text-gray-900 mt-1 font-serif italic">Brainstorm next week</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
@@ -458,15 +517,24 @@ Recently eaten: ${recentNames || 'none'}
           </div>
         </div>
 
-        {/* Share button */}
-        <button
-          onClick={handleShare}
-          disabled={sharing}
-          className="btn-primary flex items-center justify-center gap-2"
-        >
-          <Share2 size={16} />
-          {sharing ? 'Sharing…' : 'Share plan via text'}
-        </button>
+        {/* Share & Download buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            <Share2 size={16} />
+            {sharing ? 'Sharing…' : 'Share plan via text'}
+          </button>
+          <button
+            onClick={handleDownloadList}
+            className="btn-primary flex-1 flex items-center justify-center gap-2 bg-brand-50 text-brand-600 border border-brand-200 hover:bg-brand-100 transition-colors"
+          >
+            <Download size={16} />
+            Groceries
+          </button>
+        </div>
 
       </div>
 
