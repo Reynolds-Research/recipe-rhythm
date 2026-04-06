@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Calendar, Sparkles } from 'lucide-react'
+import { BookOpen, Pencil, Brain } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
@@ -31,19 +31,19 @@ export default function App() {
       {page === 'vault' && (
         <Vault />
       )}
-      <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex">
+      <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe">
         {[
-          { id: 'log',        label: 'Log',        Icon: Calendar  },
-          { id: 'brainstorm', label: 'Brainstorm',  Icon: Sparkles  },
+          { id: 'log',        label: 'Log',        Icon: Pencil  },
+          { id: 'brainstorm', label: 'Brainstorm',  Icon: Brain  },
           { id: 'vault',      label: 'Vault',       Icon: BookOpen  },
         ].map(({ id, label, Icon }) => (
           <button
             key={id}
             onClick={() => setPage(id)}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs transition-colors
-              ${page === id ? 'text-brand-600' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-medium tracking-wide uppercase transition-all
+              ${page === id ? 'text-brand-500 scale-110' : 'text-gray-400 hover:text-gray-600'}`}
           >
-            <Icon size={20} />
+            <Icon size={20} strokeWidth={page === id ? 2.5 : 2} />
             {label}
           </button>
         ))}

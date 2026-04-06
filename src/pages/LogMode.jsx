@@ -63,9 +63,9 @@ export default function LogMode({ recentMeals = [], onSave }) {
     <div className="mobile-screen">
 
       {/* Header */}
-      <div className="bg-gray-50 border-b border-gray-100 px-5 py-4 text-center">
-        <p className="text-xs text-gray-400 tracking-widest">{today} · LOG MODE</p>
-        <p className="text-lg font-medium text-gray-900 mt-1">What did you eat tonight?</p>
+      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-4 text-center">
+        <p className="text-[10px] text-brand-600 font-bold tracking-[0.2em]">{today} · LOG MODE</p>
+        <p className="text-xl font-medium text-gray-900 mt-1.5 font-serif italic">What did you eat tonight?</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-28">
@@ -79,7 +79,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
                 <button
                   key={meal.id}
                   onClick={() => setEditableText(meal.name)}
-                  className="flex-shrink-0 bg-gray-50 border border-gray-200 rounded-full px-4 py-1.5 text-sm text-gray-600 whitespace-nowrap active:bg-brand-50 transition-colors"
+                  className="flex-shrink-0 bg-white border border-cream-200 rounded-full px-4 py-1.5 text-sm text-gray-600 whitespace-nowrap active:bg-brand-50 active:border-brand-200 transition-all font-medium"
                 >
                   {meal.name}
                 </button>
@@ -125,7 +125,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
             {savedMealName && (
               <button
                 onClick={handleSaveToVault}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-brand-200 bg-brand-50 text-sm text-brand-700"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-brand-200 bg-brand-50 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100"
               >
                 <BookOpen size={14} />
                 Save "{savedMealName}" to Vault
@@ -143,19 +143,19 @@ export default function LogMode({ recentMeals = [], onSave }) {
           <div className="relative">
             {/* Pulse ring — only visible when listening */}
             {isListening && (
-              <span className="absolute inset-0 rounded-full bg-brand-100 animate-ping opacity-60" />
+              <span className="absolute inset-0 rounded-full bg-brand-200 animate-ping opacity-40" />
             )}
             <button
               onClick={toggleListening}
-              className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-colors
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg
                 ${isListening
-                  ? 'bg-brand-100 border border-brand-300'
-                  : 'bg-brand-50 border border-brand-200'
+                  ? 'bg-brand-500 scale-110 shadow-brand-200'
+                  : 'bg-white border border-brand-100 hover:border-brand-200'
                 }`}
             >
               {isListening
-                ? <MicOff size={24} className="text-brand-600" />
-                : <Mic    size={24} className="text-brand-600" />
+                ? <MicOff size={28} className="text-white" />
+                : <Mic    size={28} className="text-brand-500" />
               }
             </button>
           </div>

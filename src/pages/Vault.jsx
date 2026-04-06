@@ -92,20 +92,24 @@ export default function Vault() {
     <div className="mobile-screen pb-28">
 
       {/* Header */}
-      <div className="bg-gray-50 border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-4 flex items-center justify-between">
         <div>
-          <p className="text-xs text-gray-400 tracking-widest">THE VAULT</p>
-          <p className="text-lg font-medium text-gray-900 mt-0.5">
+          <p className="text-[10px] text-brand-600 font-bold tracking-[0.2em] uppercase leading-none">THE VAULT</p>
+          <p className="text-xl font-medium text-gray-900 mt-1 font-serif italic leading-none">
             {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
           </p>
         </div>
         <button
           onClick={() => setShowForm(prev => !prev)}
-          className="w-10 h-10 rounded-full bg-brand-50 border border-brand-200 flex items-center justify-center"
+          className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95
+            ${showForm 
+              ? 'bg-white border border-brand-200 text-brand-500 hover:bg-brand-50' 
+              : 'bg-brand-500 text-white hover:bg-brand-600 shadow-brand-100'
+            }`}
         >
           {showForm
-            ? <X size={18} className="text-brand-600" />
-            : <Plus size={18} className="text-brand-600" />
+            ? <X size={20} strokeWidth={2.5} />
+            : <Plus size={20} strokeWidth={2.5} />
           }
         </button>
       </div>
@@ -114,8 +118,8 @@ export default function Vault() {
 
         {/* Add recipe form */}
         {showForm && (
-          <div className="card space-y-3">
-            <p className="text-sm font-medium text-gray-700">Add a recipe</p>
+          <div className="card space-y-4 border-brand-100 bg-brand-50/30 backdrop-blur-sm">
+            <p className="text-xs font-bold text-brand-600 tracking-wider uppercase">Add a new recipe</p>
 
             <input
               type="text"
@@ -177,38 +181,40 @@ export default function Vault() {
 
         {/* Recipe list */}
         {recipes.map(recipe => (
-          <div key={recipe.id} className="card">
+          <div key={recipe.id} className="card group hover:border-brand-200 transition-colors">
             <div
-              className="flex items-center gap-3 cursor-pointer"
+              className="flex items-center gap-4 cursor-pointer"
               onClick={() => toggleExpand(recipe.id)}
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{recipe.name}</p>
+                <p className="text-base font-medium text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">{recipe.name}</p>
                 {(recipe.cuisine_type || recipe.flavor_profile) && (
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">
                     {[recipe.cuisine_type, recipe.flavor_profile].filter(Boolean).join(' · ')}
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0 text-gray-300 group-hover:text-brand-400 transition-colors">
                 {expandedId === recipe.id
-                  ? <ChevronUp size={16} className="text-gray-400" />
-                  : <ChevronDown size={16} className="text-gray-400" />
+                  ? <ChevronUp size={20} strokeWidth={2.5} />
+                  : <ChevronDown size={20} strokeWidth={2.5} />
                 }
               </div>
             </div>
 
             {/* Expanded detail */}
             {expandedId === recipe.id && (
-              <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+              <div className="mt-4 pt-4 border-t border-cream-100 space-y-4">
                 {recipe.notes && (
-                  <p className="text-xs text-gray-500 leading-relaxed">{recipe.notes}</p>
+                  <div className="bg-cream-50 rounded-xl p-3 border border-cream-100">
+                    <p className="text-xs text-gray-600 leading-relaxed font-serif italic">{recipe.notes}</p>
+                  </div>
                 )}
                 <button
                   onClick={() => handleDelete(recipe.id)}
-                  className="flex items-center gap-1.5 text-xs text-red-400"
+                  className="flex items-center gap-1.5 text-[10px] font-bold text-red-400/80 uppercase tracking-widest hover:text-red-500 transition-colors"
                 >
-                  <Trash2 size={12} />
+                  <Trash2 size={12} strokeWidth={2.5} />
                   Remove from vault
                 </button>
               </div>

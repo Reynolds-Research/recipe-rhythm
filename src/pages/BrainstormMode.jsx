@@ -1,7 +1,22 @@
 import { useState, useEffect } from 'react'
-import { Share2, RefreshCw } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getRecommendations } from '../lib/recommendations'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  TouchSensor,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 /**
  * BrainstormMode
@@ -12,6 +27,59 @@ import { getRecommendations } from '../lib/recommendations'
 
 const PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
 
+function SortableMealItem({ slot, onSwap }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slot.day })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-4 py-4 bg-white ${
+        isDragging ? 'opacity-50 shadow-lg relative rounded-xl border-brand-200' : ''
+      }`}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-brand-400 p-1"
+      >
+        <GripVertical size={18} strokeWidth={2} />
+      </div>
+      <span className="text-[10px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase">
+        {slot.day}
+      </span>
+      <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
+        {slot.name}
+        {slot.is_wildcard && (
+          <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
+            <Sparkles size={8} />
+            Wildcard
+          </span>
+        )}
+      </span>
+      <button
+        onClick={() => onSwap(slot.day)}
+        className="flex-shrink-0 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors"
+      >
+        Swap
+      </button>
+    </div>
+  )
+}
+
 export default function BrainstormMode() {
   const [lastWeek, setLastWeek] = useState([])   // what was eaten last week
   const [plan, setPlan] = useState([])   // suggested Sun–Thu meals
@@ -19,6 +87,20 @@ export default function BrainstormMode() {
   const [swapDay, setSwapDay] = useState(null) // which day's picker is open
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 250,
+        tolerance: 5,
+      },
+    })
+  )
 
   useEffect(() => {
     loadData()
@@ -117,8 +199,9 @@ export default function BrainstormMode() {
   function buildPlan(suggestions) {
     return PLAN_DAYS.map((day, i) => ({
       day,
-      name: suggestions[i]?.name || 'Add meals to your Vault to get suggestions',
-      id: suggestions[i]?.id || null,
+      name:        suggestions[i]?.name || 'Add meals to your Vault to get suggestions',
+      id:          suggestions[i]?.id || null,
+      is_wildcard: suggestions[i]?.is_wildcard || false,
     }))
   }
 
@@ -127,11 +210,39 @@ export default function BrainstormMode() {
     setPlan(prev =>
       prev.map(slot =>
         slot.day === day
-          ? { ...slot, name: vaultItem.name, id: vaultItem.id }
+          ? { ...slot, name: vaultItem.name, id: vaultItem.id, is_wildcard: vaultItem.is_wildcard || false }
           : slot
       )
     )
     setSwapDay(null)
+  }
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+
+    if (active.id !== over.id) {
+      setPlan((items) => {
+        const oldIndex = items.findIndex((item) => item.day === active.id)
+        const newIndex = items.findIndex((item) => item.day === over.id)
+
+        // We want to keep the days (Sun, Mon, etc.) fixed in order, 
+        // but swap the meal *names* and *ids* at those indices.
+        const newPlan = [...items]
+        const movedItem = { ...items[oldIndex] }
+        const targetItem = { ...items[newIndex] }
+
+        // Actually, dnd-kit usually reorders the entire object.
+        // If we want to keep DAYS fixed, we just swap the meal data.
+        const reorderedMeals = arrayMove(items.map(i => ({ name: i.name, id: i.id, is_wildcard: i.is_wildcard })), oldIndex, newIndex)
+        
+        return items.map((item, index) => ({
+          ...item,
+          name:        reorderedMeals[index].name,
+          id:          reorderedMeals[index].id,
+          is_wildcard: reorderedMeals[index].is_wildcard,
+        }))
+      })
+    }
   }
 
   // Share the plan using the native mobile share sheet
@@ -169,17 +280,17 @@ export default function BrainstormMode() {
     <div className="mobile-screen pb-28">
 
       {/* Header */}
-      <div className="bg-gray-50 border-b border-gray-100 px-5 py-4 text-center">
-        <p className="text-xs text-gray-400 tracking-widest">BRAINSTORM MODE</p>
-        <p className="text-lg font-medium text-gray-900 mt-1">Plan next week</p>
+      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-4 text-center">
+        <p className="text-[10px] text-brand-600 font-bold tracking-[0.2em]">BRAINSTORM MODE</p>
+        <p className="text-xl font-medium text-gray-900 mt-1.5 font-serif italic">Plan next week</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
         {/* Last week's meals */}
         <div>
-          <p className="text-xs font-medium text-gray-400 tracking-widest mb-2">LAST WEEK</p>
-          <div className="bg-gray-50 rounded-2xl px-4 divide-y divide-gray-100">
+          <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-3 uppercase">LAST WEEK</p>
+          <div className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm">
             {lastWeek.map(({ day, name }) => (
               <div key={day} className="flex items-center gap-3 py-3">
                 <span className="text-xs font-medium text-gray-400 w-8 flex-shrink-0">{day.toUpperCase()}</span>
@@ -193,29 +304,37 @@ export default function BrainstormMode() {
 
         {/* Suggested plan */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-gray-400 tracking-widest">SUGGESTED · SUN–THU</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">SUGGESTED · SUN–THU</p>
             <button
               onClick={loadData}
-              className="flex items-center gap-1 text-xs text-brand-600"
+              className="flex items-center gap-1.5 text-[10px] font-bold text-brand-500 uppercase tracking-wider hover:text-brand-600 transition-colors"
             >
-              <RefreshCw size={12} />
+              <RefreshCw size={12} strokeWidth={2.5} />
               Regenerate
             </button>
           </div>
-          <div className="bg-gray-50 rounded-2xl px-4 divide-y divide-gray-100">
-            {plan.map(({ day, name }) => (
-              <div key={day} className="flex items-center gap-3 py-3">
-                <span className="text-xs font-medium text-gray-400 w-8 flex-shrink-0">{day.toUpperCase()}</span>
-                <span className="text-sm flex-1 text-gray-900">{name}</span>
-                <button
-                  onClick={() => setSwapDay(day)}
-                  className="flex-shrink-0 text-xs text-brand-600 bg-brand-50 border border-brand-200 rounded-full px-3 py-1"
-                >
-                  Swap
-                </button>
-              </div>
-            ))}
+          <div className="bg-white border border-cream-100 rounded-2xl px-5 shadow-sm overflow-hidden">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={plan.map(s => s.day)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="divide-y divide-cream-50">
+                  {plan.map((slot) => (
+                    <SortableMealItem
+                      key={slot.day}
+                      slot={slot}
+                      onSwap={setSwapDay}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
 
@@ -238,13 +357,13 @@ export default function BrainstormMode() {
           onClick={() => setSwapDay(null)}
         >
           <div
-            className="w-full bg-white rounded-t-3xl px-5 py-5"
+            className="w-full bg-cream-50 rounded-t-3xl px-6 py-6 shadow-2xl border-t border-cream-200"
             onClick={e => e.stopPropagation()}
           >
-            <p className="text-xs font-medium text-gray-400 tracking-widest mb-1">
+            <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] mb-1 uppercase">
               SWAP {swapDay.toUpperCase()}
             </p>
-            <p className="text-sm text-gray-500 mb-4">Pick from your vault</p>
+            <p className="text-base font-serif italic text-gray-700 mb-6">Pick from your vault</p>
 
             <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
               {vault.length === 0 ? (

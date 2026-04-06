@@ -5,24 +5,24 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-cream-50 text-gray-900 antialiased;
   }
 }
 
 @layer components {
   .mobile-screen {
-    @apply max-w-sm mx-auto min-h-screen bg-white flex flex-col pb-16;
+    @apply max-w-sm mx-auto min-h-screen bg-cream-50 flex flex-col pb-16;
   }
   .btn-primary {
-    @apply w-full py-3 rounded-2xl bg-brand-50 border border-brand-200 text-brand-800 font-medium text-base active:scale-95 transition-transform;
+    @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600;
   }
   .btn-ghost {
-    @apply px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors;
+    @apply px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-cream-100 transition-colors;
   }
   .input-base {
-    @apply w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200;
+    @apply w-full rounded-xl border border-cream-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all;
   }
   .card {
-    @apply bg-white rounded-2xl border border-gray-100 p-4;
+    @apply bg-white rounded-2xl border border-cream-100 p-5 shadow-sm;
   }
 }
