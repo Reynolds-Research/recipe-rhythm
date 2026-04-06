@@ -34,8 +34,8 @@ export default function App() {
       <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },
-          { id: 'brainstorm', label: 'Brainstorm',  Icon: Brain  },
-          { id: 'vault',      label: 'Vault',       Icon: BookOpen  },
+          { id: 'brainstorm', label: 'Prep Table',  Icon: Brain  },
+          { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
         ].map(({ id, label, Icon }) => (
           <button
             key={id}

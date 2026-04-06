@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getRecommendations } from '../lib/recommendations'
 import {
@@ -25,7 +25,8 @@ import { CSS } from '@dnd-kit/utilities'
  * Each suggestion can be swapped from a Vault picker sheet.
  */
 
-const PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
+const ALL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DEFAULT_PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
 
 function SortableMealItem({ slot, onSwap }) {
   const {
@@ -97,8 +98,13 @@ export default function BrainstormMode() {
   const [lastWeek, setLastWeek] = useState([])   // what was eaten last week
   const [plan, setPlan] = useState([])   // suggested Sun–Thu meals
   const [vault, setVault] = useState([])   // all vault items for the picker
-  const [allWildcards, setAllWildcards] = useState([]) // all fetched wildcard recipes
+  const [storedRecentMeals, setStoredRecentMeals] = useState([]) // kept for swap-time context
+  const [planDays, setPlanDays] = useState(DEFAULT_PLAN_DAYS)
+  const [showDayPicker, setShowDayPicker] = useState(false)
+  const [pendingDays, setPendingDays] = useState(DEFAULT_PLAN_DAYS)
   const [swapDay, setSwapDay] = useState(null) // which day's picker is open
+  const [swapSuggestions, setSwapSuggestions] = useState([]) // fresh picks fetched on Swap click
+  const [loadingSwap, setLoadingSwap] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
 
@@ -119,54 +125,81 @@ export default function BrainstormMode() {
   useEffect(() => {
     loadData()
   }, [])
-  const fetchWildcards = async (recentMeals) => {
-    const key = import.meta.env.VITE_SPOONACULAR_KEY
+  const fetchSwapSuggestions = async (currentPlan, recentMeals) => {
+    const key = import.meta.env.VITE_ANTHROPIC_API_KEY
     if (!key) return []
 
-    // Build a list of cuisines eaten recently so we can ask for something different
-    const recentCuisines = [...new Set(
-      recentMeals.map(m => m.cuisine_type).filter(Boolean)
-    )].join(',')
+    const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
+    const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
 
+    let res
     try {
-      const url = new URL('https://api.spoonacular.com/recipes/random')
-      url.searchParams.set('apiKey', key)
-      url.searchParams.set('number', '3')
-      if (recentCuisines) {
-        url.searchParams.set('tags', recentCuisines)
-      }
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 120,
+          messages: [{
+            role: 'user',
+            content: `Suggest 3 specific, well-known dinner recipes different from what's already planned. Return ONLY a JSON array of 3 recipe name strings, no markdown.
 
-      const res = await fetch(url)
-      const data = await res.json()
+Already in plan: ${planNames || 'none'}
+Recently eaten: ${recentNames || 'none'}
 
-      // Map Spoonacular's shape to match our vault item shape
-      return (data.recipes || []).map(r => ({
-        id: `wildcard-${r.id}`,
-        name: r.title,
-        is_wildcard: true,
-        source_url: r.sourceUrl,
-      }))
+["Recipe 1", "Recipe 2", "Recipe 3"]`,
+          }],
+        }),
+      })
     } catch (e) {
-      console.error('Spoonacular fetch failed:', e)
-      return []  // fail silently — vault suggestions still work fine
+      console.error('[fetchSwapSuggestions] fetch failed:', e)
+      return []
     }
+
+    if (!res.ok) return []
+
+    const data = await res.json()
+    const text = data.content?.[0]?.text
+    if (!text) return []
+
+    let names
+    try {
+      names = JSON.parse(text)
+    } catch {
+      const match = text.match(/\[[\s\S]*\]/)
+      if (!match) return []
+      try { names = JSON.parse(match[0]) } catch { return [] }
+    }
+
+    return names.slice(0, 3).map((name, i) => ({
+      id: `ai-suggestion-${i}`,
+      name,
+      is_wildcard: true,
+      source_url: `https://www.allrecipes.com/search?q=${encodeURIComponent(name)}`,
+    }))
   }
   const loadData = async () => {
     setLoading(true)
 
-    // Get meals from the last 14 days for the recency filter
-    const twoWeeksAgo = new Date()
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+    // Load 90 days of meals so the engine can compute how often each
+    // vault item actually makes it to the plate (frequency signal).
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
     const [mealsRes, vaultRes] = await Promise.all([
       supabase
         .from('meals')
         .select('id, name, cuisine_type, flavor_profile, vault_id, eaten_on')
-        .gte('eaten_on', twoWeeksAgo.toISOString().split('T')[0])
+        .gte('eaten_on', ninetyDaysAgo.toISOString().split('T')[0])
         .order('eaten_on', { ascending: false }),
       supabase
         .from('vault')
-        .select('id, name, cuisine_type, flavor_profile, is_wildcard')
+        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb')
         .order('created_at', { ascending: false }),
     ])
 
@@ -183,11 +216,12 @@ export default function BrainstormMode() {
     )
     setLastWeek(buildLastWeekSlots(lastWeekMeals))
 
-    // Generate the Sun–Thu plan using the recommendation engine
-    const wildcards = await fetchWildcards(recentMeals)
-    setAllWildcards(wildcards)
-    const suggestions = getRecommendations(vaultItems, recentMeals, wildcards, 5)
-    setPlan(buildPlan(suggestions))
+    // Store recent meals so openSwap can pass context to Spoonacular
+    setStoredRecentMeals(recentMeals)
+
+    // Generate the plan using the recommendation engine
+    const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length)
+    setPlan(buildPlan(suggestions, planDays))
 
     setLoading(false)
   }
@@ -208,17 +242,36 @@ export default function BrainstormMode() {
   }
 
   /**
-   * Pairs each suggestion with a plan day label (Sun–Thu).
+   * Pairs each suggestion with a plan day label.
    * If the vault is empty, fills with placeholder text.
    */
-  function buildPlan(suggestions) {
-    return PLAN_DAYS.map((day, i) => ({
+  function buildPlan(suggestions, days) {
+    return days.map((day, i) => ({
       day,
-      name:        suggestions[i]?.name || 'Add meals to your Vault to get suggestions',
+      name:        suggestions[i]?.name || 'Add meals to your Cookbook to get suggestions',
       id:          suggestions[i]?.id || null,
       is_wildcard: suggestions[i]?.is_wildcard || false,
       source_url:  suggestions[i]?.source_url || null,
     }))
+  }
+
+  // Rebuild the plan for a new set of days without re-fetching from DB
+  const applyDays = (days) => {
+    const sorted = [...days].sort((a, b) => ALL_DAYS.indexOf(a) - ALL_DAYS.indexOf(b))
+    const suggestions = getRecommendations(vault, storedRecentMeals, [], sorted.length)
+    setPlan(buildPlan(suggestions, sorted))
+    setPlanDays(sorted)
+    setShowDayPicker(false)
+  }
+
+  // Open the swap picker for a day, fetching fresh AI suggestions
+  const openSwap = async (day) => {
+    setSwapDay(day)
+    setSwapSuggestions([])
+    setLoadingSwap(true)
+    const suggestions = await fetchSwapSuggestions(plan, storedRecentMeals)
+    setSwapSuggestions(suggestions)
+    setLoadingSwap(false)
   }
 
   // Swap a day's suggestion with a vault pick
@@ -312,7 +365,7 @@ export default function BrainstormMode() {
 
         {/* Last week's meals */}
         <div>
-          <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-3 uppercase">LAST WEEK</p>
+          <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-3 uppercase">LAST WEEK'S MEALS</p>
           <div className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm">
             {lastWeek.map(({ day, name }) => (
               <div key={day} className="flex items-center gap-3 py-3">
@@ -328,7 +381,16 @@ export default function BrainstormMode() {
         {/* Suggested plan */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">SUGGESTED · SUN–THU</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">THIS WEEK'S MEAL PLAN</p>
+              <button
+                onClick={() => { setPendingDays(planDays); setShowDayPicker(v => !v) }}
+                className="flex items-center gap-1 text-[10px] font-bold text-brand-500 bg-brand-50 border border-brand-200 rounded-full px-2.5 py-1 hover:bg-brand-100 transition-colors"
+              >
+                {planDays[0]} – {planDays[planDays.length - 1]}
+                <ChevronDown size={10} className={`transition-transform ${showDayPicker ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
             <button
               onClick={loadData}
               className="flex items-center gap-1.5 text-[10px] font-bold text-brand-500 uppercase tracking-wider hover:text-brand-600 transition-colors"
@@ -337,6 +399,41 @@ export default function BrainstormMode() {
               Regenerate
             </button>
           </div>
+
+          {/* Day picker */}
+          {showDayPicker && (
+            <div className="bg-white border border-cream-200 rounded-2xl px-4 py-4 mb-3 shadow-sm">
+              <p className="text-[10px] font-bold text-gray-400 tracking-widest mb-3 uppercase">Select days to plan</p>
+              <div className="flex gap-2 flex-wrap mb-4">
+                {ALL_DAYS.map(day => {
+                  const selected = pendingDays.includes(day)
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setPendingDays(prev =>
+                        selected ? prev.filter(d => d !== day) : [...prev, day]
+                      )}
+                      className={`flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-full border transition-colors ${
+                        selected
+                          ? 'bg-brand-500 border-brand-500 text-white'
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-brand-300'
+                      }`}
+                    >
+                      {selected && <Check size={9} />}
+                      {day}
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                disabled={pendingDays.length === 0}
+                onClick={() => applyDays(pendingDays)}
+                className="w-full py-2 rounded-xl bg-brand-500 text-white text-xs font-bold tracking-wide disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-600 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          )}
           <div className="bg-white border border-cream-100 rounded-2xl px-5 shadow-sm overflow-hidden">
             <DndContext
               sensors={sensors}
@@ -352,7 +449,7 @@ export default function BrainstormMode() {
                     <SortableMealItem
                       key={slot.day}
                       slot={slot}
-                      onSwap={setSwapDay}
+                      onSwap={openSwap}
                     />
                   ))}
                 </div>
@@ -388,58 +485,64 @@ export default function BrainstormMode() {
             </p>
             <p className="text-base font-serif italic text-gray-700 mb-6">Pick from your vault</p>
 
-            <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
-              {vault.length === 0 && allWildcards.length === 0 ? (
-                <p className="text-sm text-gray-400 py-4 text-center">
-                  Your vault is empty — save some recipes first
-                </p>
-              ) : (
-                <>
-                  {allWildcards.length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">Wild Suggestions</p>
-                      <div className="space-y-1">
-                        {allWildcards.map(item => (
-                          <div key={item.id} className="flex items-center justify-between py-2.5">
-                            <button
-                              onClick={() => handleSwap(swapDay, item)}
-                              className="flex-1 text-left text-sm text-brand-700 font-medium hover:text-brand-800 transition-colors"
-                            >
-                              {item.name}
-                            </button>
-                            {item.source_url && (
-                              <a
-                                href={item.source_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-1 text-gray-400 hover:text-brand-500 transition-colors"
-                                title="Review recipe"
-                              >
-                                <ExternalLink size={14} />
-                              </a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {vault.length > 0 && (
-                    <div>
-                      <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Vault</p>
-                      {vault.map(item => (
+            <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+              {/* AI Suggestions — fetched fresh on each Swap click */}
+              <div className="mb-4">
+                <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">AI Suggestions</p>
+                {loadingSwap ? (
+                  <p className="text-xs text-gray-400 py-3 text-center">Finding ideas…</p>
+                ) : swapSuggestions.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-3 text-center">No suggestions available</p>
+                ) : (
+                  <div className="space-y-1">
+                    {swapSuggestions.map(item => (
+                      <div key={item.id} className="flex items-center gap-2 py-2.5">
                         <button
-                          key={item.id}
                           onClick={() => handleSwap(swapDay, item)}
-                          className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors flex items-center justify-between"
+                          className="flex-1 text-left text-sm text-brand-700 font-medium hover:text-brand-800 transition-colors"
                         >
                           {item.name}
                         </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
+                        {item.source_url && (
+                          <a
+                            href={item.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold text-brand-500 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-full px-2.5 py-1 transition-colors"
+                            title="View recipe"
+                          >
+                            <ExternalLink size={10} />
+                            View
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {(() => {
+                const planIds = new Set(plan.map(s => s.id).filter(Boolean))
+                const availableVault = vault.filter(item => !planIds.has(item.id))
+                return availableVault.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">
+                    {vault.length === 0 ? 'Your vault is empty — save some recipes first' : 'All vault items are already in your plan'}
+                  </p>
+                ) : (
+                  <div className="pt-2">
+                    <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Cookbook</p>
+                    {availableVault.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleSwap(swapDay, item)}
+                        className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
 
             <button

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Mic, MicOff, Check, BookOpen } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
+import { analyzeRecipe } from '../lib/analyzeRecipe'
 
 /**
  * LogMode
@@ -14,6 +15,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
   const [saved, setSaved]               = useState(false)
   const [saving, setSaving]             = useState(false)
   const [savedMealName, setSavedMealName] = useState('')
+  const [savedMealNote, setSavedMealNote] = useState('')
 
   // When the speech hook gives us a transcript, drop it into the editable box
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
     setSaved(true)
     if (!existing || existing.length === 0) {
       setSavedMealName(editableText.trim())
+      setSavedMealNote(note.trim())
     }
     setEditableText('')
     setNote('')
@@ -57,16 +60,30 @@ export default function LogMode({ recentMeals = [], onSave }) {
     setTimeout(() => {
       setSaved(false)
       setSavedMealName('')
+      setSavedMealNote('')
     }, 4000)
   }
 
   const handleSaveToVault = async () => {
     if (!savedMealName) return
+    const analysis = await analyzeRecipe(savedMealName)
     await supabase.from('vault').insert({
-      name:        savedMealName,
-      is_wildcard: false,
+      name:             savedMealName,
+      is_wildcard:      false,
+      auto_completed:   true,
+      notes:            savedMealNote             || null,
+      cuisine_type:     analysis?.cuisine_type     ?? null,
+      flavor_profile:   analysis?.flavor_profile   ?? null,
+      proteins:         analysis?.proteins         ?? [],
+      cooking_method:   analysis?.cooking_method   ?? null,
+      main_carb:        analysis?.main_carb        ?? null,
+      dietary_tags:     analysis?.dietary_tags     ?? [],
+      dairy_components: analysis?.dairy_components ?? [],
+      vegetables:       analysis?.vegetables       ?? [],
+      fruits:           analysis?.fruits           ?? [],
     })
     setSavedMealName('')
+    setSavedMealNote('')
   }
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
@@ -150,7 +167,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-brand-200 bg-brand-50 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100"
               >
                 <BookOpen size={14} />
-                Save "{savedMealName}" to Vault
+                Save "{savedMealName}" to Cookbook
               </button>
             )}
           </div>
