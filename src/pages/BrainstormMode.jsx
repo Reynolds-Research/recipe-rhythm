@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getRecommendations } from '../lib/recommendations'
 import {
@@ -64,10 +64,23 @@ function SortableMealItem({ slot, onSwap }) {
       <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
         {slot.name}
         {slot.is_wildcard && (
-          <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
-            <Sparkles size={8} />
-            Wildcard
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
+              <Sparkles size={8} />
+              Wildcard
+            </span>
+            {slot.source_url && (
+              <a
+                href={slot.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-400 hover:text-brand-600 transition-colors"
+                title="View Recipe"
+              >
+                <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
         )}
       </span>
       <button
@@ -84,6 +97,7 @@ export default function BrainstormMode() {
   const [lastWeek, setLastWeek] = useState([])   // what was eaten last week
   const [plan, setPlan] = useState([])   // suggested Sun–Thu meals
   const [vault, setVault] = useState([])   // all vault items for the picker
+  const [allWildcards, setAllWildcards] = useState([]) // all fetched wildcard recipes
   const [swapDay, setSwapDay] = useState(null) // which day's picker is open
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
@@ -171,6 +185,7 @@ export default function BrainstormMode() {
 
     // Generate the Sun–Thu plan using the recommendation engine
     const wildcards = await fetchWildcards(recentMeals)
+    setAllWildcards(wildcards)
     const suggestions = getRecommendations(vaultItems, recentMeals, wildcards, 5)
     setPlan(buildPlan(suggestions))
 
@@ -202,6 +217,7 @@ export default function BrainstormMode() {
       name:        suggestions[i]?.name || 'Add meals to your Vault to get suggestions',
       id:          suggestions[i]?.id || null,
       is_wildcard: suggestions[i]?.is_wildcard || false,
+      source_url:  suggestions[i]?.source_url || null,
     }))
   }
 
@@ -210,7 +226,13 @@ export default function BrainstormMode() {
     setPlan(prev =>
       prev.map(slot =>
         slot.day === day
-          ? { ...slot, name: vaultItem.name, id: vaultItem.id, is_wildcard: vaultItem.is_wildcard || false }
+          ? {
+              ...slot,
+              name: vaultItem.name,
+              id: vaultItem.id,
+              is_wildcard: vaultItem.is_wildcard || false,
+              source_url: vaultItem.source_url || null
+            }
           : slot
       )
     )
@@ -240,6 +262,7 @@ export default function BrainstormMode() {
           name:        reorderedMeals[index].name,
           id:          reorderedMeals[index].id,
           is_wildcard: reorderedMeals[index].is_wildcard,
+          source_url:  reorderedMeals[index].source_url || null,
         }))
       })
     }
@@ -366,20 +389,56 @@ export default function BrainstormMode() {
             <p className="text-base font-serif italic text-gray-700 mb-6">Pick from your vault</p>
 
             <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
-              {vault.length === 0 ? (
+              {vault.length === 0 && allWildcards.length === 0 ? (
                 <p className="text-sm text-gray-400 py-4 text-center">
                   Your vault is empty — save some recipes first
                 </p>
               ) : (
-                vault.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleSwap(swapDay, item)}
-                    className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
-                  >
-                    {item.name}
-                  </button>
-                ))
+                <>
+                  {allWildcards.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">Wild Suggestions</p>
+                      <div className="space-y-1">
+                        {allWildcards.map(item => (
+                          <div key={item.id} className="flex items-center justify-between py-2.5">
+                            <button
+                              onClick={() => handleSwap(swapDay, item)}
+                              className="flex-1 text-left text-sm text-brand-700 font-medium hover:text-brand-800 transition-colors"
+                            >
+                              {item.name}
+                            </button>
+                            {item.source_url && (
+                              <a
+                                href={item.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 text-gray-400 hover:text-brand-500 transition-colors"
+                                title="Review recipe"
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {vault.length > 0 && (
+                    <div>
+                      <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Vault</p>
+                      {vault.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleSwap(swapDay, item)}
+                          className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors flex items-center justify-between"
+                        >
+                          {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

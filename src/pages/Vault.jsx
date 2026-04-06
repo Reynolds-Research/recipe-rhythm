@@ -47,11 +47,25 @@ export default function Vault() {
   }
 
   const handleAdd = async () => {
-    if (!name.trim()) return
+    const finalName = name.trim()
+    if (!finalName) return
     setSaving(true)
 
+    // Check for duplicate before saving
+    const { data: existing } = await supabase
+      .from('vault')
+      .select('id')
+      .ilike('name', finalName)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      alert(`"${finalName}" is already in your vault!`)
+      setSaving(false)
+      return
+    }
+
     const { error } = await supabase.from('vault').insert({
-      name:           name.trim(),
+      name:           finalName,
       cuisine_type:   cuisineType  || null,
       flavor_profile: flavorProfile || null,
       notes:          notes.trim() || null,

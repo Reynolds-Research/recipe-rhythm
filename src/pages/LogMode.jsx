@@ -37,15 +37,27 @@ export default function LogMode({ recentMeals = [], onSave }) {
       return
     }
 
+    // Check if it's already in the vault before offering to save it
+    const { data: existing } = await supabase
+      .from('vault')
+      .select('id')
+      .ilike('name', editableText.trim())
+      .limit(1)
+
     // Success — show confirmation, reset form
     setSaved(true)
-    setSavedMealName(editableText.trim())
+    if (!existing || existing.length === 0) {
+      setSavedMealName(editableText.trim())
+    }
     setEditableText('')
     setNote('')
     setTranscript('')
     onSave?.()
 
-    setTimeout(() => setSaved(false), 4000)
+    setTimeout(() => {
+      setSaved(false)
+      setSavedMealName('')
+    }, 4000)
   }
 
   const handleSaveToVault = async () => {
@@ -71,22 +83,32 @@ export default function LogMode({ recentMeals = [], onSave }) {
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-28">
 
         {/* Recents shelf */}
-        {recentMeals.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-gray-400 tracking-widest mb-2">RECENT</p>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {recentMeals.map((meal) => (
-                <button
-                  key={meal.id}
-                  onClick={() => setEditableText(meal.name)}
-                  className="flex-shrink-0 bg-white border border-cream-200 rounded-full px-4 py-1.5 text-sm text-gray-600 whitespace-nowrap active:bg-brand-50 active:border-brand-200 transition-all font-medium"
-                >
-                  {meal.name}
-                </button>
-              ))}
+        {recentMeals.length > 0 && (() => {
+          // Remove duplicates (case-insensitive) and limit to 6 items to give 4-5 visible comfortably
+          const uniqueMeals = recentMeals.reduce((acc, meal) => {
+            if (!acc.find(m => m.name.toLowerCase().trim() === meal.name.toLowerCase().trim())) {
+              acc.push(meal)
+            }
+            return acc
+          }, []).slice(0, 6)
+
+          return (
+            <div>
+              <p className="text-xs font-medium text-gray-400 tracking-widest mb-2">RECENT</p>
+              <div className="flex flex-wrap gap-2 pb-1">
+                {uniqueMeals.map((meal) => (
+                  <button
+                    key={meal.id}
+                    onClick={() => setEditableText(meal.name)}
+                    className="bg-white border border-cream-200 rounded-full px-4 py-1.5 text-sm text-gray-600 whitespace-normal text-left leading-tight active:bg-brand-50 active:border-brand-200 transition-all font-medium max-w-full"
+                  >
+                    {meal.name}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Editable transcript box */}
         <div>
