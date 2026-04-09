@@ -1,38 +1,74 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Pencil } from 'lucide-react'
+import { BookOpen, Pencil, Loader2, LogOut } from 'lucide-react'
 import ChefKnife from './components/ChefKnife'
 import { supabase } from './lib/supabase'
+import Auth from './components/Auth'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
 import Vault from './pages/Vault'
 
 export default function App() {
+  const [session, setSession]         = useState(null)
+  const [loadingSession, setLoadingSession] = useState(true)
   const [page, setPage]               = useState('log')
   const [recentMeals, setRecentMeals] = useState([])
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+      setLoadingSession(false)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   const fetchRecentMeals = async () => {
+    if (!session?.user?.id) return
     const { data, error } = await supabase
       .from('meals')
       .select('id, name, eaten_on')
+      .eq('user_id', session.user.id)
       .order('eaten_on', { ascending: false })
       .limit(10)
     if (!error && data) setRecentMeals(data)
   }
 
-  useEffect(() => { fetchRecentMeals() }, [])
+  useEffect(() => { 
+    if (session) fetchRecentMeals() 
+  }, [session])
+
+  if (loadingSession) {
+    return <div className="min-h-screen bg-cream-50 flex items-center justify-center"><Loader2 className="animate-spin text-brand-500" size={32} /></div>
+  }
+
+  if (!session) {
+    return <Auth />
+  }
+
+  const userId = session.user.id
 
   return (
     <div className="max-w-sm mx-auto relative">
+      <button 
+        onClick={() => supabase.auth.signOut()}
+        className="absolute top-5 right-5 z-50 text-gray-400 hover:text-red-400 transition-colors bg-white/50 backdrop-blur-sm p-2 rounded-full border border-cream-100 shadow-sm"
+        title="Sign Out"
+      >
+        <LogOut size={16} />
+      </button>
+
       {page === 'log' && (
-        <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} />
+        <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
       )}
       {page === 'brainstorm' && (
-        <BrainstormMode />
+        <BrainstormMode userId={userId} />
       )}
       {page === 'vault' && (
-        <Vault />
+        <Vault userId={userId} />
       )}
-      <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe">
+      <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },
           { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },

@@ -95,7 +95,7 @@ function SortableMealItem({ slot, onSwap }) {
   )
 }
 
-export default function BrainstormMode() {
+export default function BrainstormMode({ userId }) {
   const [lastWeek, setLastWeek] = useState([])   // what was eaten last week
   const [plan, setPlan] = useState([])   // suggested Sun–Thu meals
   const [vault, setVault] = useState([])   // all vault items for the picker
@@ -196,11 +196,13 @@ Recently eaten: ${recentNames || 'none'}
       supabase
         .from('meals')
         .select('id, name, cuisine_type, flavor_profile, vault_id, eaten_on')
+        .eq('user_id', userId)
         .gte('eaten_on', ninetyDaysAgo.toISOString().split('T')[0])
         .order('eaten_on', { ascending: false }),
       supabase
         .from('vault')
         .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false }),
     ])
 

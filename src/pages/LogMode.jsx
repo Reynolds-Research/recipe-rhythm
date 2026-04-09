@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Mic, MicOff, Check, BookOpen } from 'lucide-react'
+import { Mic, MicOff, Check, BookOpen, MessageSquare } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
@@ -9,7 +9,7 @@ import Logo from '../components/Logo'
  * LogMode
  * The Mon–Fri screen. Low friction meal logging with voice-first input.
  */
-export default function LogMode({ recentMeals = [], onSave }) {
+export default function LogMode({ recentMeals = [], onSave, userId }) {
   const { transcript, isListening, error, toggleListening, setTranscript } = useSpeech()
   const [editableText, setEditableText] = useState('')
   const [note, setNote]                 = useState('')
@@ -28,6 +28,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
     setSaving(true)
 
     const { error: dbError } = await supabase.from('meals').insert({
+      user_id: userId,
       name:    editableText.trim(),
       notes:   note.trim() || null,
       eaten_on: new Date().toISOString().split('T')[0], // today's date: YYYY-MM-DD
@@ -44,6 +45,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
     const { data: existing } = await supabase
       .from('vault')
       .select('id')
+      .eq('user_id', userId)
       .ilike('name', editableText.trim())
       .limit(1)
 
@@ -69,6 +71,7 @@ export default function LogMode({ recentMeals = [], onSave }) {
     if (!savedMealName) return
     const analysis = await analyzeRecipe(savedMealName)
     await supabase.from('vault').insert({
+      user_id:          userId,
       name:             savedMealName,
       is_wildcard:      false,
       auto_completed:   true,
@@ -177,7 +180,16 @@ export default function LogMode({ recentMeals = [], onSave }) {
       </div>
 
       {/* Mic button + Save — pinned to bottom */}
-      <div className="px-5 py-4 border-t border-gray-100 space-y-3">
+      <div className="relative px-5 py-4 border-t border-gray-100 space-y-3">
+
+        {/* Feedback Link */}
+        <a 
+          href="mailto:mreynolds08@gmail.com?subject=Recipe%20Rhythm%20Feedback" 
+          className="absolute top-8 left-5 text-gray-300 hover:text-gray-500 transition-colors p-2 -ml-2"
+          title="Submit feedback or report a bug"
+        >
+          <MessageSquare size={18} />
+        </a>
 
         {/* Mic button */}
         <div className="flex justify-center">

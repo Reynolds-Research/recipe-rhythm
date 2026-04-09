@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink } from 'lucide-react'
+import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink, Camera, Image as ImageIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import Logo from '../components/Logo'
@@ -189,7 +189,7 @@ function ComponentRow({ label, values }) {
   )
 }
 
-export default function Vault() {
+export default function Vault({ userId }) {
   const [recipes, setRecipes]       = useState([])
   const [loading, setLoading]       = useState(true)
   const [showForm, setShowForm]     = useState(false)
@@ -221,41 +221,85 @@ export default function Vault() {
 
   useEffect(() => { fetchRecipes() }, [])
 
-  // AI auto-suggest fires 1.5s after user stops typing (4+ chars)
-  useEffect(() => {
-    if (!showForm || name.trim().length < 4) {
-      if (name.trim().length < 4) setAiApplied(false)
-      return
-    }
-    const timer = setTimeout(async () => {
-      if (suggesting) return
-      setSuggesting(true)
-      setAiError(false)
-      const s = await analyzeRecipe(name.trim())
-      if (s) {
-        if (s.cuisine_type)             setCuisineType(s.cuisine_type)
-        if (s.flavor_profile)           setFlavorProfile(s.flavor_profile)
-        if (s.proteins?.length)         setProteins(s.proteins)
-        if (s.cooking_method)           setCookingMethod(s.cooking_method)
-        if (s.main_carb)                setMainCarb(s.main_carb)
-        if (s.dietary_tags?.length)     setDietaryTags(s.dietary_tags)
-        if (s.dairy_components?.length) setDairyComponents(s.dairy_components)
-        if (s.vegetables?.length)       setVegetables(s.vegetables)
-        if (s.fruits?.length)           setFruits(s.fruits)
-        setAiApplied(true)
-      } else {
-        setAiError(true)
+  const [imageBase64, setImageBase64]         = useState(null)
+  const [imageType, setImageType]             = useState(null)
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+        const maxDim = 1024
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width)
+            width = maxDim
+          } else {
+            width = Math.round((width * maxDim) / height)
+            height = maxDim
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        const base64 = dataUrl.split(',')[1]
+        
+        setImageBase64(base64)
+        setImageType('image/jpeg')
+        setAiApplied(false)
       }
-      setSuggesting(false)
-    }, 1500)
-    return () => clearTimeout(timer)
-  }, [name, showForm])
+      img.src = event.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleManualSuggest = async () => {
+    if (!name.trim() && !recipeUrl.trim() && !imageBase64) return
+    if (suggesting) return
+    setSuggesting(true)
+    setAiError(false)
+    
+    const s = await analyzeRecipe({
+      name: name.trim(),
+      url: recipeUrl.trim(),
+      imageBase64,
+      mediaType: imageType
+    })
+    
+    if (s) {
+      if (s.cuisine_type)             setCuisineType(s.cuisine_type)
+      if (s.flavor_profile)           setFlavorProfile(s.flavor_profile)
+      if (s.proteins?.length)         setProteins(s.proteins)
+      if (s.cooking_method)           setCookingMethod(s.cooking_method)
+      if (s.main_carb)                setMainCarb(s.main_carb)
+      if (s.dietary_tags?.length)     setDietaryTags(s.dietary_tags)
+      if (s.dairy_components?.length) setDairyComponents(s.dairy_components)
+      if (s.vegetables?.length)       setVegetables(s.vegetables)
+      if (s.fruits?.length)           setFruits(s.fruits)
+      setAiApplied(true)
+    } else {
+      setAiError(true)
+    }
+    setSuggesting(false)
+  }
 
   const fetchRecipes = async () => {
     setLoading(true)
     const { data, error } = await supabase
       .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
     if (error) console.error('[Vault] fetchRecipes failed:', error.message)
@@ -278,6 +322,8 @@ export default function Vault() {
     setFruits([])
     setAiApplied(false)
     setAiError(false)
+    setImageBase64(null)
+    setImageType(null)
   }
 
   const handleAdd = async () => {
@@ -288,6 +334,7 @@ export default function Vault() {
     const { data: existing } = await supabase
       .from('vault')
       .select('id')
+      .eq('user_id', userId)
       .ilike('name', finalName)
       .limit(1)
 
@@ -297,8 +344,33 @@ export default function Vault() {
       return
     }
 
+    let publicUrl = null
+    if (imageBase64 && imageType) {
+      try {
+        const fetchResponse = await fetch(`data:${imageType};base64,${imageBase64}`)
+        const blob = await fetchResponse.blob()
+        const fileName = `recipe-${Date.now()}.jpg`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('recipe_images')
+          .upload(fileName, blob, { contentType: 'image/jpeg' })
+
+        if (!uploadError) {
+          const { data } = supabase.storage.from('recipe_images').getPublicUrl(fileName)
+          if (data && data.publicUrl) publicUrl = data.publicUrl
+        } else {
+          console.error('[Vault] Image upload failed:', uploadError)
+          alert('Image upload failed. Please verify that your Supabase "recipe_images" bucket has a permissive INSERT policy configured for authenticated users! Continuing without image...')
+        }
+      } catch (err) {
+        console.error('[Vault] Error preparing image for upload:', err)
+      }
+    }
+
     const { error } = await supabase.from('vault').insert({
+      user_id:          userId,
       name:             finalName,
+      image_url:        publicUrl,
       cuisine_type:     cuisineType            || null,
       flavor_profile:   flavorProfile          || null,
       notes:            notes.trim()           || null,
@@ -323,7 +395,7 @@ export default function Vault() {
   }
 
   const handleDelete = async (id) => {
-    await supabase.from('vault').delete().eq('id', id)
+    await supabase.from('vault').delete().eq('id', id).eq('user_id', userId)
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
@@ -332,6 +404,7 @@ export default function Vault() {
     setAddingSuggestion(suggestionName)
     const analysis = await analyzeRecipe(suggestionName)
     await supabase.from('vault').insert({
+      user_id:          userId,
       name:             suggestionName,
       is_wildcard:      false,
       auto_completed:   true,
@@ -381,7 +454,7 @@ export default function Vault() {
       notes:          editFields.notes.trim()        || null,
       recipe_url:     editFields.recipe_url.trim()   || null,
       auto_completed: false,
-    }).eq('id', id)
+    }).eq('id', id).eq('user_id', userId)
     setSavingEdit(false)
     setEditingId(null)
     setEditFields({})
@@ -452,14 +525,71 @@ export default function Vault() {
               )}
             </div>
 
-            {/* Name */}
-            <input
-              type="text"
-              value={name}
-              onChange={e => { setName(e.target.value); setAiApplied(false) }}
-              placeholder="Recipe name (e.g. Thai meatball soup)"
-              className="input-base"
-            />
+            {/* Base info for AI */}
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={name}
+                onChange={e => { setName(e.target.value); setAiApplied(false) }}
+                placeholder="Recipe name (e.g. Thai meatball soup)"
+                className="input-base"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={recipeUrl}
+                  onChange={e => { setRecipeUrl(e.target.value); setAiApplied(false) }}
+                  placeholder="Recipe URL (optional)"
+                  className="input-base flex-1"
+                />
+                <div className="relative">
+                  <button
+                    type="button"
+                    className={`h-full border rounded-xl px-4 flex items-center justify-center transition-colors relative overflow-hidden ${
+                      imageBase64 ? 'bg-brand-50 border-brand-500 text-brand-600' : 'bg-white border-cream-200 text-brand-500 hover:bg-brand-50'
+                    }`}
+                    title="Upload recipe image"
+                  >
+                    {imageBase64 ? <ImageIcon size={20} /> : <Camera size={20} />}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={handleImageUpload}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {imageBase64 && (
+                <div className="relative rounded-xl overflow-hidden border border-brand-200 mt-2">
+                  <img src={`data:${imageType};base64,${imageBase64}`} alt="Recipe preview" className="w-full h-48 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => { setImageBase64(null); setImageType(null); }}
+                    className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 backdrop-blur-sm transition-colors"
+                  >
+                    <X size={16} strokeWidth={2.5} />
+                  </button>
+                </div>
+              )}
+
+              {hasApiKey && (
+                <button
+                  type="button"
+                  onClick={handleManualSuggest}
+                  disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageBase64)}
+                  className="w-full py-2.5 rounded-xl border border-brand-200 bg-brand-50/50 text-brand-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {suggesting ? (
+                    <><Loader2 size={16} className="animate-spin" /> Analyzing…</>
+                  ) : (
+                    <><Sparkles size={16} /> Auto-fill Components</>
+                  )}
+                </button>
+              )}
+            </div>
 
             {/* Cuisine + Flavor row */}
             <div className="grid grid-cols-2 gap-3">
@@ -510,14 +640,7 @@ export default function Vault() {
               className="input-base"
             />
 
-            {/* Recipe URL */}
-            <input
-              type="url"
-              value={recipeUrl}
-              onChange={e => setRecipeUrl(e.target.value)}
-              placeholder="Recipe URL (optional)"
-              className="input-base"
-            />
+
 
             <button
               onClick={handleAdd}
@@ -665,6 +788,12 @@ export default function Vault() {
                         <ExternalLink size={11} className="shrink-0" />
                         <span className="truncate">{recipe.recipe_url.replace(/^https?:\/\//, '')}</span>
                       </a>
+                    )}
+
+                    {recipe.image_url && (
+                      <div className="mt-2 rounded-xl overflow-hidden border border-cream-200">
+                        <img src={recipe.image_url} alt={recipe.name} className="w-full h-auto object-cover max-h-48" />
+                      </div>
                     )}
 
                     <div className="flex items-center justify-between pt-1">
