@@ -97,12 +97,30 @@ function SortableMealItem({ slot, onSwap }) {
 
 export default function BrainstormMode({ userId }) {
   const [lastWeek, setLastWeek] = useState([])   // what was eaten last week
-  const [plan, setPlan] = useState([])   // suggested Sun–Thu meals
+  const [plan, setPlan] = useState(() => {
+    try {
+      const saved = localStorage.getItem('brainstorm_plan')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
   const [vault, setVault] = useState([])   // all vault items for the picker
   const [storedRecentMeals, setStoredRecentMeals] = useState([]) // kept for swap-time context
-  const [planDays, setPlanDays] = useState(DEFAULT_PLAN_DAYS)
+  const [planDays, setPlanDays] = useState(() => {
+    try {
+      const saved = localStorage.getItem('brainstorm_plan_days')
+      return saved ? JSON.parse(saved) : DEFAULT_PLAN_DAYS
+    } catch { return DEFAULT_PLAN_DAYS }
+  })
   const [showDayPicker, setShowDayPicker] = useState(false)
   const [pendingDays, setPendingDays] = useState(DEFAULT_PLAN_DAYS)
+
+  useEffect(() => {
+    localStorage.setItem('brainstorm_plan', JSON.stringify(plan))
+  }, [plan])
+
+  useEffect(() => {
+    localStorage.setItem('brainstorm_plan_days', JSON.stringify(planDays))
+  }, [planDays])
   const [swapDay, setSwapDay] = useState(null) // which day's picker is open
   const [swapSuggestions, setSwapSuggestions] = useState([]) // fresh picks fetched on Swap click
   const [loadingSwap, setLoadingSwap] = useState(false)
@@ -124,7 +142,7 @@ export default function BrainstormMode({ userId }) {
   )
 
   useEffect(() => {
-    loadData()
+    loadData(false)
   }, [])
   const fetchSwapSuggestions = async (currentPlan, recentMeals) => {
     const key = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -184,7 +202,7 @@ Recently eaten: ${recentNames || 'none'}
       source_url: `https://www.allrecipes.com/search?q=${encodeURIComponent(name)}`,
     }))
   }
-  const loadData = async () => {
+  const loadData = async (forceRegenerate = false) => {
     setLoading(true)
 
     // Load 90 days of meals so the engine can compute how often each
@@ -223,8 +241,10 @@ Recently eaten: ${recentNames || 'none'}
     setStoredRecentMeals(recentMeals)
 
     // Generate the plan using the recommendation engine
-    const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length)
-    setPlan(buildPlan(suggestions, planDays))
+    if (forceRegenerate || plan.length === 0) {
+      const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length)
+      setPlan(buildPlan(suggestions, planDays))
+    }
 
     setLoading(false)
   }
@@ -453,7 +473,7 @@ Recently eaten: ${recentNames || 'none'}
               </button>
             </div>
             <button
-              onClick={loadData}
+              onClick={() => loadData(true)}
               className="flex items-center gap-1.5 text-[10px] font-bold text-brand-500 uppercase tracking-wider hover:text-brand-600 transition-colors"
             >
               <RefreshCw size={12} strokeWidth={2.5} />

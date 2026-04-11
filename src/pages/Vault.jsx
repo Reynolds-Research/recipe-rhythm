@@ -109,7 +109,6 @@ function ChipPicker({ options, value, onChange, multi = true, storageKey = null 
     if (multi) onChange([...(value || []).filter(v => v !== tag), tag])
     else onChange(tag)
     setDraft('')
-    setShowAdd(false)
   }
 
   return (
