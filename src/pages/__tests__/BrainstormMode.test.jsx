@@ -1,0 +1,85 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import BrainstormMode from '../BrainstormMode'
+import { supabase } from '../../lib/supabase'
+import * as recommendations from '../../lib/recommendations'
+
+const mockQuery = {
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  gte: vi.fn().mockReturnThis(),
+  order: vi.fn().mockReturnThis(),
+  limit: vi.fn().mockReturnThis(),
+  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+  then: vi.fn((cb) => cb({ data: [], error: null }))
+};
+
+vi.mock('../../lib/supabase', () => ({
+  supabase: {
+    from: vi.fn(() => mockQuery),
+  }
+}))
+
+vi.mock('@dnd-kit/core', async () => ({
+  DndContext: ({ children }) => <div>{children}</div>,
+  closestCenter: vi.fn(),
+  PointerSensor: vi.fn(),
+  TouchSensor: vi.fn(),
+  useSensor: vi.fn(),
+  useSensors: vi.fn(),
+}))
+
+vi.mock('@dnd-kit/sortable', async () => ({
+  SortableContext: ({ children }) => <div>{children}</div>,
+  verticalListSortingStrategy: vi.fn(),
+  arrayMove: vi.fn(),
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: null,
+    isDragging: false,
+  }),
+}))
+
+describe('BrainstormMode Component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('fetches basic setup data and renders correctly', async () => {
+    vi.spyOn(recommendations, 'getRecommendations').mockReturnValue([
+      { id: '1', name: 'Sunday Roast', is_wildcard: false }
+    ])
+
+    render(<BrainstormMode userId="test-user" />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    expect(screen.getByText('Sunday Roast')).toBeInTheDocument()
+  })
+
+  it('regenerates plan on button click', async () => {
+    vi.spyOn(recommendations, 'getRecommendations').mockReturnValue([
+      { id: '1', name: 'Tacos', is_wildcard: false }
+    ])
+
+    render(<BrainstormMode userId="test-user" />)
+    
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    // Click regenerate
+    const regenBtn = screen.getByText(/Regenerate/i)
+    fireEvent.click(regenBtn)
+    
+    await waitFor(() => {
+      expect(screen.getByText('Tacos')).toBeInTheDocument()
+    })
+  })
+})

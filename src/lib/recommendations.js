@@ -118,18 +118,27 @@ function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap) {
 /**
  * Main function — call this to get the week's suggestions.
  *
- * @param {Array}  vaultItems   - All Vault items from Supabase (with full metadata)
- * @param {Array}  recentMeals  - Meals from the past 90 days (for frequency + recency)
- * @param {Array}  wildcards    - Recipe objects fetched from Spoonacular
- * @param {number} count        - How many suggestions to return (default 5, Sun–Thu)
+ * @param {Array}  vaultItems      - All Vault items from Supabase (with full metadata)
+ * @param {Array}  recentMeals     - Meals from the past 90 days (for frequency + recency)
+ * @param {Array}  wildcards       - Recipe objects fetched from Spoonacular
+ * @param {number} count           - How many suggestions to return (default 5, Sun–Thu)
+ * @param {Array}  servedPlanItems - Items from the prior week's served plan (pseudo-meals
+ *                                   with vault_id + scheduled_date) to factor into recency
+ *                                   and frequency scoring.
  */
-export function getRecommendations(vaultItems, recentMeals, wildcards = [], count = 7) {
-  const recentVaultIds = getRecentVaultIds(recentMeals)
+export function getRecommendations(vaultItems, recentMeals, wildcards = [], count = 7, servedPlanItems = []) {
+  // Merge served plan items into the meal history so the engine treats
+  // recently-planned meals the same as recently-eaten ones for recency/frequency.
+  const syntheticMeals = servedPlanItems
+    .filter(m => m.vault_id && m.scheduled_date)
+    .map(m => ({ vault_id: m.vault_id, name: m.name, eaten_on: m.scheduled_date }))
+  const allMeals = [...recentMeals, ...syntheticMeals]
 
   // Build lookup and derived signals
   const vaultById       = new Map(vaultItems.map(v => [v.id, v]))
-  const frequencyMap    = buildFrequencyMap(recentMeals)
-  const weeklyAttrs     = buildWeeklyAttributes(recentMeals, vaultById)
+  const frequencyMap    = buildFrequencyMap(allMeals)
+  const weeklyAttrs     = buildWeeklyAttributes(allMeals, vaultById)
+  const recentVaultIds  = getRecentVaultIds(allMeals)
 
   // Score and sort vault items
   const scoredVault = vaultItems

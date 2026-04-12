@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, Check, Download } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, Check, Download, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
@@ -29,7 +29,7 @@ import { CSS } from '@dnd-kit/utilities'
 const ALL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DEFAULT_PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
 
-function SortableMealItem({ slot, onSwap }) {
+function SortableMealItem({ slot, onSwap, isServed }) {
   const {
     attributes,
     listeners,
@@ -54,9 +54,8 @@ function SortableMealItem({ slot, onSwap }) {
       }`}
     >
       <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-brand-400 p-1"
+        {...(isServed ? {} : { ...attributes, ...listeners })}
+        className={isServed ? 'text-gray-200 p-1 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-brand-400 p-1'}
       >
         <GripVertical size={18} strokeWidth={2} />
       </div>
@@ -87,12 +86,52 @@ function SortableMealItem({ slot, onSwap }) {
       </span>
       <button
         onClick={() => onSwap(slot.day)}
-        className="flex-shrink-0 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors"
+        disabled={isServed}
+        className={`flex-shrink-0 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors ${isServed ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
       >
         Swap
       </button>
     </div>
   )
+}
+
+/**
+ * Builds a human-readable week label like "Apr 13 – 17, 2026"
+ * from the plan's day abbreviations relative to the upcoming week.
+ */
+function buildWeekLabel(days) {
+  const dayIndexMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const now = new Date()
+  const currentDow = now.getDay()
+  const firstDayOffset = dayIndexMap[days[0]]
+  const daysUntilFirst = (firstDayOffset - currentDow + 7) % 7 || 7
+  const firstDate = new Date(now)
+  firstDate.setDate(now.getDate() + daysUntilFirst)
+  const lastDate = new Date(firstDate)
+  lastDate.setDate(firstDate.getDate() + days.length - 1)
+  const fmtShort = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const fmtFull  = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  return `${fmtShort(firstDate)} – ${fmtFull(lastDate)}`
+}
+
+/**
+ * Maps a served plan's items to pseudo-meal objects with real calendar dates
+ * so the recommendation engine can apply recency/frequency scoring to them.
+ */
+function buildServedMealsForEngine(items, servedAtIso) {
+  if (!items?.length || !servedAtIso) return []
+  const dayIndexMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const servedDate = new Date(servedAtIso)
+  const servedDow = servedDate.getDay()
+  return items
+    .filter(item => item.vault_id)
+    .map(item => {
+      const targetDow = dayIndexMap[item.day] ?? 0
+      const offset = targetDow - servedDow
+      const scheduled = new Date(servedDate)
+      scheduled.setDate(servedDate.getDate() + offset)
+      return { ...item, scheduled_date: scheduled.toISOString().split('T')[0] }
+    })
 }
 
 export default function BrainstormMode({ userId }) {
@@ -114,9 +153,17 @@ export default function BrainstormMode({ userId }) {
   const [showDayPicker, setShowDayPicker] = useState(false)
   const [pendingDays, setPendingDays] = useState(DEFAULT_PLAN_DAYS)
 
+  // Serve state
+  const [isServed, setIsServed]     = useState(false)
+  const [servedAt, setServedAt]     = useState(null)
+  const [serving, setServing]       = useState(false)
+  const [serveError, setServeError] = useState(null)
+
   useEffect(() => {
-    localStorage.setItem('brainstorm_plan', JSON.stringify(plan))
-  }, [plan])
+    if (!isServed) {
+      localStorage.setItem('brainstorm_plan', JSON.stringify(plan))
+    }
+  }, [plan, isServed])
 
   useEffect(() => {
     localStorage.setItem('brainstorm_plan_days', JSON.stringify(planDays))
@@ -210,7 +257,7 @@ Recently eaten: ${recentNames || 'none'}
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
-    const [mealsRes, vaultRes] = await Promise.all([
+    const [mealsRes, vaultRes, planRes] = await Promise.all([
       supabase
         .from('meals')
         .select('id, name, cuisine_type, flavor_profile, vault_id, eaten_on')
@@ -219,13 +266,21 @@ Recently eaten: ${recentNames || 'none'}
         .order('eaten_on', { ascending: false }),
       supabase
         .from('vault')
-        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb')
+        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits')
         .eq('user_id', userId)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('meal_plans')
+        .select('id, served_at, days, items, week_label')
+        .eq('user_id', userId)
+        .order('served_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
 
     const recentMeals = mealsRes.data || []
     const vaultItems = vaultRes.data || []
+    const mostRecentPlan = planRes.data
 
     setVault(vaultItems)
 
@@ -240,9 +295,21 @@ Recently eaten: ${recentNames || 'none'}
     // Store recent meals so openSwap can pass context to Spoonacular
     setStoredRecentMeals(recentMeals)
 
-    // Generate the plan using the recommendation engine
-    if (forceRegenerate || plan.length === 0) {
-      const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length)
+    // Check if there's already a served plan for this week (within last 7 days)
+    const isCurrentWeekServed =
+      mostRecentPlan && new Date(mostRecentPlan.served_at) >= sevenDaysAgo
+
+    if (isCurrentWeekServed) {
+      // Restore the served plan as authoritative; lock the UI
+      localStorage.removeItem('brainstorm_plan')
+      setPlan(mostRecentPlan.items)
+      setPlanDays(mostRecentPlan.days)
+      setServedAt(mostRecentPlan.served_at)
+      setIsServed(true)
+    } else if (forceRegenerate || plan.length === 0) {
+      // Pass prior week's served items to the engine for recency/frequency context
+      const servedMeals = buildServedMealsForEngine(mostRecentPlan?.items, mostRecentPlan?.served_at)
+      const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length, servedMeals)
       setPlan(buildPlan(suggestions, planDays))
     }
 
@@ -316,6 +383,7 @@ Recently eaten: ${recentNames || 'none'}
   }
 
   const handleDragEnd = (event) => {
+    if (isServed) return
     const { active, over } = event
 
     if (active.id !== over.id) {
@@ -342,6 +410,42 @@ Recently eaten: ${recentNames || 'none'}
         }))
       })
     }
+  }
+
+  // All slots must have real meals (not the empty-vault placeholder) before serving
+  const canServe = plan.length > 0 && plan.every(
+    slot => slot.name && !slot.name.startsWith('Add meals to your Cookbook')
+  )
+
+  const handleServe = async () => {
+    if (isServed || serving || !canServe) return
+    setServing(true)
+    setServeError(null)
+
+    const items = plan.map(slot => ({
+      day:        slot.day,
+      name:       slot.name,
+      vault_id:   slot.id || null,
+      is_wildcard: slot.is_wildcard || false,
+      source_url: slot.source_url || null,
+    }))
+
+    const { data, error } = await supabase
+      .from('meal_plans')
+      .insert({ user_id: userId, week_label: buildWeekLabel(planDays), days: planDays, items })
+      .select('id, served_at')
+      .single()
+
+    if (error) {
+      setServeError('Could not save plan. Try again.')
+      setServing(false)
+      return
+    }
+
+    setServedAt(data.served_at)
+    setIsServed(true)
+    setServing(false)
+    localStorage.removeItem('brainstorm_plan')
   }
 
   // Share the plan using the native mobile share sheet
@@ -466,7 +570,8 @@ Recently eaten: ${recentNames || 'none'}
               <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">THIS WEEK'S MEAL PLAN</p>
               <button
                 onClick={() => { setPendingDays(planDays); setShowDayPicker(v => !v) }}
-                className="flex items-center gap-1 text-[10px] font-bold text-brand-500 bg-brand-50 border border-brand-200 rounded-full px-2.5 py-1 hover:bg-brand-100 transition-colors"
+                disabled={isServed}
+                className={`flex items-center gap-1 text-[10px] font-bold bg-brand-50 border border-brand-200 rounded-full px-2.5 py-1 transition-colors ${isServed ? 'text-gray-300 cursor-not-allowed' : 'text-brand-500 hover:bg-brand-100'}`}
               >
                 {planDays[0]} – {planDays[planDays.length - 1]}
                 <ChevronDown size={10} className={`transition-transform ${showDayPicker ? 'rotate-180' : ''}`} />
@@ -474,7 +579,8 @@ Recently eaten: ${recentNames || 'none'}
             </div>
             <button
               onClick={() => loadData(true)}
-              className="flex items-center gap-1.5 text-[10px] font-bold text-brand-500 uppercase tracking-wider hover:text-brand-600 transition-colors"
+              disabled={isServed}
+              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${isServed ? 'text-gray-300 cursor-not-allowed' : 'text-brand-500 hover:text-brand-600'}`}
             >
               <RefreshCw size={12} strokeWidth={2.5} />
               Regenerate
@@ -531,6 +637,7 @@ Recently eaten: ${recentNames || 'none'}
                       key={slot.day}
                       slot={slot}
                       onSwap={openSwap}
+                      isServed={isServed}
                     />
                   ))}
                 </div>
@@ -539,23 +646,57 @@ Recently eaten: ${recentNames || 'none'}
           </div>
         </div>
 
-        {/* Share & Download buttons */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleShare}
-            disabled={sharing}
-            className="btn-primary flex-1 flex items-center justify-center gap-2"
-          >
-            <Share2 size={16} />
-            {sharing ? 'Sharing…' : 'Share plan via text'}
-          </button>
-          <button
-            onClick={handleDownloadList}
-            className="btn-primary flex-1 flex items-center justify-center gap-2 bg-brand-50 text-brand-600 border border-brand-200 hover:bg-brand-100 transition-colors"
-          >
-            <Download size={16} />
-            Groceries
-          </button>
+        {/* Serve + Share + Download */}
+        <div className="space-y-3">
+
+          {/* Primary CTA: serve or served badge */}
+          {!isServed ? (
+            <button
+              onClick={handleServe}
+              disabled={serving || !canServe}
+              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {serving ? (
+                <><Loader2 size={16} className="animate-spin" /> Saving…</>
+              ) : (
+                <><Check size={16} /> Serve This Week's Plan</>
+              )}
+            </button>
+          ) : (
+            <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-2xl py-3">
+              <Check size={16} className="text-green-600" />
+              <span className="text-sm font-medium text-green-700">
+                Served on {new Date(servedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+          )}
+
+          {serveError && (
+            <p className="text-xs text-red-500 text-center">{serveError}</p>
+          )}
+
+          {/* Share & Download — only enabled after serving */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleShare}
+              disabled={!isServed || sharing}
+              title={!isServed ? 'Finalize plan first' : undefined}
+              className={`btn-primary flex-1 flex items-center justify-center gap-2 ${!isServed ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              <Share2 size={16} />
+              {sharing ? 'Sharing…' : 'Share plan via text'}
+            </button>
+            <button
+              onClick={handleDownloadList}
+              disabled={!isServed}
+              title={!isServed ? 'Finalize plan first' : undefined}
+              className={`btn-primary flex-1 flex items-center justify-center gap-2 bg-brand-50 text-brand-600 border border-brand-200 hover:bg-brand-100 transition-colors ${!isServed ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              <Download size={16} />
+              Groceries
+            </button>
+          </div>
+
         </div>
 
       </div>
