@@ -3,8 +3,11 @@ import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, C
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
-import { fetchMostRecentPlan } from '../lib/mealPlanReader'
-import { createServedPlan } from '../lib/mealPlanWriter'
+import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState } from '../lib/mealPlanReader'
+import { createServedPlan, startNewPeriod } from '../lib/mealPlanWriter'
+import GapDayView from '../components/GapDayView'
+import DateRangePicker from '../components/DateRangePicker'
+import LeftoverPicker from '../components/LeftoverPicker'
 import {
   DndContext,
   closestCenter,
@@ -143,6 +146,17 @@ export default function BrainstormMode({ userId }) {
   const [serving, setServing]       = useState(false)
   const [serveError, setServeError] = useState(null)
 
+  // ADR-001 Phase 5: plan lifecycle routing for the gap-day + new-period flow.
+  // `mostRecentPlan` is the latest plan row (used to classify the UI state);
+  // `newPeriodStep` drives the two-stage modal flow (date picker → leftover
+  // picker → commit). 'idle' means no modal open.
+  const [mostRecentPlan, setMostRecentPlan] = useState(null)
+  const [newPeriodStep, setNewPeriodStep] = useState('idle') // 'idle' | 'pick-dates' | 'pick-leftovers'
+  const [pendingRange, setPendingRange] = useState(null)
+  const [pendingLeftovers, setPendingLeftovers] = useState([])
+  const [startingPeriod, setStartingPeriod] = useState(false)
+  const [startPeriodError, setStartPeriodError] = useState(null)
+
   useEffect(() => {
     if (!isServed) {
       localStorage.setItem('brainstorm_plan', JSON.stringify(plan))
@@ -229,6 +243,7 @@ export default function BrainstormMode({ userId }) {
     const recentMeals = mealsRes.data || []
     const vaultItems = vaultRes.data || []
     const mostRecentPlan = planRes.plan
+    setMostRecentPlan(mostRecentPlan)
 
     setVault(vaultItems)
 
@@ -389,6 +404,73 @@ export default function BrainstormMode({ userId }) {
     }
   }
 
+  // --- New-period flow (ADR-001 Phase 5) ---------------------------------
+  // Opens the date-range picker modal. We pre-fetch leftovers here so the
+  // next step (leftover picker) can be skipped entirely when none exist.
+  const openNewPeriodFlow = async () => {
+    setStartPeriodError(null)
+    try {
+      const rows = await fetchCurrentLeftovers(supabase, userId)
+      setPendingLeftovers(rows)
+    } catch {
+      setPendingLeftovers([])
+    }
+    setNewPeriodStep('pick-dates')
+  }
+
+  const handleDateRangeConfirm = ({ periodStart, periodEnd }) => {
+    setPendingRange({ periodStart, periodEnd })
+    if (pendingLeftovers.length === 0) {
+      // No leftovers to roll forward — skip the picker and commit directly.
+      commitNewPeriod({ periodStart, periodEnd }, [])
+    } else {
+      setNewPeriodStep('pick-leftovers')
+    }
+  }
+
+  const handleDateRangeCancel = () => {
+    setNewPeriodStep('idle')
+    setPendingRange(null)
+    setPendingLeftovers([])
+    setStartPeriodError(null)
+  }
+
+  const handleLeftoverBack = () => {
+    setNewPeriodStep('pick-dates')
+  }
+
+  const commitNewPeriod = async (range, selectedIds) => {
+    if (!range) return
+    setStartingPeriod(true)
+    setStartPeriodError(null)
+    try {
+      await startNewPeriod(
+        supabase,
+        userId,
+        range.periodStart,
+        range.periodEnd,
+        selectedIds,
+      )
+      setNewPeriodStep('idle')
+      setPendingRange(null)
+      setPendingLeftovers([])
+      await loadData(false)
+    } catch (err) {
+      if (err?.code === 'period_overlap') {
+        setStartPeriodError('That range overlaps with an existing plan.')
+        setNewPeriodStep('pick-dates')
+      } else {
+        setStartPeriodError('Could not start new period. Try again.')
+      }
+    } finally {
+      setStartingPeriod(false)
+    }
+  }
+
+  const handleLeftoverConfirm = (selectedIds) => {
+    commitNewPeriod(pendingRange, selectedIds)
+  }
+
   // Share the plan using the native mobile share sheet
   const handleShare = async () => {
     const text = [
@@ -474,6 +556,51 @@ export default function BrainstormMode({ userId }) {
       <div className="mobile-screen items-center justify-center pb-28">
         <p className="text-sm text-gray-400">Building your plan…</p>
       </div>
+    )
+  }
+
+  // ADR-001 Phase 5: gap-day routing. A finalized plan whose period_end is in
+  // the past means we're between periods — show the leftovers + new-period CTA
+  // instead of the "generate suggestions" flow the rest of this page renders.
+  const planState = classifyPlanState(mostRecentPlan)
+  if (planState === 'gap') {
+    return (
+      <>
+        <GapDayView
+          userId={userId}
+          periodEnd={mostRecentPlan?.period_end ?? null}
+          onStartNewPeriod={openNewPeriodFlow}
+        />
+        {startPeriodError && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] bg-red-50 border border-red-200 rounded-xl px-4 py-2 shadow-lg">
+            <p className="text-xs text-red-700">{startPeriodError}</p>
+          </div>
+        )}
+        {newPeriodStep === 'pick-dates' && (
+          <DateRangePicker
+            userId={userId}
+            onCancel={handleDateRangeCancel}
+            onConfirm={handleDateRangeConfirm}
+          />
+        )}
+        {newPeriodStep === 'pick-leftovers' && pendingRange && (
+          <LeftoverPicker
+            leftovers={pendingLeftovers}
+            periodStart={pendingRange.periodStart}
+            periodEnd={pendingRange.periodEnd}
+            onBack={handleLeftoverBack}
+            onConfirm={handleLeftoverConfirm}
+          />
+        )}
+        {startingPeriod && (
+          <div className="fixed inset-0 bg-black/30 z-[70] flex items-center justify-center">
+            <div className="bg-white rounded-xl px-5 py-3 shadow-lg flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin text-brand-500" />
+              <span className="text-sm text-gray-700">Starting new period…</span>
+            </div>
+          </div>
+        )}
+      </>
     )
   }
 

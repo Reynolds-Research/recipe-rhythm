@@ -8,6 +8,16 @@ function weekdayFromScheduledDate(scheduledDate) {
   return WEEKDAY_ABBR[dow]
 }
 
+// Format a Date as 'YYYY-MM-DD' using LOCAL components — mirrors the helper in
+// mealPlanWriter.js. Kept as a private local copy to avoid cross-importing from
+// the write path and creating a cycle.
+function formatLocalDate(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function dedupePreserveOrder(days) {
   const seen = new Set()
   const out = []
@@ -130,4 +140,76 @@ export async function fetchMostRecentPlan(supabase, userId) {
       source: 'new',
     },
   }
+}
+
+/**
+ * Classifies a plan by its lifecycle state relative to `today`.
+ *
+ * States:
+ *   'none'      — no plan at all (null/undefined input)
+ *   'active'    — plan exists and is NOT finalized (user can still edit)
+ *   'finalized' — plan is finalized, and today ≤ period_end (locked but still
+ *                 inside the period window — rare but possible if the user
+ *                 finalized early)
+ *   'gap'       — plan is finalized AND today > period_end. Gap day: the old
+ *                 period has ended; no new period started yet. This is the
+ *                 state the gap-day view hangs off.
+ *
+ * ADR-001 Phase 5: replaces the old `finalized` mapping for past-end periods
+ * with `gap`, which is the state routed to the gap-day view + new-period flow.
+ *
+ * @param {{ finalized_at?: string|null, period_end?: string|null } | null | undefined} plan
+ * @param {Date} [today]
+ * @returns {'none' | 'active' | 'finalized' | 'gap'}
+ */
+export function classifyPlanState(plan, today = new Date()) {
+  if (!plan) return 'none'
+  if (!plan.finalized_at) return 'active'
+  if (!plan.period_end) return 'finalized'
+  // Lexicographic comparison on 'YYYY-MM-DD' strings is chronological.
+  const todayStr = formatLocalDate(today)
+  return plan.period_end < todayStr ? 'gap' : 'finalized'
+}
+
+/**
+ * Fetches the current user's "leftovers" — uncooked meal_plan_items from
+ * finalized periods whose period_end is within the last 14 days. Reads from
+ * the `current_leftovers` view, which handles the 14-day staleness cap server
+ * side per the ADR Retention Policy.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @returns {Promise<Array<{
+ *   id: string,
+ *   name: string,
+ *   vault_id: string | null,
+ *   is_wildcard: boolean,
+ *   source_url: string | null,
+ *   scheduled_date: string,
+ *   source_period_start: string,
+ *   source_period_end: string,
+ * }>>}
+ */
+export async function fetchCurrentLeftovers(supabase, userId) {
+  const { data, error } = await supabase
+    .from('current_leftovers')
+    .select(
+      'id, name, vault_id, is_wildcard, source_url, scheduled_date, source_period_start, source_period_end',
+    )
+    .eq('user_id', userId)
+    .order('scheduled_date', { ascending: true })
+
+  if (error) throw error
+  if (!data) return []
+
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    vault_id: row.vault_id ?? null,
+    is_wildcard: !!row.is_wildcard,
+    source_url: row.source_url ?? null,
+    scheduled_date: row.scheduled_date,
+    source_period_start: row.source_period_start,
+    source_period_end: row.source_period_end,
+  }))
 }
