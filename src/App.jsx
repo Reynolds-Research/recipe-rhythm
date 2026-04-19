@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Pencil, Loader2, LogOut } from 'lucide-react'
+import { BookOpen, Pencil, Loader2, LogOut, CalendarDays } from 'lucide-react'
 import ChefKnife from './components/ChefKnife'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
 import Vault from './pages/Vault'
+import CalendarView from './components/CalendarView'
 
 export default function App() {
   const [session, setSession]         = useState(null)
@@ -67,6 +68,9 @@ export default function App() {
         {page === 'brainstorm' && (
           <BrainstormMode userId={userId} />
         )}
+        {page === 'calendar' && (
+          <CalendarView userId={userId} />
+        )}
         {page === 'vault' && (
           <Vault userId={userId} />
         )}
@@ -75,6 +79,7 @@ export default function App() {
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },
           { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },
+          { id: 'calendar',   label: 'Calendar',    Icon: CalendarDays  },
           { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
         ].map(({ id, label, Icon }) => (
           <button
