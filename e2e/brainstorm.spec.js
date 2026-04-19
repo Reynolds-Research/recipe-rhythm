@@ -11,10 +11,38 @@ test.describe('Brainstorm E2E', () => {
     });
 
     await page.route('**/rest/v1/meals*', async route => {
-      await route.fulfill({ 
+      await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify([]) 
+        body: JSON.stringify([])
+      });
+    });
+
+    // ADR-001 Phase 2+ added reads against meal_plans / meal_plan_items, and
+    // Phase 5 added a fetchCurrentLeftovers call. Without these mocks the
+    // BrainstormMode page hangs on its initial data load against the dummy
+    // Supabase URL and never exits the "Building your plan…" state.
+    await page.route('**/rest/v1/meal_plans*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    });
+
+    await page.route('**/rest/v1/meal_plan_items*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([])
+      });
+    });
+
+    await page.route('**/rest/v1/current_leftovers*', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([])
       });
     });
 
