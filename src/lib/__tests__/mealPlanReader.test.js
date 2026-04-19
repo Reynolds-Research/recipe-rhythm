@@ -70,13 +70,13 @@ describe('fetchMostRecentPlan', () => {
     expect(supabase.calls.meal_plan_items).toBeNull()
   })
 
-  it('prefers the new schema: maps meal_plan_items to the UI shape', async () => {
+  it('prefers the new schema: items carry scheduled_date directly', async () => {
     const itemsResult = [
-      { scheduled_date: '2026-04-12', position: 0, vault_id: 'v1', name: 'Pancakes', is_wildcard: false, source_url: null },
-      { scheduled_date: '2026-04-13', position: 0, vault_id: 'v2', name: 'Tacos',    is_wildcard: false, source_url: null },
-      { scheduled_date: '2026-04-14', position: 0, vault_id: 'v3', name: 'Ramen',    is_wildcard: false, source_url: null },
-      { scheduled_date: '2026-04-15', position: 0, vault_id: null, name: 'Curry',    is_wildcard: true,  source_url: 'https://example.com/curry' },
-      { scheduled_date: '2026-04-16', position: 0, vault_id: 'v5', name: 'Pizza',    is_wildcard: false, source_url: null },
+      { id: 'mpi-1', scheduled_date: '2026-04-12', position: 0, vault_id: 'v1', name: 'Pancakes', is_wildcard: false, source_url: null, cooked: false, cooked_at: null },
+      { id: 'mpi-2', scheduled_date: '2026-04-13', position: 0, vault_id: 'v2', name: 'Tacos',    is_wildcard: false, source_url: null, cooked: false, cooked_at: null },
+      { id: 'mpi-3', scheduled_date: '2026-04-14', position: 0, vault_id: 'v3', name: 'Ramen',    is_wildcard: false, source_url: null, cooked: false, cooked_at: null },
+      { id: 'mpi-4', scheduled_date: '2026-04-15', position: 0, vault_id: null, name: 'Curry',    is_wildcard: true,  source_url: 'https://example.com/curry', cooked: false, cooked_at: null },
+      { id: 'mpi-5', scheduled_date: '2026-04-16', position: 0, vault_id: 'v5', name: 'Pizza',    is_wildcard: false, source_url: null, cooked: false, cooked_at: null },
     ]
     const supabase = makeSupabase({ planResult: PLAN_ROW, itemsResult })
     const { plan } = await fetchMostRecentPlan(supabase, 'user-1')
@@ -85,22 +85,30 @@ describe('fetchMostRecentPlan', () => {
     expect(plan.id).toBe('plan-1')
     expect(plan.period_start).toBe('2026-04-12')
     expect(plan.items).toHaveLength(5)
-    expect(plan.items.map(i => i.day)).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu'])
+    expect(plan.items.map(i => i.scheduled_date)).toEqual([
+      '2026-04-12', '2026-04-13', '2026-04-14', '2026-04-15', '2026-04-16',
+    ])
     expect(plan.items.map(i => i.name)).toEqual(['Pancakes', 'Tacos', 'Ramen', 'Curry', 'Pizza'])
     expect(plan.items.map(i => i.id)).toEqual(['v1', 'v2', 'v3', null, 'v5'])
     expect(plan.items[3]).toMatchObject({
       is_wildcard: true,
       source_url: 'https://example.com/curry',
     })
-    expect(plan.days).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu'])
+    // No legacy `day` weekday field on items.
+    expect(plan.items[0]).not.toHaveProperty('day')
+    expect(plan.scheduledDates).toEqual([
+      '2026-04-12', '2026-04-13', '2026-04-14', '2026-04-15', '2026-04-16',
+    ])
   })
 
-  it('falls back to legacy jsonb when meal_plan_items is empty', async () => {
+  it('legacy fallback: derives scheduled_date from weekday + served_at', async () => {
+    // PLAN_ROW.served_at = '2026-04-12T10:00:00Z' which is a Sunday in local time.
+    // Sun→Sun = 2026-04-12; Mon→Mon = 2026-04-13; Tue→Tue = 2026-04-14.
     const legacyPlan = {
       ...PLAN_ROW,
       items: [
-        { day: 'Sun', name: 'Old Roast',   vault_id: 'v-old-1', is_wildcard: false, source_url: null },
-        { day: 'Mon', name: 'Old Tacos',   vault_id: 'v-old-2', is_wildcard: false, source_url: null },
+        { day: 'Sun', name: 'Old Roast',    vault_id: 'v-old-1', is_wildcard: false, source_url: null },
+        { day: 'Mon', name: 'Old Tacos',    vault_id: 'v-old-2', is_wildcard: false, source_url: null },
         { day: 'Tue', name: 'Old Wildcard', vault_id: null,      is_wildcard: true,  source_url: 'https://example.com/wild' },
       ],
     }
@@ -109,16 +117,54 @@ describe('fetchMostRecentPlan', () => {
 
     expect(plan.source).toBe('legacy')
     expect(plan.items).toHaveLength(3)
-    expect(plan.items[0]).toEqual({
-      day: 'Sun', name: 'Old Roast', id: 'v-old-1', is_wildcard: false, source_url: null,
-      item_id: null, scheduled_date: null, cooked: false, cooked_at: null,
+    // scheduled_date is derived for each legacy weekday.
+    expect(plan.items.map(i => i.scheduled_date)).toEqual([
+      '2026-04-12', '2026-04-13', '2026-04-14',
+    ])
+    expect(plan.items[0]).toMatchObject({
+      scheduled_date: '2026-04-12',
+      name: 'Old Roast',
+      id: 'v-old-1',
+      item_id: null,
+      cooked: false,
     })
-    expect(plan.items[2]).toEqual({
-      day: 'Tue', name: 'Old Wildcard', id: null, is_wildcard: true, source_url: 'https://example.com/wild',
-      item_id: null, scheduled_date: null, cooked: false, cooked_at: null,
+    expect(plan.items[2]).toMatchObject({
+      scheduled_date: '2026-04-14',
+      is_wildcard: true,
+      source_url: 'https://example.com/wild',
     })
-    // Uses the plan's stored days array when present.
-    expect(plan.days).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu'])
+    expect(plan.scheduledDates).toEqual(['2026-04-12', '2026-04-13', '2026-04-14'])
+  })
+
+  it('legacy fallback: drops items with malformed weekday rather than emit invalid dates', async () => {
+    const legacyPlan = {
+      ...PLAN_ROW,
+      items: [
+        { day: 'Sun', name: 'Valid',   vault_id: 'v1', is_wildcard: false, source_url: null },
+        { day: 'Xyz', name: 'Bad',     vault_id: 'v2', is_wildcard: false, source_url: null },
+        { day: null,  name: 'AlsoBad', vault_id: 'v3', is_wildcard: false, source_url: null },
+      ],
+    }
+    const supabase = makeSupabase({ planResult: legacyPlan, itemsResult: [] })
+    const { plan } = await fetchMostRecentPlan(supabase, 'user-1')
+
+    expect(plan.items).toHaveLength(1)
+    expect(plan.items[0].name).toBe('Valid')
+  })
+
+  it('legacy fallback: drops everything when served_at is missing', async () => {
+    const legacyPlan = {
+      ...PLAN_ROW,
+      served_at: null,
+      items: [
+        { day: 'Sun', name: 'Old Roast', vault_id: 'v-old-1', is_wildcard: false, source_url: null },
+      ],
+    }
+    const supabase = makeSupabase({ planResult: legacyPlan, itemsResult: [] })
+    const { plan } = await fetchMostRecentPlan(supabase, 'user-1')
+    expect(plan.source).toBe('legacy')
+    expect(plan.items).toEqual([])
+    expect(plan.scheduledDates).toEqual([])
   })
 
   it('prefers new schema over legacy when both are present', async () => {
@@ -137,8 +183,14 @@ describe('fetchMostRecentPlan', () => {
     expect(plan.source).toBe('new')
     expect(plan.items).toEqual([
       {
-        day: 'Sun', name: 'New Pancakes', id: 'new-1', is_wildcard: false, source_url: null,
-        item_id: 'mpi-1', scheduled_date: '2026-04-12', cooked: false, cooked_at: null,
+        scheduled_date: '2026-04-12',
+        name: 'New Pancakes',
+        id: 'new-1',
+        is_wildcard: false,
+        source_url: null,
+        item_id: 'mpi-1',
+        cooked: false,
+        cooked_at: null,
       },
     ])
   })
@@ -159,7 +211,7 @@ describe('fetchMostRecentPlan', () => {
     })
   })
 
-  it('returns empty items when neither source has any rows', async () => {
+  it('returns empty items + empty scheduledDates when neither source has any rows', async () => {
     const emptyPlan = { ...PLAN_ROW, items: [] }
     const supabase = makeSupabase({ planResult: emptyPlan, itemsResult: [] })
     const { plan } = await fetchMostRecentPlan(supabase, 'user-1')
@@ -167,23 +219,9 @@ describe('fetchMostRecentPlan', () => {
     expect(plan).toMatchObject({
       id: 'plan-1',
       items: [],
-      days: [],
+      scheduledDates: [],
       source: 'new',
     })
-  })
-
-  it('derives weekdays in UTC so scheduled_date does not drift by timezone', async () => {
-    // 2026-04-20 is a Monday in UTC. Even on a machine set to UTC-12 the
-    // legacy `new Date('2026-04-20')` would parse to Sunday local time,
-    // so this asserts the UTC parsing path is used.
-    const itemsResult = [
-      { scheduled_date: '2026-04-20', position: 0, vault_id: 'v1', name: 'Mon Meal', is_wildcard: false, source_url: null },
-    ]
-    const supabase = makeSupabase({ planResult: PLAN_ROW, itemsResult })
-    const { plan } = await fetchMostRecentPlan(supabase, 'user-1')
-
-    expect(plan.items[0].day).toBe('Mon')
-    expect(plan.days).toEqual(['Mon'])
   })
 
   it('throws when the meal_plans fetch returns an error', async () => {

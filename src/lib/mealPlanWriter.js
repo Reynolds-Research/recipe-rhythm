@@ -4,19 +4,8 @@
 // deprecated meal_plans.{week_label, days, items} columns. Those columns
 // will be dropped in ADR-001 Phase 7 after a 1–2 week stability window.
 
-const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-// Format a Date as 'YYYY-MM-DD' using local-calendar components. We explicitly
-// avoid toISOString() because it converts to UTC and can flip the date for
-// users east/west of Greenwich — "next Monday" is a local-calendar concept.
-function formatLocalDate(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
 
 // Only real UUIDs are valid meal_plan_items.vault_id values (FK → vault.id).
 // AI-suggestion slots carry synthetic ids like 'ai-suggestion-0' which must
@@ -39,94 +28,34 @@ function isPeriodOverlap(err) {
 }
 
 /**
- * Pure helper: from a list of weekday strings like ['Sun','Mon','Tue','Wed','Thu']
- * and a reference "today", compute the concrete calendar dates for this upcoming
- * planning period.
- *
- * Uses LOCAL-time date math (not UTC) because "next Monday" is a local-calendar
- * concept for the user. Dates are formatted as 'YYYY-MM-DD' strings suitable for
- * Postgres DATE columns.
- *
- * Rules:
- *  - The first weekday in `planDays` resolves to the NEXT occurrence of that
- *    weekday strictly after `now` (matches the previous `buildWeekLabel` rule
- *    in BrainstormMode.jsx — if today is Sun and planDays[0] is 'Sun', pick the
- *    Sun a week from now, not today).
- *  - Remaining weekdays resolve to strictly-increasing dates relative to the first,
- *    assuming `planDays` is sorted in canonical Sun→Sat order (as the rest of the
- *    app emits them).
- *
- * @param {string[]} planDays - weekday abbreviations; each must be one of
- *                              'Sun'|'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'.
- * @param {Date} now - the "today" reference (inject for deterministic tests).
- * @returns {{
- *   period_start: string,
- *   period_end:   string,
- *   dateByDay:    Record<string,string>
- * }}
- * @throws {Error} if planDays is empty or contains an invalid weekday.
- */
-export function derivePlanDates(planDays, now) {
-  if (!Array.isArray(planDays) || planDays.length === 0) {
-    throw new Error('derivePlanDates: planDays must be a non-empty array')
-  }
-  for (const day of planDays) {
-    if (!Object.prototype.hasOwnProperty.call(WEEKDAY_INDEX, day)) {
-      throw new Error(`derivePlanDates: invalid weekday "${day}"`)
-    }
-  }
-
-  const firstDayIdx = WEEKDAY_INDEX[planDays[0]]
-  const nowIdx = now.getDay()
-  // Strictly-after rule: `|| 7` turns "today matches planDays[0]" into "+7".
-  const daysUntilFirst = ((firstDayIdx - nowIdx + 7) % 7) || 7
-
-  // Construct dates with local-calendar ctor; never go through toISOString.
-  const firstDate = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + daysUntilFirst,
-  )
-
-  const dateByDay = {}
-  for (const day of planDays) {
-    const offset = (WEEKDAY_INDEX[day] - firstDayIdx + 7) % 7
-    const d = new Date(
-      firstDate.getFullYear(),
-      firstDate.getMonth(),
-      firstDate.getDate() + offset,
-    )
-    dateByDay[day] = formatLocalDate(d)
-  }
-
-  return {
-    period_start: formatLocalDate(firstDate),
-    period_end: dateByDay[planDays[planDays.length - 1]],
-    dateByDay,
-  }
-}
-
-/**
- * Creates a new served meal plan with its scheduled items.
+ * Creates a new served meal plan from an explicit list of scheduled items.
  *
  * Writes to the new normalized schema only:
  *   - INSERT into meal_plans with { user_id, period_start, period_end }
+ *     where period_start = min(item.scheduled_date) and period_end = max(...).
  *     (id, served_at, created_at use DB defaults; finalized_at stays NULL)
- *   - INSERT into meal_plan_items, one row per plan slot
+ *   - INSERT into meal_plan_items, one row per item
+ *
+ * Gaps between scheduled dates inside [period_start, period_end] are normal —
+ * not every date in the range needs an item. The EXCLUDE constraint on
+ * meal_plans enforces non-overlap at the DB level.
  *
  * Does NOT write to the deprecated columns (week_label, days, items).
  *
  * Atomicity trade-off: this is two inserts, not one transaction. If the
  * items insert fails we compensate by deleting the meal_plans row. An RPC /
  * Postgres function that wraps both writes in a single transaction would be
- * cleaner — tracked as a future improvement, explicitly out of scope for
- * Phase 3.
+ * cleaner — tracked as a future improvement, explicitly out of scope.
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
- * @param {Array<{day:string, name:string, id:string|null, is_wildcard:boolean, source_url:string|null}>} plan
- * @param {string[]} planDays
- * @param {Date} [now]
+ * @param {Array<{
+ *   scheduled_date: string,   // 'YYYY-MM-DD'
+ *   name: string,
+ *   id: string | null,        // vault_id (null for wildcards / missing)
+ *   is_wildcard: boolean,
+ *   source_url: string | null,
+ * }>} items
  * @returns {Promise<{ id: string, served_at: string, period_start: string, period_end: string }>}
  * @throws {Error} with `.code` set to one of:
  *   - 'period_overlap'       — EXCLUDE constraint rejected the period (PG 23P01)
@@ -134,14 +63,22 @@ export function derivePlanDates(planDays, now) {
  *   - 'items_insert_failed'  — meal_plan_items insert failed (cleanup ran)
  *   The original supabase error object is attached as `.cause`.
  */
-export async function createServedPlan(
-  supabase,
-  userId,
-  plan,
-  planDays,
-  now = new Date(),
-) {
-  const { period_start, period_end, dateByDay } = derivePlanDates(planDays, now)
+export async function createServedPlan(supabase, userId, items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error('createServedPlan: items must be a non-empty array')
+  }
+
+  // period_start / period_end are derived from min/max of scheduled_date.
+  // Lexical comparison is correct on zero-padded 'YYYY-MM-DD' strings.
+  let period_start = items[0].scheduled_date
+  let period_end = items[0].scheduled_date
+  for (const item of items) {
+    if (!item.scheduled_date) {
+      throw new Error('createServedPlan: every item must have a scheduled_date')
+    }
+    if (item.scheduled_date < period_start) period_start = item.scheduled_date
+    if (item.scheduled_date > period_end) period_end = item.scheduled_date
+  }
 
   const { data: planRow, error: planError } = await supabase
     .from('meal_plans')
@@ -161,15 +98,15 @@ export async function createServedPlan(
     throw err
   }
 
-  const itemRows = plan.map((slot) => ({
+  const itemRows = items.map((item) => ({
     user_id: userId,
     meal_plan_id: planRow.id,
-    scheduled_date: dateByDay[slot.day],
+    scheduled_date: item.scheduled_date,
     position: 0,
-    vault_id: toVaultId(slot.id),
-    name: slot.name,
-    is_wildcard: !!slot.is_wildcard,
-    source_url: slot.source_url ?? null,
+    vault_id: toVaultId(item.id),
+    name: item.name,
+    is_wildcard: !!item.is_wildcard,
+    source_url: item.source_url ?? null,
   }))
 
   const { error: itemsError } = await supabase

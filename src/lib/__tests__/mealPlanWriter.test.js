@@ -1,103 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
-  derivePlanDates,
   createServedPlan,
   setItemCooked,
   finalizePlan,
   checkPeriodOverlap,
   startNewPeriod,
 } from '../mealPlanWriter'
-
-// ---------------------------------------------------------------------------
-// derivePlanDates
-// ---------------------------------------------------------------------------
-
-describe('derivePlanDates', () => {
-  it('maps a Sun–Thu plan to real dates when today is Saturday', () => {
-    // new Date(year, monthIndex, day) is LOCAL-time; 2026-04-18 is a Saturday.
-    const now = new Date(2026, 3, 18)
-    const result = derivePlanDates(
-      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'],
-      now,
-    )
-
-    expect(result.period_start).toBe('2026-04-19')
-    expect(result.period_end).toBe('2026-04-23')
-    expect(result.dateByDay).toEqual({
-      Sun: '2026-04-19',
-      Mon: '2026-04-20',
-      Tue: '2026-04-21',
-      Wed: '2026-04-22',
-      Thu: '2026-04-23',
-    })
-  })
-
-  it('skips to next week when today matches planDays[0]', () => {
-    // 2026-04-19 is a Sunday — the strictly-after rule must pick the NEXT Sun.
-    const now = new Date(2026, 3, 19)
-    const result = derivePlanDates(
-      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'],
-      now,
-    )
-
-    expect(result.period_start).toBe('2026-04-26')
-    expect(result.period_end).toBe('2026-04-30')
-    expect(result.dateByDay.Sun).toBe('2026-04-26')
-  })
-
-  it('handles a plan that starts mid-week (Mon–Fri)', () => {
-    // 2026-04-18 is Saturday; next Monday is 2026-04-20.
-    const now = new Date(2026, 3, 18)
-    const result = derivePlanDates(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], now)
-
-    expect(result.period_start).toBe('2026-04-20')
-    expect(result.period_end).toBe('2026-04-24')
-    expect(result.dateByDay).toEqual({
-      Mon: '2026-04-20',
-      Tue: '2026-04-21',
-      Wed: '2026-04-22',
-      Thu: '2026-04-23',
-      Fri: '2026-04-24',
-    })
-  })
-
-  it('is timezone-stable: formatted output does not depend on UTC conversion', () => {
-    // Construct `now` with local-time components. If the implementation
-    // accidentally called toISOString() on firstDate, the date would flip
-    // in time zones east of UTC+12 (e.g. Kiribati UTC+14) where local
-    // midnight is 10am the PREVIOUS day in UTC. Here we assert that the
-    // output is derived purely from getFullYear/Month/Date of a date
-    // constructed from local components — a property we can verify without
-    // forking the process TZ.
-    const now = new Date(2026, 3, 18, 23, 59, 59) // late-evening Sat local
-    const result = derivePlanDates(
-      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'],
-      now,
-    )
-
-    // If the implementation used toISOString() on a local-midnight Date in a
-    // positive-offset timezone, period_start would come out as '2026-04-18'
-    // instead of '2026-04-19'. The assertion below will fail in that case.
-    expect(result.period_start).toBe('2026-04-19')
-    expect(result.period_end).toBe('2026-04-23')
-    // Spot-check: a 'YYYY-MM-DD' shape, no 'T' separator from ISO.
-    for (const d of Object.values(result.dateByDay)) {
-      expect(d).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    }
-  })
-
-  it('throws on an empty planDays array', () => {
-    expect(() => derivePlanDates([], new Date(2026, 3, 18))).toThrow(
-      /non-empty/i,
-    )
-  })
-
-  it('throws on an unknown weekday abbreviation', () => {
-    expect(() =>
-      derivePlanDates(['Sun', 'Xyz'], new Date(2026, 3, 18)),
-    ).toThrow(/invalid weekday/i)
-  })
-})
 
 // ---------------------------------------------------------------------------
 // createServedPlan
@@ -195,18 +103,16 @@ const UUID_C = '33333333-3333-4333-8333-333333333333'
 const UUID_D = '44444444-4444-4444-8444-444444444444'
 const UUID_E = '55555555-5555-4555-8555-555555555555'
 
-const FIVE_DAY_PLAN = [
-  { day: 'Sun', name: 'Roast',    id: UUID_A, is_wildcard: false, source_url: null },
-  { day: 'Mon', name: 'Tacos',    id: UUID_B, is_wildcard: false, source_url: null },
-  { day: 'Tue', name: 'Ramen',    id: UUID_C, is_wildcard: false, source_url: null },
-  { day: 'Wed', name: 'Curry',    id: UUID_D, is_wildcard: false, source_url: null },
-  { day: 'Thu', name: 'Pizza',    id: UUID_E, is_wildcard: false, source_url: null },
+const FIVE_ITEMS = [
+  { scheduled_date: '2026-04-19', name: 'Roast', id: UUID_A, is_wildcard: false, source_url: null },
+  { scheduled_date: '2026-04-20', name: 'Tacos', id: UUID_B, is_wildcard: false, source_url: null },
+  { scheduled_date: '2026-04-21', name: 'Ramen', id: UUID_C, is_wildcard: false, source_url: null },
+  { scheduled_date: '2026-04-22', name: 'Curry', id: UUID_D, is_wildcard: false, source_url: null },
+  { scheduled_date: '2026-04-23', name: 'Pizza', id: UUID_E, is_wildcard: false, source_url: null },
 ]
 
-const PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
-
 describe('createServedPlan', () => {
-  it('inserts meal_plans with only the new-schema fields, then meal_plan_items', async () => {
+  it('derives period_start/period_end from min/max scheduled_date and inserts both writes', async () => {
     const supabase = makeSupabase({
       'meal_plans.insert.single': {
         data: {
@@ -219,15 +125,8 @@ describe('createServedPlan', () => {
       },
     })
 
-    const result = await createServedPlan(
-      supabase,
-      'user-1',
-      FIVE_DAY_PLAN,
-      PLAN_DAYS,
-      new Date(2026, 3, 18), // Sat
-    )
+    const result = await createServedPlan(supabase, 'user-1', FIVE_ITEMS)
 
-    // Exactly two writes, in order: meal_plans then meal_plan_items.
     expect(supabase.calls).toHaveLength(2)
     const [plansCall, itemsCall] = supabase.calls
 
@@ -265,20 +164,6 @@ describe('createServedPlan', () => {
       '2026-04-22',
       '2026-04-23',
     ])
-    expect(itemsCall.payload.map((r) => r.name)).toEqual([
-      'Roast',
-      'Tacos',
-      'Ramen',
-      'Curry',
-      'Pizza',
-    ])
-    expect(itemsCall.payload.map((r) => r.vault_id)).toEqual([
-      UUID_A,
-      UUID_B,
-      UUID_C,
-      UUID_D,
-      UUID_E,
-    ])
 
     expect(result).toEqual({
       id: 'plan-new',
@@ -286,6 +171,44 @@ describe('createServedPlan', () => {
       period_start: '2026-04-19',
       period_end: '2026-04-23',
     })
+  })
+
+  it('handles a non-contiguous date list (gaps in the middle)', async () => {
+    const supabase = makeSupabase({
+      'meal_plans.insert.single': {
+        data: {
+          id: 'plan-gap',
+          served_at: '2026-04-19T12:00:00Z',
+          period_start: '2026-04-19',
+          period_end: '2026-04-25',
+        },
+        error: null,
+      },
+    })
+
+    const items = [
+      { scheduled_date: '2026-04-19', name: 'A', id: UUID_A, is_wildcard: false, source_url: null },
+      { scheduled_date: '2026-04-22', name: 'B', id: UUID_B, is_wildcard: false, source_url: null },
+      { scheduled_date: '2026-04-25', name: 'C', id: UUID_C, is_wildcard: false, source_url: null },
+    ]
+
+    await createServedPlan(supabase, 'user-1', items)
+
+    const [plansCall, itemsCall] = supabase.calls
+    expect(plansCall.payload).toEqual({
+      user_id: 'user-1',
+      period_start: '2026-04-19',
+      period_end: '2026-04-25',
+    })
+    expect(itemsCall.payload).toHaveLength(3)
+  })
+
+  it('throws when items is empty (UI guard)', async () => {
+    const supabase = makeSupabase()
+    await expect(createServedPlan(supabase, 'user-1', [])).rejects.toThrow(
+      /non-empty/i,
+    )
+    expect(supabase.calls).toHaveLength(0)
   })
 
   it('wraps the EXCLUDE constraint violation with code=period_overlap', async () => {
@@ -300,13 +223,7 @@ describe('createServedPlan', () => {
 
     let thrown
     try {
-      await createServedPlan(
-        supabase,
-        'user-1',
-        FIVE_DAY_PLAN,
-        PLAN_DAYS,
-        new Date(2026, 3, 18),
-      )
+      await createServedPlan(supabase, 'user-1', FIVE_ITEMS)
     } catch (err) {
       thrown = err
     }
@@ -314,7 +231,6 @@ describe('createServedPlan', () => {
     expect(thrown).toBeDefined()
     expect(thrown.code).toBe('period_overlap')
     expect(thrown.cause).toBe(pgError)
-    // We should NOT have attempted the items insert after the overlap failure.
     expect(supabase.calls).toHaveLength(1)
     expect(supabase.calls[0].table).toBe('meal_plans')
   })
@@ -330,13 +246,7 @@ describe('createServedPlan', () => {
     })
 
     await expect(
-      createServedPlan(
-        supabase,
-        'user-1',
-        FIVE_DAY_PLAN,
-        PLAN_DAYS,
-        new Date(2026, 3, 18),
-      ),
+      createServedPlan(supabase, 'user-1', FIVE_ITEMS),
     ).rejects.toMatchObject({ code: 'period_overlap' })
   })
 
@@ -349,13 +259,7 @@ describe('createServedPlan', () => {
     })
 
     await expect(
-      createServedPlan(
-        supabase,
-        'user-1',
-        FIVE_DAY_PLAN,
-        PLAN_DAYS,
-        new Date(2026, 3, 18),
-      ),
+      createServedPlan(supabase, 'user-1', FIVE_ITEMS),
     ).rejects.toMatchObject({ code: 'plan_insert_failed' })
   })
 
@@ -379,13 +283,7 @@ describe('createServedPlan', () => {
 
     let thrown
     try {
-      await createServedPlan(
-        supabase,
-        'user-1',
-        FIVE_DAY_PLAN,
-        PLAN_DAYS,
-        new Date(2026, 3, 18),
-      )
+      await createServedPlan(supabase, 'user-1', FIVE_ITEMS)
     } catch (err) {
       thrown = err
     }
@@ -393,7 +291,6 @@ describe('createServedPlan', () => {
     expect(thrown).toBeDefined()
     expect(thrown.code).toBe('items_insert_failed')
 
-    // Three calls in order: insert meal_plans, insert meal_plan_items, delete meal_plans.
     expect(supabase.calls).toHaveLength(3)
     const [, , deleteCall] = supabase.calls
     expect(deleteCall.table).toBe('meal_plans')
@@ -401,11 +298,11 @@ describe('createServedPlan', () => {
     expect(deleteCall.filter).toEqual({ id: 'plan-orphan' })
   })
 
-  it('maps a wildcard slot with null id to vault_id=null / is_wildcard=true', async () => {
+  it('maps a wildcard item with null id to vault_id=null / is_wildcard=true', async () => {
     const supabase = makeSupabase()
-    const planWithWildcard = [
+    const items = [
       {
-        day: 'Sun',
+        scheduled_date: '2026-04-19',
         name: 'Mystery Soup',
         id: null,
         is_wildcard: true,
@@ -413,13 +310,7 @@ describe('createServedPlan', () => {
       },
     ]
 
-    await createServedPlan(
-      supabase,
-      'user-1',
-      planWithWildcard,
-      ['Sun'],
-      new Date(2026, 3, 18),
-    )
+    await createServedPlan(supabase, 'user-1', items)
 
     const itemsCall = supabase.calls.find((c) => c.table === 'meal_plan_items')
     expect(itemsCall).toBeDefined()
@@ -434,9 +325,9 @@ describe('createServedPlan', () => {
 
   it('nulls out non-UUID ids (e.g. synthetic AI-suggestion ids)', async () => {
     const supabase = makeSupabase()
-    const plan = [
+    const items = [
       {
-        day: 'Sun',
+        scheduled_date: '2026-04-19',
         name: 'AI Curry',
         id: 'ai-suggestion-0',
         is_wildcard: true,
@@ -444,13 +335,7 @@ describe('createServedPlan', () => {
       },
     ]
 
-    await createServedPlan(
-      supabase,
-      'user-1',
-      plan,
-      ['Sun'],
-      new Date(2026, 3, 18),
-    )
+    await createServedPlan(supabase, 'user-1', items)
 
     const itemsCall = supabase.calls.find((c) => c.table === 'meal_plan_items')
     expect(itemsCall.payload[0].vault_id).toBeNull()
