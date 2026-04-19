@@ -183,10 +183,11 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
       <div className="relative px-5 py-4 border-t border-gray-100 space-y-3">
 
         {/* Feedback Link */}
-        <a 
-          href="mailto:mreynolds08@gmail.com?subject=Recipe%20Rhythm%20Feedback" 
+        <a
+          href="mailto:mreynolds08@gmail.com?subject=Recipe%20Rhythm%20Feedback"
           className="absolute top-8 left-5 text-gray-300 hover:text-gray-500 transition-colors p-2 -ml-2"
           title="Submit feedback or report a bug"
+          aria-label="Submit feedback or report a bug"
         >
           <MessageSquare size={18} />
         </a>
@@ -200,6 +201,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
             )}
             <button
               onClick={toggleListening}
+              aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
               className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-lg
                 ${isListening
                   ? 'bg-brand-500 scale-110 shadow-brand-200'
