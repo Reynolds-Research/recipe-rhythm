@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
 import { fetchMostRecentPlan } from '../lib/mealPlanReader'
+import { createServedPlan } from '../lib/mealPlanWriter'
 import {
   DndContext,
   closestCenter,
@@ -95,25 +96,6 @@ function SortableMealItem({ slot, onSwap, isServed }) {
       </button>
     </div>
   )
-}
-
-/**
- * Builds a human-readable week label like "Apr 13 – 17, 2026"
- * from the plan's day abbreviations relative to the upcoming week.
- */
-function buildWeekLabel(days) {
-  const dayIndexMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-  const now = new Date()
-  const currentDow = now.getDay()
-  const firstDayOffset = dayIndexMap[days[0]]
-  const daysUntilFirst = (firstDayOffset - currentDow + 7) % 7 || 7
-  const firstDate = new Date(now)
-  firstDate.setDate(now.getDate() + daysUntilFirst)
-  const lastDate = new Date(firstDate)
-  lastDate.setDate(firstDate.getDate() + days.length - 1)
-  const fmtShort = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const fmtFull  = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  return `${fmtShort(firstDate)} – ${fmtFull(lastDate)}`
 }
 
 /**
@@ -388,30 +370,23 @@ export default function BrainstormMode({ userId }) {
     setServing(true)
     setServeError(null)
 
-    const items = plan.map(slot => ({
-      day:        slot.day,
-      name:       slot.name,
-      vault_id:   slot.id || null,
-      is_wildcard: slot.is_wildcard || false,
-      source_url: slot.source_url || null,
-    }))
-
-    const { data, error } = await supabase
-      .from('meal_plans')
-      .insert({ user_id: userId, week_label: buildWeekLabel(planDays), days: planDays, items })
-      .select('id, served_at')
-      .single()
-
-    if (error) {
-      setServeError('Could not save plan. Try again.')
+    // ADR-001 Phase 3: writes to the new normalized schema only
+    // (meal_plans.{period_start, period_end} + meal_plan_items rows).
+    // No longer touches the deprecated week_label / days / items columns.
+    try {
+      const { served_at } = await createServedPlan(supabase, userId, plan, planDays)
+      setServedAt(served_at)
+      setIsServed(true)
+      localStorage.removeItem('brainstorm_plan')
+    } catch (err) {
+      if (err?.code === 'period_overlap') {
+        setServeError('This week overlaps with a plan you already served. Pick different days or wait.')
+      } else {
+        setServeError('Could not save plan. Try again.')
+      }
+    } finally {
       setServing(false)
-      return
     }
-
-    setServedAt(data.served_at)
-    setIsServed(true)
-    setServing(false)
-    localStorage.removeItem('brainstorm_plan')
   }
 
   // Share the plan using the native mobile share sheet
