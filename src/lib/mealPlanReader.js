@@ -8,6 +8,16 @@ function weekdayFromScheduledDate(scheduledDate) {
   return WEEKDAY_ABBR[dow]
 }
 
+// Format a Date as 'YYYY-MM-DD' using local-calendar components (mirrors
+// the writer's formatLocalDate). Lets us compare against the DATE strings
+// stored in period_start / period_end without timezone drift (AUDIT U8).
+function formatLocalYmd(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 function dedupePreserveOrder(days) {
   const seen = new Set()
   const out = []
@@ -61,7 +71,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
 
   const { data: newItemRows, error: itemsError } = await supabase
     .from('meal_plan_items')
-    .select('scheduled_date, position, vault_id, name, is_wildcard, source_url')
+    .select('id, scheduled_date, position, vault_id, name, is_wildcard, source_url, cooked, cooked_at')
     .eq('meal_plan_id', plan.id)
     .order('scheduled_date', { ascending: true })
     .order('position', { ascending: true })
@@ -83,6 +93,10 @@ export async function fetchMostRecentPlan(supabase, userId) {
       id: row.vault_id ?? null,
       is_wildcard: !!row.is_wildcard,
       source_url: row.source_url ?? null,
+      item_id: row.id,
+      scheduled_date: row.scheduled_date,
+      cooked: !!row.cooked,
+      cooked_at: row.cooked_at ?? null,
     }))
     return {
       plan: {
@@ -108,6 +122,12 @@ export async function fetchMostRecentPlan(supabase, userId) {
       id: item.vault_id ?? null,
       is_wildcard: !!item.is_wildcard,
       source_url: item.source_url ?? null,
+      // Legacy items have no normalized row, so cooked-toggle / per-item review
+      // can't target them — surfaced as null so PeriodReview can disable the box.
+      item_id: null,
+      scheduled_date: null,
+      cooked: false,
+      cooked_at: null,
     }))
     const days = Array.isArray(plan.days) && plan.days.length > 0
       ? plan.days
@@ -130,4 +150,35 @@ export async function fetchMostRecentPlan(supabase, userId) {
       source: 'new',
     },
   }
+}
+
+/**
+ * Classifies a plan (as returned by fetchMostRecentPlan) into one of the
+ * lifecycle states the Brainstorm UI routes on.
+ *
+ * Compares dates as 'YYYY-MM-DD' strings (lexical comparison is correct on
+ * zero-padded dates) so we never construct a Date from `period_end` — this
+ * sidesteps the toISOString / UTC-shift class of bugs called out as AUDIT U8.
+ *
+ * @param {object|null} plan - the shape returned by fetchMostRecentPlan
+ * @param {Date} [now]       - injectable "today" for tests; defaults to new Date()
+ * @returns {'no_plan' | 'active' | 'ended_unfinalized' | 'finalized'}
+ *
+ *   'no_plan'            — plan is null
+ *   'active'             — today is BETWEEN period_start AND period_end (inclusive)
+ *                          A future-dated plan (period_start > today) also classifies
+ *                          as 'active' — harmless, the user just hasn't reached day 1.
+ *                          Plans missing period_end (legacy rows) also classify here
+ *                          as a safe default until they get finalized.
+ *   'ended_unfinalized'  — today > period_end AND finalized_at IS NULL
+ *   'finalized'          — finalized_at IS NOT NULL (regardless of dates)
+ */
+export function classifyPlanState(plan, now = new Date()) {
+  if (!plan) return 'no_plan'
+  if (plan.finalized_at) return 'finalized'
+  if (!plan.period_end) return 'active'
+
+  const todayYmd = formatLocalYmd(now)
+  if (todayYmd > plan.period_end) return 'ended_unfinalized'
+  return 'active'
 }
