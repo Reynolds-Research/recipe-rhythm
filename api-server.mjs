@@ -1,22 +1,18 @@
 /**
- * Recipe Rhythm — server-side Anthropic proxy.
+ * Recipe Rhythm — server-side Anthropic proxy (LOCAL DEV ONLY).
  *
  * Exists so the Anthropic API key never reaches the browser. The client
  * posts to /api/* and this process forwards to Anthropic.
  *
- * TODO(deploy): this is a standalone Node process. Production options:
- *   - Render / Fly.io / Railway — run `node api-server.mjs` as a service.
- *   - Vercel / Netlify / Cloudflare functions — port each route to a
- *     serverless function; the shape of the handlers here is deliberately
- *     thin so that conversion is mostly copy/paste.
- *   Either way, set ANTHROPIC_API_KEY as a server-only env var (no VITE_
- *   prefix) and tighten the CORS origin (see `corsOrigin` below) to the
- *   production client origin.
+ * Production (Vercel) uses the serverless functions under `api/` instead.
+ * If you change a prompt, model, or response shape here, update the
+ * matching file in `api/` too.
  *
  * TODO(security): these endpoints are currently open — anyone who can
  * reach the server can spend the Anthropic budget. Before public deploy,
  * add rate limiting (express-rate-limit) and session auth (e.g. verify a
- * Supabase JWT on each request).
+ * Supabase JWT on each request). Applies to the `api/` serverless
+ * versions as well.
  */
 
 import express from 'express'
