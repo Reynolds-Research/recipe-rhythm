@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { derivePlanDates, createServedPlan } from '../mealPlanWriter'
+import {
+  derivePlanDates,
+  createServedPlan,
+  setItemCooked,
+  finalizePlan,
+} from '../mealPlanWriter'
 
 // ---------------------------------------------------------------------------
 // derivePlanDates
@@ -118,6 +123,7 @@ function makeSupabase(responses = {}) {
         payload: null,
         selectCols: null,
         filter: {},
+        isFilter: {},
       }
       client.calls.push(state)
 
@@ -127,12 +133,21 @@ function makeSupabase(responses = {}) {
           state.payload = payload
           return chain
         },
+        update(payload) {
+          state.op = 'update'
+          state.payload = payload
+          return chain
+        },
         delete() {
           state.op = 'delete'
           return chain
         },
         eq(col, val) {
           state.filter[col] = val
+          return chain
+        },
+        is(col, val) {
+          state.isFilter[col] = val
           return chain
         },
         select(cols) {
@@ -153,6 +168,11 @@ function makeSupabase(responses = {}) {
               },
               error: null,
             }
+          return Promise.resolve(r)
+        },
+        maybeSingle() {
+          const key = `${state.table}.${state.op}.maybeSingle`
+          const r = responses[key] ?? { data: null, error: null }
           return Promise.resolve(r)
         },
         then(onFulfilled, onRejected) {
@@ -433,5 +453,135 @@ describe('createServedPlan', () => {
     const itemsCall = supabase.calls.find((c) => c.table === 'meal_plan_items')
     expect(itemsCall.payload[0].vault_id).toBeNull()
     expect(itemsCall.payload[0].is_wildcard).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// setItemCooked
+// ---------------------------------------------------------------------------
+
+describe('setItemCooked', () => {
+  const ITEM_ID = 'mpi-abc'
+
+  it('writes cooked=true with a non-null cooked_at when flipping on', async () => {
+    const supabase = makeSupabase({
+      'meal_plan_items.update': { data: null, error: null },
+    })
+
+    await setItemCooked(supabase, ITEM_ID, true)
+
+    expect(supabase.calls).toHaveLength(1)
+    const call = supabase.calls[0]
+    expect(call.table).toBe('meal_plan_items')
+    expect(call.op).toBe('update')
+    expect(call.filter).toEqual({ id: ITEM_ID })
+    expect(call.payload.cooked).toBe(true)
+    expect(typeof call.payload.cooked_at).toBe('string')
+    // Sanity-check the ISO shape rather than the exact instant.
+    expect(call.payload.cooked_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('writes cooked=false with cooked_at=null when flipping off', async () => {
+    const supabase = makeSupabase({
+      'meal_plan_items.update': { data: null, error: null },
+    })
+
+    await setItemCooked(supabase, ITEM_ID, false)
+
+    const call = supabase.calls[0]
+    expect(call.payload).toEqual({ cooked: false, cooked_at: null })
+  })
+
+  it('throws code=toggle_failed and attaches the original error on DB failure', async () => {
+    const dbError = { code: '42501', message: 'permission denied' }
+    const supabase = makeSupabase({
+      'meal_plan_items.update': { data: null, error: dbError },
+    })
+
+    let thrown
+    try {
+      await setItemCooked(supabase, ITEM_ID, true)
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeDefined()
+    expect(thrown.code).toBe('toggle_failed')
+    expect(thrown.cause).toBe(dbError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// finalizePlan
+// ---------------------------------------------------------------------------
+
+describe('finalizePlan', () => {
+  const PLAN_ID = 'plan-xyz'
+
+  it('writes finalized_at and returns the timestamp from the update', async () => {
+    const supabase = makeSupabase({
+      'meal_plans.update.maybeSingle': {
+        data: { finalized_at: '2026-04-23T18:00:00Z' },
+        error: null,
+      },
+    })
+
+    const result = await finalizePlan(supabase, PLAN_ID)
+
+    expect(result).toEqual({ finalized_at: '2026-04-23T18:00:00Z' })
+    expect(supabase.calls).toHaveLength(1)
+    const call = supabase.calls[0]
+    expect(call.table).toBe('meal_plans')
+    expect(call.op).toBe('update')
+    expect(call.filter).toEqual({ id: PLAN_ID })
+    // Idempotency guard: the update only matches rows that haven't been finalized.
+    expect(call.isFilter).toEqual({ finalized_at: null })
+    expect(typeof call.payload.finalized_at).toBe('string')
+    expect(call.payload.finalized_at).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+
+  it('is idempotent: re-finalize reads back the existing timestamp without overwriting', async () => {
+    // The .is('finalized_at', null) filter means an already-finalized row
+    // doesn't match the UPDATE — the SDK returns `data: null`. finalizePlan
+    // then issues a follow-up SELECT to recover the existing timestamp.
+    const ORIGINAL_TS = '2026-04-23T18:00:00Z'
+    const supabase = makeSupabase({
+      'meal_plans.update.maybeSingle': { data: null, error: null },
+      'meal_plans.null.maybeSingle': {
+        data: { finalized_at: ORIGINAL_TS },
+        error: null,
+      },
+    })
+
+    const result = await finalizePlan(supabase, PLAN_ID)
+
+    expect(result).toEqual({ finalized_at: ORIGINAL_TS })
+
+    expect(supabase.calls).toHaveLength(2)
+    const [updateCall, readCall] = supabase.calls
+    expect(updateCall.op).toBe('update')
+    expect(updateCall.isFilter).toEqual({ finalized_at: null })
+    // The follow-up read: pure select + eq + maybeSingle (no insert/update/delete op set).
+    expect(readCall.op).toBeNull()
+    expect(readCall.selectCols).toBe('finalized_at')
+    expect(readCall.filter).toEqual({ id: PLAN_ID })
+  })
+
+  it('throws code=finalize_failed and attaches the original error on DB failure', async () => {
+    const dbError = { code: '42501', message: 'permission denied' }
+    const supabase = makeSupabase({
+      'meal_plans.update.maybeSingle': { data: null, error: dbError },
+    })
+
+    let thrown
+    try {
+      await finalizePlan(supabase, PLAN_ID)
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeDefined()
+    expect(thrown.code).toBe('finalize_failed')
+    expect(thrown.cause).toBe(dbError)
   })
 })
