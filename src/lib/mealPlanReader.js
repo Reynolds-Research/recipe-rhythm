@@ -162,7 +162,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
  *
  * @param {object|null} plan - the shape returned by fetchMostRecentPlan
  * @param {Date} [now]       - injectable "today" for tests; defaults to new Date()
- * @returns {'no_plan' | 'active' | 'ended_unfinalized' | 'finalized'}
+ * @returns {'no_plan' | 'active' | 'ended_unfinalized' | 'finalized' | 'gap'}
  *
  *   'no_plan'            — plan is null
  *   'active'             — today is BETWEEN period_start AND period_end (inclusive)
@@ -171,14 +171,65 @@ export async function fetchMostRecentPlan(supabase, userId) {
  *                          Plans missing period_end (legacy rows) also classify here
  *                          as a safe default until they get finalized.
  *   'ended_unfinalized'  — today > period_end AND finalized_at IS NULL
- *   'finalized'          — finalized_at IS NOT NULL (regardless of dates)
+ *   'finalized'          — finalized_at IS NOT NULL AND today ≤ period_end (the
+ *                          period is locked but the window hasn't ended yet — rare
+ *                          in practice but possible if the user finalized early)
+ *   'gap'                — finalized_at IS NOT NULL AND today > period_end.
+ *                          Gap day: the previous period is done and no new period
+ *                          has started yet. ADR-001 Phase 5: this is the state
+ *                          routed to the gap-day view + new-period flow.
  */
 export function classifyPlanState(plan, now = new Date()) {
   if (!plan) return 'no_plan'
-  if (plan.finalized_at) return 'finalized'
-  if (!plan.period_end) return 'active'
-
   const todayYmd = formatLocalYmd(now)
+  if (plan.finalized_at) {
+    if (plan.period_end && todayYmd > plan.period_end) return 'gap'
+    return 'finalized'
+  }
+  if (!plan.period_end) return 'active'
   if (todayYmd > plan.period_end) return 'ended_unfinalized'
   return 'active'
+}
+
+/**
+ * Fetches the current user's "leftovers" — uncooked meal_plan_items from
+ * finalized periods whose period_end is within the last 14 days. Reads from
+ * the `current_leftovers` view, which handles the 14-day staleness cap server
+ * side per the ADR Retention Policy.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @returns {Promise<Array<{
+ *   id: string,
+ *   name: string,
+ *   vault_id: string | null,
+ *   is_wildcard: boolean,
+ *   source_url: string | null,
+ *   scheduled_date: string,
+ *   source_period_start: string,
+ *   source_period_end: string,
+ * }>>}
+ */
+export async function fetchCurrentLeftovers(supabase, userId) {
+  const { data, error } = await supabase
+    .from('current_leftovers')
+    .select(
+      'id, name, vault_id, is_wildcard, source_url, scheduled_date, source_period_start, source_period_end',
+    )
+    .eq('user_id', userId)
+    .order('scheduled_date', { ascending: true })
+
+  if (error) throw error
+  if (!data) return []
+
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    vault_id: row.vault_id ?? null,
+    is_wildcard: !!row.is_wildcard,
+    source_url: row.source_url ?? null,
+    scheduled_date: row.scheduled_date,
+    source_period_start: row.source_period_start,
+    source_period_end: row.source_period_end,
+  }))
 }

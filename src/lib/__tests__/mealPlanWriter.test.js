@@ -4,6 +4,8 @@ import {
   createServedPlan,
   setItemCooked,
   finalizePlan,
+  checkPeriodOverlap,
+  startNewPeriod,
 } from '../mealPlanWriter'
 
 // ---------------------------------------------------------------------------
@@ -583,5 +585,354 @@ describe('finalizePlan', () => {
     expect(thrown).toBeDefined()
     expect(thrown.code).toBe('finalize_failed')
     expect(thrown.cause).toBe(dbError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// checkPeriodOverlap (ADR-001 Phase 5)
+// ---------------------------------------------------------------------------
+
+function makeOverlapSupabase({ data = [], error = null } = {}) {
+  return {
+    from() {
+      const state = { eqs: [], nots: [] }
+      const chain = {
+        select() { return chain },
+        eq(col, val) { state.eqs.push([col, val]); return chain },
+        not(col, op, val) { state.nots.push([col, op, val]); return chain },
+        then(onFulfilled, onRejected) {
+          return Promise.resolve({ data, error }).then(onFulfilled, onRejected)
+        },
+      }
+      return chain
+    },
+  }
+}
+
+describe('checkPeriodOverlap', () => {
+  it('returns { overlaps: false } when no existing periods overlap', async () => {
+    const supabase = makeOverlapSupabase({
+      data: [
+        { period_start: '2026-03-01', period_end: '2026-03-07' },
+        { period_start: '2026-03-15', period_end: '2026-03-21' },
+      ],
+    })
+    const result = await checkPeriodOverlap(
+      supabase,
+      'user-1',
+      '2026-04-01',
+      '2026-04-07',
+    )
+    expect(result).toEqual({ overlaps: false })
+  })
+
+  it('flags a simple overlap with the conflicting period', async () => {
+    const supabase = makeOverlapSupabase({
+      data: [{ period_start: '2026-04-05', period_end: '2026-04-10' }],
+    })
+    const result = await checkPeriodOverlap(
+      supabase,
+      'user-1',
+      '2026-04-08',
+      '2026-04-15',
+    )
+    expect(result).toEqual({
+      overlaps: true,
+      conflictingPeriod: { period_start: '2026-04-05', period_end: '2026-04-10' },
+    })
+  })
+
+  it('flags when the new range fully contains an existing period', async () => {
+    const supabase = makeOverlapSupabase({
+      data: [{ period_start: '2026-04-10', period_end: '2026-04-12' }],
+    })
+    const result = await checkPeriodOverlap(
+      supabase,
+      'user-1',
+      '2026-04-01',
+      '2026-04-30',
+    )
+    expect(result.overlaps).toBe(true)
+    expect(result.conflictingPeriod).toEqual({
+      period_start: '2026-04-10',
+      period_end: '2026-04-12',
+    })
+  })
+
+  it('flags when the new range is fully contained inside an existing period', async () => {
+    const supabase = makeOverlapSupabase({
+      data: [{ period_start: '2026-04-01', period_end: '2026-04-30' }],
+    })
+    const result = await checkPeriodOverlap(
+      supabase,
+      'user-1',
+      '2026-04-10',
+      '2026-04-12',
+    )
+    expect(result.overlaps).toBe(true)
+  })
+
+  it('treats adjacent ranges (end == start next day) as non-overlapping', async () => {
+    const supabase = makeOverlapSupabase({
+      data: [{ period_start: '2026-04-01', period_end: '2026-04-07' }],
+    })
+    const result = await checkPeriodOverlap(
+      supabase,
+      'user-1',
+      '2026-04-08',
+      '2026-04-14',
+    )
+    expect(result.overlaps).toBe(false)
+  })
+
+  it('handles empty rows (no existing periods) as non-overlapping', async () => {
+    const supabase = makeOverlapSupabase({ data: [] })
+    const result = await checkPeriodOverlap(
+      supabase,
+      'user-1',
+      '2026-04-01',
+      '2026-04-07',
+    )
+    expect(result.overlaps).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// startNewPeriod (ADR-001 Phase 5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tracks the full query sequence. Each `from(...)` entry records what
+ * op + payload + filters were applied and what response is returned. For
+ * startNewPeriod the sequence is:
+ *   1. meal_plans.insert.select.single  → new plan row
+ *   2. meal_plan_items.update.eq.eq     → one per leftover to move
+ *   3. (on failure) meal_plans.delete.eq → cleanup
+ */
+function makeRolloverSupabase(responses = {}) {
+  const client = {
+    calls: [],
+    from(table) {
+      const state = {
+        table,
+        op: null,
+        payload: null,
+        filters: {},
+      }
+      client.calls.push(state)
+      const chain = {
+        insert(payload) { state.op = 'insert'; state.payload = payload; return chain },
+        update(payload) { state.op = 'update'; state.payload = payload; return chain },
+        delete() { state.op = 'delete'; return chain },
+        select() { return chain },
+        eq(col, val) { state.filters[col] = val; return chain },
+        not() { return chain },
+        single() {
+          const key = `${table}.insert.single`
+          const r = responses[key] ?? {
+            data: {
+              id: 'plan-new',
+              period_start: state.payload?.period_start ?? null,
+              period_end: state.payload?.period_end ?? null,
+            },
+            error: null,
+          }
+          return Promise.resolve(r)
+        },
+        then(onFulfilled, onRejected) {
+          const key = `${table}.${state.op}`
+          const r = responses[key] ?? { data: null, error: null }
+          return Promise.resolve(r).then(onFulfilled, onRejected)
+        },
+      }
+      return chain
+    },
+  }
+  return client
+}
+
+describe('startNewPeriod', () => {
+  it('happy path with 0 leftovers inserts plan, issues no updates', async () => {
+    const supabase = makeRolloverSupabase({
+      'meal_plans.insert.single': {
+        data: { id: 'plan-new', period_start: '2026-05-01', period_end: '2026-05-05' },
+        error: null,
+      },
+    })
+
+    const result = await startNewPeriod(
+      supabase,
+      'user-1',
+      '2026-05-01',
+      '2026-05-05',
+      [],
+    )
+
+    expect(result).toEqual({
+      id: 'plan-new',
+      period_start: '2026-05-01',
+      period_end: '2026-05-05',
+      rolled_forward: 0,
+      overflow: 0,
+    })
+    // Exactly one call: the plan insert.
+    expect(supabase.calls).toHaveLength(1)
+    expect(supabase.calls[0]).toMatchObject({
+      table: 'meal_plans',
+      op: 'insert',
+      payload: {
+        user_id: 'user-1',
+        period_start: '2026-05-01',
+        period_end: '2026-05-05',
+      },
+    })
+  })
+
+  it('rolls 3 leftovers into days 1–3 of a 5-day period', async () => {
+    const supabase = makeRolloverSupabase({
+      'meal_plans.insert.single': {
+        data: { id: 'plan-new', period_start: '2026-05-01', period_end: '2026-05-05' },
+        error: null,
+      },
+      'meal_plan_items.update': { data: null, error: null },
+    })
+
+    const result = await startNewPeriod(
+      supabase,
+      'user-1',
+      '2026-05-01',
+      '2026-05-05',
+      ['L1', 'L2', 'L3'],
+    )
+
+    expect(result).toEqual({
+      id: 'plan-new',
+      period_start: '2026-05-01',
+      period_end: '2026-05-05',
+      rolled_forward: 3,
+      overflow: 0,
+    })
+
+    const updates = supabase.calls.filter((c) => c.op === 'update')
+    expect(updates).toHaveLength(3)
+    expect(updates.map((u) => u.payload)).toEqual([
+      { meal_plan_id: 'plan-new', scheduled_date: '2026-05-01' },
+      { meal_plan_id: 'plan-new', scheduled_date: '2026-05-02' },
+      { meal_plan_id: 'plan-new', scheduled_date: '2026-05-03' },
+    ])
+    expect(updates.map((u) => u.filters.id)).toEqual(['L1', 'L2', 'L3'])
+    // Each update also scopes by user_id as belt-and-braces with RLS.
+    expect(updates.every((u) => u.filters.user_id === 'user-1')).toBe(true)
+  })
+
+  it('drops overflow when 5 leftovers are given for a 3-day period', async () => {
+    const supabase = makeRolloverSupabase({
+      'meal_plans.insert.single': {
+        data: { id: 'plan-new', period_start: '2026-05-01', period_end: '2026-05-03' },
+        error: null,
+      },
+      'meal_plan_items.update': { data: null, error: null },
+    })
+
+    const result = await startNewPeriod(
+      supabase,
+      'user-1',
+      '2026-05-01',
+      '2026-05-03',
+      ['L1', 'L2', 'L3', 'L4', 'L5'],
+    )
+
+    expect(result).toEqual({
+      id: 'plan-new',
+      period_start: '2026-05-01',
+      period_end: '2026-05-03',
+      rolled_forward: 3,
+      overflow: 2,
+    })
+
+    const updates = supabase.calls.filter((c) => c.op === 'update')
+    expect(updates).toHaveLength(3)
+    expect(updates.map((u) => u.filters.id)).toEqual(['L1', 'L2', 'L3'])
+  })
+
+  it('maps EXCLUDE constraint violation to code=period_overlap and attempts no updates', async () => {
+    const supabase = makeRolloverSupabase({
+      'meal_plans.insert.single': {
+        data: null,
+        error: {
+          code: '23P01',
+          message:
+            'conflicting key value violates exclusion constraint "meal_plans_no_period_overlap"',
+        },
+      },
+    })
+
+    let thrown
+    try {
+      await startNewPeriod(
+        supabase,
+        'user-1',
+        '2026-05-01',
+        '2026-05-05',
+        ['L1'],
+      )
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeDefined()
+    expect(thrown.code).toBe('period_overlap')
+    // No update attempts should have been made after the insert failure.
+    expect(supabase.calls.filter((c) => c.op === 'update')).toHaveLength(0)
+  })
+
+  it('wraps other plan-insert failures with code=plan_insert_failed', async () => {
+    const supabase = makeRolloverSupabase({
+      'meal_plans.insert.single': {
+        data: null,
+        error: { code: '42501', message: 'permission denied' },
+      },
+    })
+
+    await expect(
+      startNewPeriod(supabase, 'user-1', '2026-05-01', '2026-05-05', []),
+    ).rejects.toMatchObject({ code: 'plan_insert_failed' })
+  })
+
+  it('deletes the new plan row if a leftover update fails', async () => {
+    const supabase = makeRolloverSupabase({
+      'meal_plans.insert.single': {
+        data: { id: 'plan-orphan', period_start: '2026-05-01', period_end: '2026-05-05' },
+        error: null,
+      },
+      'meal_plan_items.update': {
+        data: null,
+        error: { code: '23503', message: 'foreign key violation' },
+      },
+      'meal_plans.delete': { data: null, error: null },
+    })
+
+    let thrown
+    try {
+      await startNewPeriod(
+        supabase,
+        'user-1',
+        '2026-05-01',
+        '2026-05-05',
+        ['L1', 'L2'],
+      )
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeDefined()
+    expect(thrown.code).toBe('rollforward_failed')
+
+    // The compensating delete targets the orphan plan row.
+    const deleteCall = supabase.calls.find(
+      (c) => c.table === 'meal_plans' && c.op === 'delete',
+    )
+    expect(deleteCall).toBeDefined()
+    expect(deleteCall.filters).toEqual({ id: 'plan-orphan' })
   })
 })

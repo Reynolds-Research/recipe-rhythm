@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { fetchMostRecentPlan, classifyPlanState } from '../mealPlanReader'
+import {
+  fetchMostRecentPlan,
+  fetchCurrentLeftovers,
+  classifyPlanState,
+} from '../mealPlanReader'
 
 /**
  * Handwritten Supabase client fake.
@@ -192,7 +196,6 @@ describe('fetchMostRecentPlan', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
 // classifyPlanState
 // ---------------------------------------------------------------------------
 
@@ -229,10 +232,34 @@ describe('classifyPlanState', () => {
     expect(classifyPlanState(plan, NOW)).toBe('ended_unfinalized')
   })
 
-  it('returns finalized when finalized_at is set, regardless of dates', () => {
+  // ADR-001 Phase 5 split: what was "finalized regardless of dates" now
+  // bifurcates. Finalized + today ≤ period_end → 'finalized' (locked but the
+  // window isn't over). Finalized + today > period_end → 'gap' (the past-end
+  // state routed to the new gap-day view).
+  it('returns finalized when finalized_at is set AND today ≤ period_end', () => {
+    const plan = {
+      period_start: '2026-04-15',
+      period_end: PLUS_FOUR,
+      finalized_at: MINUS_28,
+    }
+    expect(classifyPlanState(plan, NOW)).toBe('finalized')
+  })
+
+  it('returns gap when finalized_at is set AND today > period_end', () => {
+    // Replaces the previous "finalized regardless of dates" mapping for the
+    // past-end case. Same input shape as the old test; different output.
     const plan = {
       period_start: '2026-03-15',
       period_end: MINUS_30,
+      finalized_at: MINUS_28,
+    }
+    expect(classifyPlanState(plan, NOW)).toBe('gap')
+  })
+
+  it('keeps same-day boundary as finalized, not gap', () => {
+    const plan = {
+      period_start: '2026-04-15',
+      period_end: TODAY,
       finalized_at: MINUS_28,
     }
     expect(classifyPlanState(plan, NOW)).toBe('finalized')
@@ -263,5 +290,93 @@ describe('classifyPlanState', () => {
       finalized_at: null,
     }
     expect(classifyPlanState(plan, NOW)).toBe('active')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchCurrentLeftovers (ADR-001 Phase 5)
+// ---------------------------------------------------------------------------
+
+// A lighter shape — fetchCurrentLeftovers uses `.from(...).select().eq().order()`
+// and terminates via the thenable. We mirror the pattern from makeSupabase above
+// without the meal_plan_items branch.
+function makeLeftoversSupabase({ data = [], error = null } = {}) {
+  const calls = { current_leftovers: null }
+  return {
+    calls,
+    from(table) {
+      const state = { select: null, eqs: [], orders: [] }
+      calls[table] = state
+      const chain = {
+        select(cols) { state.select = cols; return chain },
+        eq(col, val) { state.eqs.push([col, val]); return chain },
+        order(col, opts) { state.orders.push([col, opts]); return chain },
+        then(onFulfilled, onRejected) {
+          return Promise.resolve({ data, error }).then(onFulfilled, onRejected)
+        },
+      }
+      return chain
+    },
+  }
+}
+
+describe('fetchCurrentLeftovers', () => {
+  it('maps rows from the current_leftovers view to the UI shape', async () => {
+    const data = [
+      {
+        id: 'item-1',
+        name: 'Roast',
+        vault_id: 'v1',
+        is_wildcard: false,
+        source_url: null,
+        scheduled_date: '2026-04-12',
+        source_period_start: '2026-04-12',
+        source_period_end: '2026-04-18',
+      },
+      {
+        id: 'item-2',
+        name: 'Curry',
+        vault_id: null,
+        is_wildcard: true,
+        source_url: 'https://example.com/curry',
+        scheduled_date: '2026-04-14',
+        source_period_start: '2026-04-12',
+        source_period_end: '2026-04-18',
+      },
+    ]
+    const supabase = makeLeftoversSupabase({ data })
+    const result = await fetchCurrentLeftovers(supabase, 'user-1')
+
+    expect(supabase.calls.current_leftovers).toBeTruthy()
+    expect(supabase.calls.current_leftovers.eqs).toContainEqual(['user_id', 'user-1'])
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({
+      id: 'item-1',
+      name: 'Roast',
+      vault_id: 'v1',
+      is_wildcard: false,
+      source_url: null,
+      scheduled_date: '2026-04-12',
+      source_period_start: '2026-04-12',
+      source_period_end: '2026-04-18',
+    })
+    expect(result[1].is_wildcard).toBe(true)
+    expect(result[1].source_url).toBe('https://example.com/curry')
+  })
+
+  it('returns [] when there are no leftovers', async () => {
+    const supabase = makeLeftoversSupabase({ data: [] })
+    const result = await fetchCurrentLeftovers(supabase, 'user-1')
+    expect(result).toEqual([])
+  })
+
+  it('throws when the view query errors', async () => {
+    const supabase = makeLeftoversSupabase({
+      data: null,
+      error: { message: 'permission denied', code: '42501' },
+    })
+    await expect(fetchCurrentLeftovers(supabase, 'user-1')).rejects.toMatchObject({
+      message: 'permission denied',
+    })
   })
 })
