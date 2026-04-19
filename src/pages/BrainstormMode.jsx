@@ -77,6 +77,7 @@ function SortableMealItem({ slot, onSwap, isServed }) {
                 rel="noopener noreferrer"
                 className="text-brand-400 hover:text-brand-600 transition-colors"
                 title="View Recipe"
+                aria-label={`View recipe for ${slot.name}`}
               >
                 <ExternalLink size={12} />
               </a>

@@ -51,23 +51,26 @@ export default function App() {
 
   return (
     <div className="max-w-sm mx-auto relative">
-      <button 
+      <button
         onClick={() => supabase.auth.signOut()}
         className="absolute top-5 right-5 z-50 text-gray-400 hover:text-red-400 transition-colors bg-white/50 backdrop-blur-sm p-2 rounded-full border border-cream-100 shadow-sm"
         title="Sign Out"
+        aria-label="Sign out"
       >
         <LogOut size={16} />
       </button>
 
-      {page === 'log' && (
-        <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
-      )}
-      {page === 'brainstorm' && (
-        <BrainstormMode userId={userId} />
-      )}
-      {page === 'vault' && (
-        <Vault userId={userId} />
-      )}
+      <main>
+        {page === 'log' && (
+          <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
+        )}
+        {page === 'brainstorm' && (
+          <BrainstormMode userId={userId} />
+        )}
+        {page === 'vault' && (
+          <Vault userId={userId} />
+        )}
+      </main>
       <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },

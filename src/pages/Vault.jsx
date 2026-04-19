@@ -145,6 +145,7 @@ function ChipPicker({ options, value, onChange, multi = true, storageKey = null 
           <button
             type="button"
             onClick={() => { setShowAdd(false); setDraft('') }}
+            aria-label="Cancel custom tag"
             className="text-gray-300 hover:text-gray-500 transition-colors"
           >
             <X size={12} />
@@ -476,6 +477,7 @@ export default function Vault({ userId }) {
         <div className="absolute top-1/2 -translate-y-1/2 right-5">
           <button
             onClick={() => { setShowForm(prev => !prev); if (showForm) resetForm() }}
+            aria-label={showForm ? 'Close add recipe form' : 'Add a new recipe'}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95
               ${showForm
                 ? 'bg-white border border-brand-200 text-brand-500 hover:bg-brand-50'
@@ -548,6 +550,7 @@ export default function Vault({ userId }) {
                       imageBase64 ? 'bg-brand-50 border-brand-500 text-brand-600' : 'bg-white border-cream-200 text-brand-500 hover:bg-brand-50'
                     }`}
                     title="Upload recipe image"
+                    aria-label="Upload recipe image"
                   >
                     {imageBase64 ? <ImageIcon size={20} /> : <Camera size={20} />}
                     <input
@@ -567,6 +570,7 @@ export default function Vault({ userId }) {
                   <button
                     type="button"
                     onClick={() => { setImageBase64(null); setImageType(null); }}
+                    aria-label="Remove uploaded image"
                     className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 backdrop-blur-sm transition-colors"
                   >
                     <X size={16} strokeWidth={2.5} />
