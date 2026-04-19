@@ -233,3 +233,56 @@ export async function fetchCurrentLeftovers(supabase, userId) {
     source_period_end: row.source_period_end,
   }))
 }
+
+/**
+ * Fetches all meal_plan_items for a user within a date window, joined with
+ * enough meal_plans metadata (period bounds + finalized_at) to render
+ * calendar cells. Used by the read-only CalendarView (ADR-001 Phase 6).
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @param {string} fromDate - 'YYYY-MM-DD' inclusive
+ * @param {string} toDate   - 'YYYY-MM-DD' inclusive
+ * @returns {Promise<Array<{
+ *   item_id: string,
+ *   scheduled_date: string,
+ *   name: string,
+ *   cooked: boolean,
+ *   meal_plan_id: string,
+ *   period_start: string,
+ *   period_end: string,
+ *   finalized_at: string | null,
+ * }>>}
+ */
+export async function fetchScheduledItemsInRange(supabase, userId, fromDate, toDate) {
+  const { data, error } = await supabase
+    .from('meal_plan_items')
+    .select(
+      'id, scheduled_date, name, cooked, meal_plan_id, meal_plans!inner(period_start, period_end, finalized_at)',
+    )
+    .eq('user_id', userId)
+    .gte('scheduled_date', fromDate)
+    .lte('scheduled_date', toDate)
+    .order('scheduled_date', { ascending: true })
+    .order('position', { ascending: true })
+
+  if (error) throw error
+  if (!data) return []
+
+  return data.map((row) => {
+    // Supabase embeds the joined row as an object (when meal_plans is an FK),
+    // but in some PostgREST versions it comes through as a single-element array.
+    // Handle both defensively.
+    const plan = Array.isArray(row.meal_plans) ? row.meal_plans[0] : row.meal_plans
+    return {
+      item_id: row.id,
+      scheduled_date: row.scheduled_date,
+      name: row.name,
+      cooked: !!row.cooked,
+      meal_plan_id: row.meal_plan_id,
+      period_start: plan?.period_start ?? null,
+      period_end: plan?.period_end ?? null,
+      finalized_at: plan?.finalized_at ?? null,
+    }
+  })
+}
