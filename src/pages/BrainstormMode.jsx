@@ -3,6 +3,7 @@ import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, ChevronDown, C
 import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
+import { fetchMostRecentPlan } from '../lib/mealPlanReader'
 import {
   DndContext,
   closestCenter,
@@ -240,18 +241,12 @@ export default function BrainstormMode({ userId }) {
         .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits')
         .eq('user_id', userId)
         .order('created_at', { ascending: false }),
-      supabase
-        .from('meal_plans')
-        .select('id, served_at, days, items, week_label')
-        .eq('user_id', userId)
-        .order('served_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      fetchMostRecentPlan(supabase, userId),
     ])
 
     const recentMeals = mealsRes.data || []
     const vaultItems = vaultRes.data || []
-    const mostRecentPlan = planRes.data
+    const mostRecentPlan = planRes.plan
 
     setVault(vaultItems)
 
