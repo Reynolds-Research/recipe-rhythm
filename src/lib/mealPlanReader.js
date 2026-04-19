@@ -1,13 +1,5 @@
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-// Parse a 'YYYY-MM-DD' string in UTC so the derived weekday is independent
-// of the machine's local timezone (see AUDIT U8).
-function weekdayFromScheduledDate(scheduledDate) {
-  const [y, m, d] = scheduledDate.split('-').map(Number)
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
-  return WEEKDAY_ABBR[dow]
-}
-
 // Format a Date as 'YYYY-MM-DD' using local-calendar components (mirrors
 // the writer's formatLocalDate). Lets us compare against the DATE strings
 // stored in period_start / period_end without timezone drift (AUDIT U8).
@@ -18,16 +10,28 @@ function formatLocalYmd(date) {
   return `${y}-${m}-${d}`
 }
 
-function dedupePreserveOrder(days) {
-  const seen = new Set()
-  const out = []
-  for (const day of days) {
-    if (!seen.has(day)) {
-      seen.add(day)
-      out.push(day)
-    }
-  }
-  return out
+function sortedUnique(values) {
+  return Array.from(new Set(values)).sort()
+}
+
+// Map a legacy item's weekday string + the parent plan's served_at into a
+// concrete 'YYYY-MM-DD' scheduled_date. Mirrors the buildServedMealsForEngine
+// logic that lived in BrainstormMode.jsx pre-Phase-8. Returns null if the
+// inputs are malformed (so the caller can drop the item rather than emit a
+// bad date).
+function legacyScheduledDate(item, servedAtIso) {
+  if (!servedAtIso) return null
+  const targetDow = WEEKDAY_ABBR.indexOf(item?.day)
+  if (targetDow < 0) return null
+  const servedDate = new Date(servedAtIso)
+  if (Number.isNaN(servedDate.getTime())) return null
+  const offset = targetDow - servedDate.getDay()
+  const scheduled = new Date(
+    servedDate.getFullYear(),
+    servedDate.getMonth(),
+    servedDate.getDate() + offset,
+  )
+  return formatLocalYmd(scheduled)
 }
 
 /**
@@ -35,6 +39,13 @@ function dedupePreserveOrder(days) {
  * in the UI-compatible shape, preferring the new `meal_plan_items` table
  * and falling back to the legacy `meal_plans.items` jsonb if the new table
  * has no rows for that plan.
+ *
+ * Items always carry `scheduled_date: 'YYYY-MM-DD'`. For legacy rows we
+ * derive scheduled_date from the item's weekday + the plan's served_at;
+ * malformed legacy items are dropped rather than emitted with invalid dates.
+ *
+ * The returned `scheduledDates` field is a sorted, deduplicated list of
+ * 'YYYY-MM-DD' strings — replaces the old weekday-string `days` field.
  *
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
@@ -46,13 +57,16 @@ function dedupePreserveOrder(days) {
  *     period_end: string | null,
  *     finalized_at: string | null,
  *     items: Array<{
- *       day: string,
+ *       scheduled_date: string,
  *       name: string,
  *       id: string | null,
  *       is_wildcard: boolean,
- *       source_url: string | null
+ *       source_url: string | null,
+ *       item_id: string | null,
+ *       cooked: boolean,
+ *       cooked_at: string | null,
  *     }>,
- *     days: string[],
+ *     scheduledDates: string[],
  *     source: 'new' | 'legacy'
  *   } | null
  * }>}
@@ -88,13 +102,12 @@ export async function fetchMostRecentPlan(supabase, userId) {
 
   if (newItemRows && newItemRows.length > 0) {
     const items = newItemRows.map(row => ({
-      day: weekdayFromScheduledDate(row.scheduled_date),
+      scheduled_date: row.scheduled_date,
       name: row.name,
       id: row.vault_id ?? null,
       is_wildcard: !!row.is_wildcard,
       source_url: row.source_url ?? null,
       item_id: row.id,
-      scheduled_date: row.scheduled_date,
       cooked: !!row.cooked,
       cooked_at: row.cooked_at ?? null,
     }))
@@ -102,7 +115,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
       plan: {
         ...basePlan,
         items,
-        days: dedupePreserveOrder(items.map(i => i.day)),
+        scheduledDates: sortedUnique(items.map(i => i.scheduled_date)),
         source: 'new',
       },
     }
@@ -116,27 +129,30 @@ export async function fetchMostRecentPlan(supabase, userId) {
   // deletes this branch.
   const legacyItems = Array.isArray(plan.items) ? plan.items : []
   if (legacyItems.length > 0) {
-    const items = legacyItems.map(item => ({
-      day: item.day,
-      name: item.name,
-      id: item.vault_id ?? null,
-      is_wildcard: !!item.is_wildcard,
-      source_url: item.source_url ?? null,
-      // Legacy items have no normalized row, so cooked-toggle / per-item review
-      // can't target them — surfaced as null so PeriodReview can disable the box.
-      item_id: null,
-      scheduled_date: null,
-      cooked: false,
-      cooked_at: null,
-    }))
-    const days = Array.isArray(plan.days) && plan.days.length > 0
-      ? plan.days
-      : dedupePreserveOrder(items.map(i => i.day))
+    const items = legacyItems
+      .map(item => {
+        const scheduled_date = legacyScheduledDate(item, plan.served_at)
+        if (!scheduled_date) return null
+        return {
+          scheduled_date,
+          name: item.name,
+          id: item.vault_id ?? null,
+          is_wildcard: !!item.is_wildcard,
+          source_url: item.source_url ?? null,
+          // Legacy items have no normalized row, so cooked-toggle / per-item
+          // review can't target them — surfaced as null so PeriodReview can
+          // disable the box.
+          item_id: null,
+          cooked: false,
+          cooked_at: null,
+        }
+      })
+      .filter(Boolean)
     return {
       plan: {
         ...basePlan,
         items,
-        days,
+        scheduledDates: sortedUnique(items.map(i => i.scheduled_date)),
         source: 'legacy',
       },
     }
@@ -146,7 +162,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
     plan: {
       ...basePlan,
       items: [],
-      days: [],
+      scheduledDates: [],
       source: 'new',
     },
   }
@@ -285,4 +301,30 @@ export async function fetchScheduledItemsInRange(supabase, userId, fromDate, toD
       finalized_at: plan?.finalized_at ?? null,
     }
   })
+}
+
+/**
+ * Returns all of the user's meal_plans period ranges. Used by the Brainstorm
+ * tab to expand into a concrete set of disabled dates for the date-strip
+ * picker. Rows with NULL period bounds are excluded.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @returns {Promise<Array<{ period_start: string, period_end: string }>>}
+ */
+export async function listUserPeriods(supabase, userId) {
+  const { data, error } = await supabase
+    .from('meal_plans')
+    .select('period_start, period_end')
+    .eq('user_id', userId)
+    .not('period_start', 'is', null)
+    .not('period_end', 'is', null)
+
+  if (error) throw error
+  if (!data) return []
+
+  return data.map((row) => ({
+    period_start: row.period_start,
+    period_end: row.period_end,
+  }))
 }

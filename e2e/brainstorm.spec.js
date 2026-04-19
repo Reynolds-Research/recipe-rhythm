@@ -42,7 +42,7 @@ test.describe('Brainstorm E2E', () => {
     await page.getByRole('button', { name: 'Prep Table' }).click();
 
     await expect(page.getByText('Building your plan…')).not.toBeVisible();
-    await expect(page.getByText('THIS WEEK\'S MEAL PLAN')).toBeVisible();
+    await expect(page.getByText('YOUR MEAL PLAN')).toBeVisible();
 
     // Check that we can see a recipe (mock recipe)
     await expect(page.getByText('Mock Recipe')).toBeVisible();
@@ -51,6 +51,6 @@ test.describe('Brainstorm E2E', () => {
     await page.getByRole('button', { name: /Regenerate/i }).click();
 
     // Should continue showing the table securely
-    await expect(page.getByText('THIS WEEK\'S MEAL PLAN')).toBeVisible();
+    await expect(page.getByText('YOUR MEAL PLAN')).toBeVisible();
   });
 });
