@@ -94,6 +94,12 @@ export async function fetchMostRecentPlan(supabase, userId) {
     }
   }
 
+  // Legacy fallback: reads items/days from the deprecated meal_plans.items jsonb.
+  // ADR-001 Phase 3 (createServedPlan in ../lib/mealPlanWriter.js) only populates
+  // the new-schema fields, so for any row written AFTER Phase 3 landed this
+  // branch should never trigger — we only hit it for historical rows written
+  // by the pre-Phase-3 handleServe path. Phase 7 drops the legacy columns and
+  // deletes this branch.
   const legacyItems = Array.isArray(plan.items) ? plan.items : []
   if (legacyItems.length > 0) {
     const items = legacyItems.map(item => ({
