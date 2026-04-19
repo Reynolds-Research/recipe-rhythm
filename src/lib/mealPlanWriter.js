@@ -201,6 +201,100 @@ export async function createServedPlan(
   }
 }
 
+/**
+ * Toggles the cooked status of a single meal_plan_item.
+ *
+ * Sets cooked_at = now() (ISO string) when flipping to true; clears it when
+ * flipping to false. The two fields move together — `cooked = true` with a
+ * NULL `cooked_at` would lose the "when did this happen" signal that powers
+ * future stats (per ADR-001 column docs in docs/schema.md).
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} itemId - meal_plan_items.id
+ * @param {boolean} cooked
+ * @returns {Promise<void>}
+ * @throws {Error} with `.code = 'toggle_failed'` on DB error.
+ *   The original supabase error object is attached as `.cause`.
+ */
+export async function setItemCooked(supabase, itemId, cooked) {
+  const update = cooked
+    ? { cooked: true, cooked_at: new Date().toISOString() }
+    : { cooked: false, cooked_at: null }
+
+  const { error } = await supabase
+    .from('meal_plan_items')
+    .update(update)
+    .eq('id', itemId)
+
+  if (error) {
+    const err = new Error(
+      `Failed to toggle cooked status: ${error.message ?? 'unknown error'}`,
+    )
+    err.code = 'toggle_failed'
+    err.cause = error
+    throw err
+  }
+}
+
+/**
+ * Marks a meal_plan row as finalized (sets finalized_at = now()).
+ *
+ * Idempotent: if the row is already finalized, the update no-ops (the
+ * `.is('finalized_at', null)` filter prevents overwriting the original
+ * timestamp) and we read the existing value back instead. This matters
+ * because finalize is a user-visible action — re-clicking it shouldn't
+ * silently rewrite history.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} mealPlanId
+ * @returns {Promise<{ finalized_at: string }>}
+ * @throws {Error} with `.code = 'finalize_failed'` on DB error.
+ *   The original supabase error object is attached as `.cause`.
+ */
+export async function finalizePlan(supabase, mealPlanId) {
+  const finalizedAt = new Date().toISOString()
+
+  const { data: updated, error: updateError } = await supabase
+    .from('meal_plans')
+    .update({ finalized_at: finalizedAt })
+    .eq('id', mealPlanId)
+    .is('finalized_at', null)
+    .select('finalized_at')
+    .maybeSingle()
+
+  if (updateError) {
+    const err = new Error(
+      `Failed to finalize plan: ${updateError.message ?? 'unknown error'}`,
+    )
+    err.code = 'finalize_failed'
+    err.cause = updateError
+    throw err
+  }
+
+  if (updated?.finalized_at) {
+    return { finalized_at: updated.finalized_at }
+  }
+
+  // Already finalized — read back the existing timestamp instead of pretending
+  // we set one. The caller treats this as success (the plan IS finalized).
+  const { data: existing, error: readError } = await supabase
+    .from('meal_plans')
+    .select('finalized_at')
+    .eq('id', mealPlanId)
+    .maybeSingle()
+
+  if (readError) {
+    const err = new Error(
+      `Failed to read finalized plan: ${readError.message ?? 'unknown error'}`,
+    )
+    err.code = 'finalize_failed'
+    err.cause = readError
+    throw err
+  }
+
+  return { finalized_at: existing?.finalized_at ?? null }
+}
+
 // Add N days to a 'YYYY-MM-DD' string. UTC-based so leap/DST doesn't shift
 // the date — the output is a pure date string, no time component.
 function addDaysIso(isoDate, days) {

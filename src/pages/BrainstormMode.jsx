@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState } from '../lib/mealPlanReader'
-import { createServedPlan, startNewPeriod } from '../lib/mealPlanWriter'
+import { createServedPlan, setItemCooked, finalizePlan, startNewPeriod } from '../lib/mealPlanWriter'
+import PeriodReview from './PeriodReview'
 import GapDayView from '../components/GapDayView'
 import DateRangePicker from '../components/DateRangePicker'
 import LeftoverPicker from '../components/LeftoverPicker'
@@ -34,7 +35,8 @@ import { CSS } from '@dnd-kit/utilities'
 const ALL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DEFAULT_PLAN_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu']
 
-function SortableMealItem({ slot, onSwap, isServed }) {
+function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
+  const showCookedToggle = isServed && !!onToggleCooked && !!slot.item_id
   const {
     attributes,
     listeners,
@@ -67,7 +69,13 @@ function SortableMealItem({ slot, onSwap, isServed }) {
       <span className="text-[10px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase">
         {slot.day}
       </span>
-      <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
+      <span
+        className={`text-sm flex-1 font-medium leading-snug flex items-center gap-2 ${
+          showCookedToggle && slot.cooked
+            ? 'line-through text-gray-400'
+            : 'text-gray-900'
+        }`}
+      >
         {slot.name}
         {slot.is_wildcard && (
           <div className="flex items-center gap-1.5">
@@ -90,13 +98,28 @@ function SortableMealItem({ slot, onSwap, isServed }) {
           </div>
         )}
       </span>
-      <button
-        onClick={() => onSwap(slot.day)}
-        disabled={isServed}
-        className={`flex-shrink-0 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors ${isServed ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-      >
-        Swap
-      </button>
+      {showCookedToggle ? (
+        <label className="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+          <span className="text-[10px] font-bold text-brand-600 uppercase tracking-wide">
+            Cooked
+          </span>
+          <input
+            type="checkbox"
+            checked={!!slot.cooked}
+            onChange={(e) => onToggleCooked(slot.item_id, e.target.checked)}
+            aria-label={`Mark "${slot.name}" cooked`}
+            className="h-5 w-5 rounded border-cream-200 text-brand-500 focus:ring-brand-300 focus:ring-2"
+          />
+        </label>
+      ) : (
+        <button
+          onClick={() => onSwap(slot.day)}
+          disabled={isServed}
+          className={`flex-shrink-0 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors ${isServed ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
+        >
+          Swap
+        </button>
+      )}
     </div>
   )
 }
@@ -146,11 +169,18 @@ export default function BrainstormMode({ userId }) {
   const [serving, setServing]       = useState(false)
   const [serveError, setServeError] = useState(null)
 
-  // ADR-001 Phase 5: plan lifecycle routing for the gap-day + new-period flow.
-  // `mostRecentPlan` is the latest plan row (used to classify the UI state);
-  // `newPeriodStep` drives the two-stage modal flow (date picker → leftover
-  // picker → commit). 'idle' means no modal open.
-  const [mostRecentPlan, setMostRecentPlan] = useState(null)
+  // ADR-001 Phase 4: end-of-period review surface.
+  // `loadedPlan` is the full plan record (id + items with item_id) needed to
+  // toggle cooked status and finalize. `planState` routes the UI between
+  // active / ended_unfinalized / finalized / gap / no_plan.
+  const [loadedPlan, setLoadedPlan] = useState(null)
+  const [planState, setPlanState]   = useState('no_plan')
+  const [showReview, setShowReview] = useState(false)
+  const [lockingIn, setLockingIn]   = useState(false)
+  const [periodError, setPeriodError] = useState(null)
+
+  // ADR-001 Phase 5: two-stage modal flow for starting a new period from the
+  // gap-day view. 'idle' means no modal open.
   const [newPeriodStep, setNewPeriodStep] = useState('idle') // 'idle' | 'pick-dates' | 'pick-leftovers'
   const [pendingRange, setPendingRange] = useState(null)
   const [pendingLeftovers, setPendingLeftovers] = useState([])
@@ -243,7 +273,6 @@ export default function BrainstormMode({ userId }) {
     const recentMeals = mealsRes.data || []
     const vaultItems = vaultRes.data || []
     const mostRecentPlan = planRes.plan
-    setMostRecentPlan(mostRecentPlan)
 
     setVault(vaultItems)
 
@@ -258,25 +287,76 @@ export default function BrainstormMode({ userId }) {
     // Store recent meals so openSwap can pass context to Spoonacular
     setStoredRecentMeals(recentMeals)
 
-    // Check if there's already a served plan for this week (within last 7 days)
-    const isCurrentWeekServed =
-      mostRecentPlan && new Date(mostRecentPlan.served_at) >= sevenDaysAgo
+    // ADR-001 Phase 4: classifyPlanState replaces the legacy 7-day-window check.
+    // Active and ended_unfinalized both render the served-plan UI so the user
+    // can toggle cooked status; finalized falls through to the generate flow
+    // (Phase 5 will replace this with the gap-day view).
+    const state = classifyPlanState(mostRecentPlan, new Date())
+    setPlanState(state)
+    setLoadedPlan(mostRecentPlan)
 
-    if (isCurrentWeekServed) {
+    if (state === 'active' || state === 'ended_unfinalized') {
       // Restore the served plan as authoritative; lock the UI
       localStorage.removeItem('brainstorm_plan')
       setPlan(mostRecentPlan.items)
       setPlanDays(mostRecentPlan.days)
       setServedAt(mostRecentPlan.served_at)
       setIsServed(true)
-    } else if (forceRegenerate || plan.length === 0) {
-      // Pass prior week's served items to the engine for recency/frequency context
-      const servedMeals = buildServedMealsForEngine(mostRecentPlan?.items, mostRecentPlan?.served_at)
-      const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length, servedMeals)
-      setPlan(buildPlan(suggestions, planDays))
+    } else {
+      // 'no_plan' or 'finalized' — show the brainstorm/generate flow
+      setIsServed(false)
+      setServedAt(null)
+      if (forceRegenerate || plan.length === 0) {
+        // Pass prior week's served items to the engine for recency/frequency context
+        const servedMeals = buildServedMealsForEngine(mostRecentPlan?.items, mostRecentPlan?.served_at)
+        const suggestions = getRecommendations(vaultItems, recentMeals, [], planDays.length, servedMeals)
+        setPlan(buildPlan(suggestions, planDays))
+      }
     }
 
     setLoading(false)
+  }
+
+  // Optimistic cooked-toggle for items in the served plan list. Mid-period
+  // edits are allowed per ADR Q2 — flipping the checkbox writes through to
+  // meal_plan_items immediately and rolls back on failure.
+  const handleToggleCooked = async (itemId, nextCooked) => {
+    setPeriodError(null)
+    setPlan((prev) =>
+      prev.map((slot) =>
+        slot.item_id === itemId ? { ...slot, cooked: nextCooked } : slot,
+      ),
+    )
+    try {
+      await setItemCooked(supabase, itemId, nextCooked)
+    } catch {
+      setPlan((prev) =>
+        prev.map((slot) =>
+          slot.item_id === itemId ? { ...slot, cooked: !nextCooked } : slot,
+        ),
+      )
+      setPeriodError('Could not save cooked status. Try again.')
+    }
+  }
+
+  // Banner action: "Lock in as-is" finalizes without opening the review.
+  const handleLockInAsIs = async () => {
+    if (!loadedPlan?.id || lockingIn) return
+    setLockingIn(true)
+    setPeriodError(null)
+    try {
+      await finalizePlan(supabase, loadedPlan.id)
+      await loadData(false)
+    } catch {
+      setPeriodError('Could not finalize plan. Try again.')
+    } finally {
+      setLockingIn(false)
+    }
+  }
+
+  const handleReviewFinalized = async () => {
+    setShowReview(false)
+    await loadData(false)
   }
 
   /**
@@ -559,16 +639,27 @@ export default function BrainstormMode({ userId }) {
     )
   }
 
+  if (showReview && loadedPlan) {
+    return (
+      <PeriodReview
+        plan={loadedPlan}
+        userId={userId}
+        showFinalizeButton={planState === 'ended_unfinalized'}
+        onFinalized={handleReviewFinalized}
+        onClose={() => setShowReview(false)}
+      />
+    )
+  }
+
   // ADR-001 Phase 5: gap-day routing. A finalized plan whose period_end is in
   // the past means we're between periods — show the leftovers + new-period CTA
   // instead of the "generate suggestions" flow the rest of this page renders.
-  const planState = classifyPlanState(mostRecentPlan)
   if (planState === 'gap') {
     return (
       <>
         <GapDayView
           userId={userId}
-          periodEnd={mostRecentPlan?.period_end ?? null}
+          periodEnd={loadedPlan?.period_end ?? null}
           onStartNewPeriod={openNewPeriodFlow}
         />
         {startPeriodError && (
@@ -615,6 +706,48 @@ export default function BrainstormMode({ userId }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+
+        {/* End-of-period prompt: shown when the period has ended but the user
+            hasn't reviewed it yet. Per ADR-001 Q1, dismissing without acting
+            leaves the prompt visible — there is no "remind me later". */}
+        {planState === 'ended_unfinalized' && (
+          <div
+            role="region"
+            aria-label="End of period review"
+            className="bg-brand-50 border border-brand-200 rounded-2xl px-4 py-4 shadow-sm space-y-3"
+          >
+            <div>
+              <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] uppercase mb-1">
+                Your week has ended
+              </p>
+              <p className="text-sm text-gray-700">
+                Mark what you actually cooked, then lock it in.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => setShowReview(true)}
+                className="btn-primary w-full"
+              >
+                Edit what you actually ate
+              </button>
+              <button
+                onClick={handleLockInAsIs}
+                disabled={lockingIn}
+                className="w-full py-3 rounded-2xl border border-brand-200 bg-white text-sm font-semibold text-brand-600 hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {lockingIn ? (
+                  <><Loader2 size={14} className="animate-spin" /> Finalizing…</>
+                ) : (
+                  'Lock in as-is'
+                )}
+              </button>
+            </div>
+            {periodError && (
+              <p className="text-xs text-red-500 text-center">{periodError}</p>
+            )}
+          </div>
+        )}
 
         {/* Last week's meals */}
         <div>
@@ -706,6 +839,7 @@ export default function BrainstormMode({ userId }) {
                       slot={slot}
                       onSwap={openSwap}
                       isServed={isServed}
+                      onToggleCooked={isServed ? handleToggleCooked : null}
                     />
                   ))}
                 </div>
@@ -741,6 +875,10 @@ export default function BrainstormMode({ userId }) {
 
           {serveError && (
             <p className="text-xs text-red-500 text-center">{serveError}</p>
+          )}
+
+          {planState === 'active' && periodError && (
+            <p className="text-xs text-red-500 text-center">{periodError}</p>
           )}
 
           {/* Share & Download — only enabled after serving */}
