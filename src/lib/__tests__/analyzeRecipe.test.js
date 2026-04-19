@@ -3,41 +3,41 @@ import { analyzeRecipe } from '../analyzeRecipe'
 
 describe('analyzeRecipe', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_ANTHROPIC_API_KEY', 'test-key')
-    global.fetch = vi.fn()
+    globalThis.fetch = vi.fn()
   })
 
-  it('should parse valid JSON from the AI response', async () => {
-    global.fetch.mockResolvedValueOnce({
+  it('returns parsed components from the proxy response', async () => {
+    globalThis.fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        content: [{ text: '{"cuisine_type": "Italian", "proteins": ["Beef"]}' }]
-      })
+        components: { cuisine_type: 'Italian', proteins: ['Beef'] },
+      }),
     })
 
     const result = await analyzeRecipe('Spaghetti Bolognese')
-    
-    expect(global.fetch).toHaveBeenCalled()
-    expect(result).toEqual({
-      cuisine_type: 'Italian',
-      proteins: ['Beef']
-    })
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/analyze-recipe',
+      expect.objectContaining({ method: 'POST' })
+    )
+    const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body)
+    expect(body.name).toBe('Spaghetti Bolognese')
+    expect(result).toEqual({ cuisine_type: 'Italian', proteins: ['Beef'] })
   })
 
-  it('should return null if API key is missing', async () => {
-    vi.stubEnv('VITE_ANTHROPIC_API_KEY', '')
+  it('returns null when the proxy responds with an error', async () => {
+    globalThis.fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ error: 'api_key_missing' }),
+    })
+
     const result = await analyzeRecipe('Pizza')
     expect(result).toBeNull()
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('should handle API errors gracefully', async () => {
-    global.fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ error: 'Internal Server Error' })
-    })
-
+  it('returns null when fetch throws', async () => {
+    globalThis.fetch.mockRejectedValueOnce(new Error('network'))
     const result = await analyzeRecipe('Pizza')
     expect(result).toBeNull()
   })

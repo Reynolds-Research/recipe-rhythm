@@ -203,8 +203,6 @@ export default function Vault({ userId }) {
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
 
-  const hasApiKey = !!import.meta.env.VITE_ANTHROPIC_API_KEY
-
   // Form state
   const [name, setName]                       = useState('')
   const [cuisineType, setCuisineType]         = useState('')
@@ -506,22 +504,19 @@ export default function Vault({ userId }) {
             {/* Form header with AI status */}
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-brand-600 tracking-wider uppercase">Add a new recipe</p>
-              {!hasApiKey && (
-                <p className="text-[10px] text-amber-500 font-medium">Add VITE_ANTHROPIC_API_KEY to .env</p>
-              )}
-              {hasApiKey && suggesting && (
+              {suggesting && (
                 <div className="flex items-center gap-1.5 text-[10px] text-brand-400 font-medium">
                   <Loader2 size={10} className="animate-spin" />
                   Analyzing…
                 </div>
               )}
-              {hasApiKey && aiApplied && !suggesting && (
+              {aiApplied && !suggesting && (
                 <div className="flex items-center gap-1 text-[10px] text-brand-500 font-medium">
                   <Sparkles size={10} />
                   AI filled — tweak as needed
                 </div>
               )}
-              {hasApiKey && aiError && !suggesting && (
+              {aiError && !suggesting && (
                 <p className="text-[10px] text-red-400 font-medium">AI failed — check console</p>
               )}
             </div>
@@ -578,20 +573,18 @@ export default function Vault({ userId }) {
                 </div>
               )}
 
-              {hasApiKey && (
-                <button
-                  type="button"
-                  onClick={handleManualSuggest}
-                  disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageBase64)}
-                  className="w-full py-2.5 rounded-xl border border-brand-200 bg-brand-50/50 text-brand-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {suggesting ? (
-                    <><Loader2 size={16} className="animate-spin" /> Analyzing…</>
-                  ) : (
-                    <><Sparkles size={16} /> Auto-fill Components</>
-                  )}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleManualSuggest}
+                disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageBase64)}
+                className="w-full py-2.5 rounded-xl border border-brand-200 bg-brand-50/50 text-brand-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {suggesting ? (
+                  <><Loader2 size={16} className="animate-spin" /> Analyzing…</>
+                ) : (
+                  <><Sparkles size={16} /> Auto-fill Components</>
+                )}
+              </button>
             </div>
 
             {/* Cuisine + Flavor row */}

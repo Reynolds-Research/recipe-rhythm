@@ -193,35 +193,15 @@ export default function BrainstormMode({ userId }) {
     loadData(false)
   }, [])
   const fetchSwapSuggestions = async (currentPlan, recentMeals) => {
-    const key = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!key) return []
-
     const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
     const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
 
     let res
     try {
-      res = await fetch('https://api.anthropic.com/v1/messages', {
+      res = await fetch('/api/swap-suggestions', {
         method: 'POST',
-        headers: {
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 120,
-          messages: [{
-            role: 'user',
-            content: `Suggest 3 specific, well-known dinner recipes different from what's already planned. Return ONLY a JSON array of 3 recipe name strings, no markdown.
-
-Already in plan: ${planNames || 'none'}
-Recently eaten: ${recentNames || 'none'}
-
-["Recipe 1", "Recipe 2", "Recipe 3"]`,
-          }],
-        }),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ planNames, recentNames }),
       })
     } catch (e) {
       console.error('[fetchSwapSuggestions] fetch failed:', e)
@@ -231,17 +211,7 @@ Recently eaten: ${recentNames || 'none'}
     if (!res.ok) return []
 
     const data = await res.json()
-    const text = data.content?.[0]?.text
-    if (!text) return []
-
-    let names
-    try {
-      names = JSON.parse(text)
-    } catch {
-      const match = text.match(/\[[\s\S]*\]/)
-      if (!match) return []
-      try { names = JSON.parse(match[0]) } catch { return [] }
-    }
+    const names = Array.isArray(data.names) ? data.names : []
 
     return names.slice(0, 3).map((name, i) => ({
       id: `ai-suggestion-${i}`,

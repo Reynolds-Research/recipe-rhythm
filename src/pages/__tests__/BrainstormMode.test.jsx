@@ -47,6 +47,7 @@ describe('BrainstormMode Component', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    globalThis.fetch = vi.fn()
   })
 
   it('fetches basic setup data and renders correctly', async () => {
@@ -69,7 +70,7 @@ describe('BrainstormMode Component', () => {
     ])
 
     render(<BrainstormMode userId="test-user" />)
-    
+
     await waitFor(() => {
       expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
     })
@@ -77,9 +78,47 @@ describe('BrainstormMode Component', () => {
     // Click regenerate
     const regenBtn = screen.getByText(/Regenerate/i)
     fireEvent.click(regenBtn)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Tacos')).toBeInTheDocument()
     })
+  })
+
+  it('calls /api/swap-suggestions when Swap is clicked', async () => {
+    vi.spyOn(recommendations, 'getRecommendations').mockReturnValue([
+      { id: '1', name: 'Tacos', is_wildcard: false },
+      { id: '2', name: 'Ramen', is_wildcard: false },
+      { id: '3', name: 'Lasagna', is_wildcard: false },
+      { id: '4', name: 'Pad Thai', is_wildcard: false },
+      { id: '5', name: 'Risotto', is_wildcard: false },
+    ])
+
+    globalThis.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ names: ['Pho', 'Curry', 'Pasta'] }),
+    })
+
+    render(<BrainstormMode userId="test-user" />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    const swapButtons = screen.getAllByText(/^Swap$/i)
+    fireEvent.click(swapButtons[0])
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/swap-suggestions',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+        })
+      )
+    })
+
+    const body = JSON.parse(globalThis.fetch.mock.calls[0][1].body)
+    expect(body).toHaveProperty('planNames')
+    expect(body).toHaveProperty('recentNames')
   })
 })
