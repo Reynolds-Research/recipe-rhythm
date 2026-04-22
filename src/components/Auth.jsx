@@ -39,7 +39,7 @@ export default function Auth() {
         
         <div className="text-center space-y-2">
           <Logo className="w-16 h-16 mx-auto mb-4" />
-          <h1 className="text-xl text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
+          <h1 className="text-xl text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
           <p className="text-sm text-gray-400 font-serif italic">Login to sync your meal plan safely</p>
         </div>
 
@@ -72,7 +72,7 @@ export default function Auth() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:text-brand-500 transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 uppercase tracking-widest hover:text-brand-500 transition-colors"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>

@@ -4,6 +4,7 @@ import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import Logo from '../components/Logo'
+import { useHaptics } from '../hooks/useHaptics'
 
 /**
  * LogMode
@@ -11,6 +12,7 @@ import Logo from '../components/Logo'
  */
 export default function LogMode({ recentMeals = [], onSave, userId }) {
   const { transcript, isListening, error, toggleListening, setTranscript } = useSpeech()
+  const { trigger } = useHaptics()
   const [editableText, setEditableText] = useState('')
   const [note, setNote]                 = useState('')
   const [saved, setSaved]               = useState(false)
@@ -26,6 +28,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
   const handleSave = async () => {
     if (!editableText.trim()) return
+    trigger('success')
     setSaving(true)
 
     const { error: dbError } = await supabase.from('meals').insert({
@@ -102,7 +105,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
       {/* Header */}
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">{timeAwareString}</p>
       </div>
 

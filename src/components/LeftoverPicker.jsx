@@ -74,7 +74,7 @@ export default function LeftoverPicker({
       data-testid="leftover-picker"
     >
       <div className="w-full max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl px-6 pt-6 pb-8 shadow-2xl border-t border-cream-200 max-h-[90vh] flex flex-col">
-        <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] mb-1 uppercase">
+        <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
           Roll Forward
         </p>
         <p className="text-base font-serif italic text-gray-700 mb-4">
@@ -107,7 +107,7 @@ export default function LeftoverPicker({
                   className="sr-only"
                   aria-label={`Include ${item.name}`}
                 />
-                <span className="text-[10px] font-bold text-brand-400 w-12 flex-shrink-0 tracking-tighter uppercase">
+                <span className="text-[11px] font-bold text-brand-400 w-12 flex-shrink-0 tracking-tighter uppercase">
                   {formatShortDate(item.scheduled_date)}
                 </span>
                 <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">

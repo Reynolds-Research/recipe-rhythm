@@ -69,7 +69,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
     <div className="mobile-screen pb-28">
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
           For My Wife
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -96,7 +96,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
 
         {leftovers.length > 0 ? (
           <div>
-            <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-3 uppercase">
+            <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">
               Leftovers from last period
             </p>
             <div
@@ -109,7 +109,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
                   className="flex items-center gap-3 py-3"
                   data-testid="gap-leftover-item"
                 >
-                  <span className="text-[10px] font-bold text-brand-400 w-14 flex-shrink-0 tracking-tighter uppercase">
+                  <span className="text-[11px] font-bold text-brand-400 w-14 flex-shrink-0 tracking-tighter uppercase">
                     {formatShortDate(item.scheduled_date)}
                   </span>
                   <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">

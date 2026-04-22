@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import Sheet from 'react-modal-sheet'
+import { useHaptics } from '../hooks/useHaptics'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
@@ -177,7 +179,7 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
       >
         <GripVertical size={18} strokeWidth={2} />
       </div>
-      <span className="text-[10px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase">
+      <span className="text-[11px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase">
         {dow}
       </span>
       <span
@@ -211,7 +213,7 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
       </span>
       {showCookedToggle ? (
         <label className="flex-shrink-0 flex items-center gap-2 cursor-pointer">
-          <span className="text-[10px] font-bold text-brand-600 uppercase tracking-wide">
+          <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wide">
             Cooked
           </span>
           <input
@@ -226,7 +228,7 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
         <button
           onClick={() => onSwap(slot.scheduled_date)}
           disabled={isServed}
-          className={`flex-shrink-0 text-[10px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors ${isServed ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
+          className={`flex-shrink-0 text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors ${isServed ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
         >
           Swap
         </button>
@@ -263,7 +265,8 @@ export default function BrainstormMode({ userId }) {
   // Serve state
   const [isServed, setIsServed]     = useState(false)
   const [servedAt, setServedAt]     = useState(null)
-  const [serving, setServing]       = useState(false)
+  const [servingPlan, setServingPlan]   = useState(false)
+  const { trigger } = useHaptics()
   const [serveError, setServeError] = useState(null)
 
   // ADR-001 Phase 4: end-of-period review surface.
@@ -342,6 +345,7 @@ export default function BrainstormMode({ userId }) {
 
   const loadData = async (forceRegenerate = false) => {
     setLoading(true)
+    trigger('success')
 
     const today = new Date()
     const ninetyDaysAgo = addDays(today, -90)
@@ -622,9 +626,9 @@ export default function BrainstormMode({ userId }) {
   }, [plan, selectedDates])
 
   const handleServe = async () => {
-    if (isServed || serving || !canServe) return
-    setServing(true)
-    setServeError(null)
+    if (isServed || servingPlan || !canServe) return
+    trigger('success')
+    setServingPlan(true)
 
     try {
       const items = plan.map((slot) => ({
@@ -653,7 +657,7 @@ export default function BrainstormMode({ userId }) {
         setServeError('Could not save plan. Try again.')
       }
     } finally {
-      setServing(false)
+      setServingPlan(false)
     }
   }
 
@@ -862,7 +866,7 @@ export default function BrainstormMode({ userId }) {
       {/* Header */}
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">Brainstorm meals</p>
       </div>
 
@@ -877,7 +881,7 @@ export default function BrainstormMode({ userId }) {
             className="bg-brand-50 border border-brand-200 rounded-2xl px-4 py-4 shadow-sm space-y-3"
           >
             <div>
-              <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] uppercase mb-1">
+              <p className="text-[11px] font-bold text-brand-500 tracking-widest uppercase mb-1">
                 Your period has ended
               </p>
               <p className="text-sm text-gray-700">
@@ -911,7 +915,7 @@ export default function BrainstormMode({ userId }) {
 
         {/* Last week's meals */}
         <div>
-          <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-3 uppercase">LAST WEEK'S MEALS</p>
+          <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">LAST WEEK'S MEALS</p>
           <div className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm">
             {lastWeek.map(({ day, name }) => (
               <div key={day} className="flex items-center gap-3 py-3">
@@ -927,11 +931,11 @@ export default function BrainstormMode({ userId }) {
         {/* Date strip + plan */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">YOUR MEAL PLAN</p>
+            <p className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">YOUR MEAL PLAN</p>
             <button
               onClick={() => loadData(true)}
               disabled={isServed}
-              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${isServed ? 'text-gray-300 cursor-not-allowed' : 'text-brand-500 hover:text-brand-600'}`}
+              className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider transition-colors ${isServed ? 'text-gray-300 cursor-not-allowed' : 'text-brand-500 hover:text-brand-600'}`}
             >
               <RefreshCw size={12} strokeWidth={2.5} />
               Regenerate
@@ -984,10 +988,10 @@ export default function BrainstormMode({ userId }) {
           {!isServed ? (
             <button
               onClick={handleServe}
-              disabled={serving || !canServe}
+              disabled={servingPlan || !canServe}
               className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {serving ? (
+              {servingPlan ? (
                 <><Loader2 size={16} className="animate-spin" /> Saving…</>
               ) : (
                 <><Check size={16} /> Serve This Plan</>
@@ -1036,88 +1040,87 @@ export default function BrainstormMode({ userId }) {
       </div>
 
       {/* Swap picker — bottom sheet */}
-      {swapDate && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-end"
-          onClick={() => setSwapDate(null)}
-        >
-          <div
-            className="w-full bg-cream-50 rounded-t-3xl px-6 py-6 shadow-2xl border-t border-cream-200"
-            onClick={e => e.stopPropagation()}
-          >
-            <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] mb-1 uppercase">
-              SWAP {shortDateLabel(swapDate).toUpperCase()}
-            </p>
-            <p className="text-base font-serif italic text-gray-700 mb-6">Pick from your vault</p>
+      <Sheet isOpen={!!swapDate} onClose={() => setSwapDate(null)}>
+        <Sheet.Container className="!rounded-t-3xl !bg-cream-50 shadow-2xl border-t border-cream-200">
+          <Sheet.Header />
+          <Sheet.Content>
+            <div className="px-6 py-2 pb-safe">
+              <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
+                SWAP {swapDate && shortDateLabel(swapDate).toUpperCase()}
+              </p>
+              <p className="text-base font-serif italic text-gray-700 mb-6">Pick from your vault</p>
 
-            <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-              <div className="mb-4">
-                <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">AI Suggestions</p>
-                {loadingSwap ? (
-                  <p className="text-xs text-gray-400 py-3 text-center">Finding ideas…</p>
-                ) : swapSuggestions.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-3 text-center">No suggestions available</p>
-                ) : (
-                  <div className="space-y-1">
-                    {swapSuggestions.map(item => (
-                      <div key={item.id} className="flex items-center gap-2 py-2.5">
+              <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                <div className="mb-4">
+                  <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">AI Suggestions</p>
+                  {loadingSwap ? (
+                    <p className="text-xs text-gray-400 py-3 text-center">Finding ideas…</p>
+                  ) : swapSuggestions.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-3 text-center">No suggestions available</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {swapSuggestions.map(item => (
+                        <div key={item.id} className="flex items-center gap-2 py-2.5">
+                          <button
+                            onClick={() => { trigger('light'); handleSwap(swapDate, item); }}
+                            className="flex-1 text-left text-sm text-brand-700 font-medium hover:text-brand-800 transition-colors"
+                          >
+                            {item.name}
+                          </button>
+                          {item.source_url && (
+                            <a
+                              href={item.source_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-shrink-0 flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-full px-2.5 py-1 transition-colors"
+                              title="View recipe"
+                            >
+                              <ExternalLink size={10} />
+                              View
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {(() => {
+                  const planIds = new Set(plan.map(s => s.id).filter(Boolean))
+                  const availableVault = vault.filter(item => !planIds.has(item.id))
+                  return availableVault.length === 0 ? (
+                    <p className="text-sm text-gray-400 py-4 text-center">
+                      {vault.length === 0 ? 'Your vault is empty — save some recipes first' : 'All vault items are already in your plan'}
+                    </p>
+                  ) : (
+                    <div className="pt-2">
+                      <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Cookbook</p>
+                      {availableVault.map(item => (
                         <button
-                          onClick={() => handleSwap(swapDate, item)}
-                          className="flex-1 text-left text-sm text-brand-700 font-medium hover:text-brand-800 transition-colors"
+                          key={item.id}
+                          onClick={() => { trigger('light'); handleSwap(swapDate, item); }}
+                          className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
                         >
                           {item.name}
                         </button>
-                        {item.source_url && (
-                          <a
-                            href={item.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-shrink-0 flex items-center gap-1 text-[10px] font-semibold text-brand-500 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-full px-2.5 py-1 transition-colors"
-                            title="View recipe"
-                          >
-                            <ExternalLink size={10} />
-                            View
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
 
-              {(() => {
-                const planIds = new Set(plan.map(s => s.id).filter(Boolean))
-                const availableVault = vault.filter(item => !planIds.has(item.id))
-                return availableVault.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-4 text-center">
-                    {vault.length === 0 ? 'Your vault is empty — save some recipes first' : 'All vault items are already in your plan'}
-                  </p>
-                ) : (
-                  <div className="pt-2">
-                    <p className="text-[9px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Cookbook</p>
-                    {availableVault.map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleSwap(swapDate, item)}
-                        className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
-                      >
-                        {item.name}
-                      </button>
-                    ))}
-                  </div>
-                )
-              })()}
+              <button
+                onClick={() => setSwapDate(null)}
+                className="w-full mt-4 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500"
+              >
+                Cancel
+              </button>
             </div>
+          </Sheet.Content>
+        </Sheet.Container>
+        <Sheet.Backdrop onClick={() => setSwapDate(null)} />
+      </Sheet>
 
-            <button
-              onClick={() => setSwapDate(null)}
-              className="w-full mt-4 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
     </div>
   )

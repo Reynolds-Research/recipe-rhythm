@@ -192,7 +192,7 @@ export default function DateRangePicker({
         className="w-full max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl px-6 pt-6 pb-8 shadow-2xl border-t border-cream-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] mb-1 uppercase">
+        <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
           New Planning Period
         </p>
         <p className="text-base font-serif italic text-gray-700 mb-4">
@@ -223,7 +223,7 @@ export default function DateRangePicker({
           {WEEKDAYS_SHORT.map((l, i) => (
             <div
               key={i}
-              className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-wider"
+              className="text-[11px] font-bold text-gray-400 text-center uppercase tracking-wider"
             >
               {l}
             </div>

@@ -132,7 +132,7 @@ export default function DateStripPicker({
         className={cls}
       >
         <span
-          className={`text-[9px] font-bold uppercase tracking-wider ${
+          className={`text-[11px] font-bold uppercase tracking-wider ${
             isSelected ? 'text-white/80' : 'text-gray-400'
           }`}
         >
@@ -161,7 +161,7 @@ export default function DateStripPicker({
       className="bg-white border border-cream-200 rounded-2xl px-4 py-4 mb-3 shadow-sm"
       data-testid="date-strip-picker"
     >
-      <p className="text-[10px] font-bold text-gray-400 tracking-widest mb-3 uppercase">
+      <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">
         Pick the dates you want to plan
       </p>
 
@@ -195,6 +195,7 @@ export default function DateStripPicker({
           <button
             type="button"
             onClick={() => setExpanded(false)}
+            aria-expanded={expanded}
             className="text-[11px] font-semibold text-gray-500 hover:text-brand-600 transition-colors"
             data-testid="date-strip-collapse"
           >
@@ -204,6 +205,7 @@ export default function DateStripPicker({
           <button
             type="button"
             onClick={() => setExpanded(true)}
+            aria-expanded={expanded}
             className="text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-200 rounded-full px-3 py-1 hover:bg-brand-100 transition-colors"
             data-testid="date-strip-expand"
           >

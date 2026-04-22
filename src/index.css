@@ -14,7 +14,7 @@
     @apply max-w-md mx-auto min-h-screen bg-cream-50 flex flex-col pb-16 pt-[env(safe-area-inset-top)];
   }
   .btn-primary {
-    @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600;
+    @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
   }
   .btn-ghost {
     @apply px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-cream-100 transition-colors;

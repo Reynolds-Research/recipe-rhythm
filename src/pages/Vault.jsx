@@ -3,6 +3,7 @@ import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlu
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import Logo from '../components/Logo'
+import { useHaptics } from '../hooks/useHaptics'
 
 /**
  * Vault
@@ -85,12 +86,14 @@ function ChipPicker({ options, value, onChange, multi = true, storageKey = null 
   const [showAdd, setShowAdd]   = useState(false)
   const [draft, setDraft]       = useState('')
   const [extras, setExtras]     = useState(() => storageKey ? loadExtras(storageKey) : [])
+  const { trigger } = useHaptics()
 
   const allOptions = [...options, ...extras.filter(e => !options.includes(e))]
 
   const isActive = (opt) => multi ? (value || []).includes(opt) : value === opt
 
   const toggle = (opt) => {
+    trigger('selection')
     if (multi) {
       const cur = value || []
       onChange(cur.includes(opt) ? cur.filter(v => v !== opt) : [...cur, opt])
@@ -154,7 +157,7 @@ function ChipPicker({ options, value, onChange, multi = true, storageKey = null 
       ) : (
         <button
           type="button"
-          onClick={() => setShowAdd(true)}
+          onClick={() => { trigger('light'); setShowAdd(true) }}
           className="px-2.5 py-1 rounded-full text-xs text-gray-400 border border-dashed border-gray-200 hover:border-brand-300 hover:text-brand-500 transition-all"
         >
           + custom
@@ -167,7 +170,7 @@ function ChipPicker({ options, value, onChange, multi = true, storageKey = null 
 function FieldSection({ label, children }) {
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
       {children}
     </div>
   )
@@ -179,7 +182,7 @@ function ComponentRow({ label, values }) {
   if (filtered.length === 0) return null
   return (
     <div className="flex gap-2 items-start">
-      <span className="text-[9px] font-bold text-gray-300 uppercase tracking-wider pt-0.5 w-12 shrink-0">{label}</span>
+      <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider pt-0.5 w-12 shrink-0">{label}</span>
       <div className="flex flex-wrap gap-1">
         {filtered.map(v => (
           <span key={v} className="px-2 py-0.5 bg-cream-100 text-gray-600 text-xs rounded-full">{v}</span>
@@ -203,6 +206,7 @@ export default function Vault({ userId }) {
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
   const [vaultError, setVaultError]       = useState(null)
+  const { trigger } = useHaptics()
 
   // Form state
   const [name, setName]                       = useState('')
@@ -219,60 +223,31 @@ export default function Vault({ userId }) {
   const [fruits, setFruits]                   = useState([])
 
 
-  const [imageBase64, setImageBase64]         = useState(null)
-  const [imageType, setImageType]             = useState(null)
+  const [imageFile, setImageFile]             = useState(null)
+  const [imagePreview, setImagePreview]       = useState(null)
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        let width = img.width
-        let height = img.height
-        const maxDim = 1024
-
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width)
-            width = maxDim
-          } else {
-            width = Math.round((width * maxDim) / height)
-            height = maxDim
-          }
-        }
-
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        ctx.drawImage(img, 0, 0, width, height)
-        
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
-        const base64 = dataUrl.split(',')[1]
-        
-        setImageBase64(base64)
-        setImageType('image/jpeg')
-        setAiApplied(false)
-      }
-      img.src = event.target.result
-    }
-    reader.readAsDataURL(file)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+    setAiApplied(false)
   }
 
   const handleManualSuggest = async () => {
-    if (!name.trim() && !recipeUrl.trim() && !imageBase64) return
+    if (!name.trim() && !recipeUrl.trim() && !imageFile) return
     if (suggesting) return
+    trigger('light')
     setSuggesting(true)
     setAiError(false)
     
+    // For AI suggestion, we'd need to convert file to base64 or URL
+    // This assumes backend handles URLs or we implement base64 conversion
     const s = await analyzeRecipe({
       name: name.trim(),
-      url: recipeUrl.trim(),
-      imageBase64,
-      mediaType: imageType
+      url: recipeUrl.trim()
     })
     
     if (s) {
@@ -323,14 +298,16 @@ export default function Vault({ userId }) {
     setFruits([])
     setAiApplied(false)
     setAiError(false)
-    setImageBase64(null)
-    setImageType(null)
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setImageFile(null)
+    setImagePreview(null)
   }
 
   const handleAdd = async () => {
     const finalName = name.trim()
     if (!finalName) return
     setSaving(true)
+    trigger('success')
 
     const { data: existing } = await supabase
       .from('vault')
@@ -346,11 +323,44 @@ export default function Vault({ userId }) {
     }
 
     let publicUrl = null
-    if (imageBase64 && imageType) {
+    if (imageFile) {
       try {
-        const fetchResponse = await fetch(`data:${imageType};base64,${imageBase64}`)
-        const blob = await fetchResponse.blob()
-        const fileName = `recipe-${Date.now()}.jpg`
+        const compressImage = (file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onload = (event) => {
+              const img = new Image()
+              img.onload = () => {
+                const canvas = document.createElement('canvas')
+                let width = img.width
+                let height = img.height
+                const maxDim = 800
+
+                if (width > maxDim || height > maxDim) {
+                  if (width > height) {
+                    height = Math.round((height * maxDim) / width)
+                    width = maxDim
+                  } else {
+                    width = Math.round((width * maxDim) / height)
+                    height = maxDim
+                  }
+                }
+
+                canvas.width = width
+                canvas.height = height
+                const ctx = canvas.getContext('2d')
+                ctx.drawImage(img, 0, 0, width, height)
+                
+                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.7)
+              }
+              img.src = event.target.result
+            }
+            reader.readAsDataURL(file)
+          })
+        }
+
+        const blob = await compressImage(imageFile)
+        const fileName = `${userId}/${Date.now()}.jpg`
         
         const { error: uploadError } = await supabase.storage
           .from('recipe_images')
@@ -361,7 +371,6 @@ export default function Vault({ userId }) {
           if (data && data.publicUrl) publicUrl = data.publicUrl
         } else {
           console.error('[Vault] Image upload failed:', uploadError)
-          setVaultError('Image upload failed. Saving without image.')
         }
       } catch (err) {
         console.error('[Vault] Error preparing image for upload:', err)
@@ -396,12 +405,14 @@ export default function Vault({ userId }) {
   }
 
   const handleDelete = async (id) => {
+    trigger('error')
     await supabase.from('vault').delete().eq('id', id).eq('user_id', userId)
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
   const handleAddSuggestion = async (suggestionName) => {
     if (addingSuggestion) return
+    trigger('success')
     setAddingSuggestion(suggestionName)
     const analysis = await analyzeRecipe(suggestionName)
     await supabase.from('vault').insert({
@@ -424,12 +435,14 @@ export default function Vault({ userId }) {
   }
 
   const toggleExpand = (id) => {
+    trigger('light')
     setExpandedId(prev => prev === id ? null : id)
     setEditingId(null)
     setEditFields({})
   }
 
   const startEdit = (recipe) => {
+    trigger('light')
     setEditingId(recipe.id)
     setEditFields({
       cuisine_type:     recipe.cuisine_type     || '',
@@ -447,6 +460,7 @@ export default function Vault({ userId }) {
   }
 
   const handleSaveEdit = async (id) => {
+    trigger('success')
     setSavingEdit(true)
     await supabase.from('vault').update({
       ...editFields,
@@ -477,7 +491,7 @@ export default function Vault({ userId }) {
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center relative">
         <div className="absolute top-1/2 -translate-y-1/2 right-5">
           <button
-            onClick={() => { setShowForm(prev => !prev); if (showForm) resetForm() }}
+            onClick={() => { trigger('light'); setShowForm(prev => !prev); if (showForm) resetForm() }}
             aria-label={showForm ? 'Close add recipe form' : 'Add a new recipe'}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95
               ${showForm
@@ -492,7 +506,7 @@ export default function Vault({ userId }) {
           </button>
         </div>
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
           {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
         </p>
@@ -515,19 +529,19 @@ export default function Vault({ userId }) {
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-brand-600 tracking-wider uppercase">Add a new recipe</p>
               {suggesting && (
-                <div className="flex items-center gap-1.5 text-[10px] text-brand-400 font-medium">
+                <div className="flex items-center gap-1.5 text-[11px] text-brand-400 font-medium">
                   <Loader2 size={10} className="animate-spin" />
                   Analyzing…
                 </div>
               )}
               {aiApplied && !suggesting && (
-                <div className="flex items-center gap-1 text-[10px] text-brand-500 font-medium">
+                <div className="flex items-center gap-1 text-[11px] text-brand-500 font-medium">
                   <Sparkles size={10} />
                   AI filled — tweak as needed
                 </div>
               )}
               {aiError && !suggesting && (
-                <p className="text-[10px] text-red-400 font-medium">Couldn't analyze. Fill manually.</p>
+                <p className="text-[11px] text-red-400 font-medium">Couldn't analyze. Fill manually.</p>
               )}
             </div>
 
@@ -552,12 +566,12 @@ export default function Vault({ userId }) {
                   <button
                     type="button"
                     className={`h-full border rounded-xl px-4 flex items-center justify-center transition-colors relative overflow-hidden ${
-                      imageBase64 ? 'bg-brand-50 border-brand-500 text-brand-600' : 'bg-white border-cream-200 text-brand-500 hover:bg-brand-50'
+                      imagePreview ? 'bg-brand-50 border-brand-500 text-brand-600' : 'bg-white border-cream-200 text-brand-500 hover:bg-brand-50'
                     }`}
                     title="Upload recipe image"
                     aria-label="Upload recipe image"
                   >
-                    {imageBase64 ? <ImageIcon size={20} /> : <Camera size={20} />}
+                    {imagePreview ? <ImageIcon size={20} /> : <Camera size={20} />}
                     <input
                       type="file"
                       accept="image/*"
@@ -569,16 +583,23 @@ export default function Vault({ userId }) {
                 </div>
               </div>
 
-              {imageBase64 && (
-                <div className="relative rounded-xl overflow-hidden border border-brand-200 mt-2">
-                  <img src={`data:${imageType};base64,${imageBase64}`} alt="Recipe preview" className="w-full h-48 object-cover" />
+              {imagePreview && (
+                <div className="relative inline-block mt-4 mb-2">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="h-32 w-32 object-cover rounded-xl shadow-sm border border-cream-200"
+                  />
                   <button
                     type="button"
-                    onClick={() => { setImageBase64(null); setImageType(null); }}
-                    aria-label="Remove uploaded image"
-                    className="absolute top-3 right-3 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 backdrop-blur-sm transition-colors"
+                    onClick={() => {
+                      URL.revokeObjectURL(imagePreview)
+                      setImageFile(null)
+                      setImagePreview(null)
+                    }}
+                    className="absolute -top-2 -right-2 bg-white text-gray-400 rounded-full p-1 shadow-sm border border-cream-100 hover:text-red-500 transition-colors"
                   >
-                    <X size={16} strokeWidth={2.5} />
+                    <X size={16} />
                   </button>
                 </div>
               )}
@@ -586,7 +607,7 @@ export default function Vault({ userId }) {
               <button
                 type="button"
                 onClick={handleManualSuggest}
-                disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageBase64)}
+                disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageFile)}
                 className="w-full py-2.5 rounded-xl border border-brand-200 bg-brand-50/50 text-brand-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {suggesting ? (
@@ -672,6 +693,7 @@ export default function Vault({ userId }) {
             <div
               className="flex items-center gap-4 cursor-pointer"
               onClick={() => toggleExpand(recipe.id)}
+              aria-expanded={expandedId === recipe.id}
             >
               <div className="flex-1 min-w-0">
                 <p className="text-base font-medium text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">
@@ -683,13 +705,13 @@ export default function Vault({ userId }) {
                     recipe.cooking_method,
                     ...(recipe.proteins || []).filter(p => p !== 'None').slice(0, 2),
                   ].filter(Boolean).map((item, i) => (
-                    <span key={item} className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <span key={item} className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                       {i > 0 && '· '}{item}
                     </span>
                   ))}
                   {recipe.auto_completed && (
-                    <span className="text-[9px] font-bold text-amber-500/80 border border-amber-200 bg-amber-50 rounded-full px-1.5 py-0.5 uppercase tracking-wide leading-none">
-                      auto-completed
+                    <span className="text-[11px] font-bold text-amber-500/80 border border-amber-200 bg-amber-50 rounded-full px-1.5 py-0.5 uppercase tracking-wide leading-none">
+                      AI-filled
                     </span>
                   )}
                 </div>
@@ -832,7 +854,7 @@ export default function Vault({ userId }) {
           return (
             <div className="pt-2 min-w-0">
               <div className="flex items-center gap-2 mb-3">
-                <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">Need a head start?</p>
+                <p className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">Need a head start?</p>
                 <div className="flex-1 h-px bg-cream-200" />
               </div>
               <p className="text-xs text-gray-400 mb-3">Tap any meal to add it to your vault with AI-filled details.</p>

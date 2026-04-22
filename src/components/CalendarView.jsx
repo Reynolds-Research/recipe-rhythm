@@ -204,7 +204,7 @@ export default function CalendarView({ userId, initialMonth }) {
     <div className="mobile-screen pb-28">
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
           Calendar
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -242,7 +242,7 @@ export default function CalendarView({ userId, initialMonth }) {
           {WEEKDAY_LETTERS.map((l, i) => (
             <div
               key={i}
-              className="text-[10px] font-bold text-gray-400 text-center uppercase tracking-wider"
+              className="text-[11px] font-bold text-gray-400 text-center uppercase tracking-wider"
             >
               {l}
             </div>
@@ -304,7 +304,7 @@ export default function CalendarView({ userId, initialMonth }) {
                 </span>
                 {preview && (
                   <span
-                    className={`text-[9px] font-medium leading-tight line-clamp-2 mt-3 text-left w-full ${
+                    className={`text-[11px] font-medium leading-tight line-clamp-2 mt-3 text-left w-full ${
                       preview.cooked
                         ? 'line-through text-gray-400'
                         : 'text-gray-800'
@@ -340,7 +340,7 @@ function Legend() {
       className="bg-white border border-cream-100 rounded-2xl px-4 py-3 shadow-sm"
       data-testid="calendar-legend"
     >
-      <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] mb-2 uppercase">
+      <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">
         Legend
       </p>
       <div className="grid grid-cols-2 gap-y-2 text-[11px] text-gray-700">
@@ -381,7 +381,7 @@ function DayPopover({ iso, items, onClose }) {
       >
         <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="text-[10px] font-bold text-brand-500 tracking-[0.2em] uppercase">
+            <p className="text-[11px] font-bold text-brand-500 tracking-widest uppercase">
               {formatShortDate(iso)}
             </p>
             {periodStart && periodEnd && (
@@ -419,7 +419,7 @@ function DayPopover({ iso, items, onClose }) {
                 {item.name}
               </span>
               {item.cooked && (
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tighter">
                   Cooked
                 </span>
               )}
