@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Mic, MicOff, Check, BookOpen, MessageSquare } from 'lucide-react'
+import { Mic, MicOff, Check, BookOpen, MessageSquare, X } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
@@ -20,6 +20,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
   // When the speech hook gives us a transcript, drop it into the editable box
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (transcript) setEditableText(transcript)
   }, [transcript])
 
@@ -60,11 +61,8 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     setTranscript('')
     onSave?.()
 
-    setTimeout(() => {
-      setSaved(false)
-      setSavedMealName('')
-      setSavedMealNote('')
-    }, 4000)
+    setTranscript('')
+    onSave?.()
   }
 
   const handleSaveToVault = async () => {
@@ -88,9 +86,15 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     })
     setSavedMealName('')
     setSavedMealNote('')
+    setSaved(false)
   }
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
+  const todayHour = new Date().getHours()
+  const timeAwareString = todayHour < 11 
+    ? 'What did you eat last night?' 
+    : 'What did you eat tonight?'
+
+
 
   return (
     <div className="mobile-screen">
@@ -99,7 +103,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
         <h1 className="text-sm text-brand-600 font-bold tracking-[0.2em] uppercase">For My Wife</h1>
-        <p className="text-lg text-gray-900 mt-1 font-serif italic">What did you eat tonight?</p>
+        <p className="text-lg text-gray-900 mt-1 font-serif italic">{timeAwareString}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-28">
@@ -161,10 +165,19 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
         {/* Save confirmation + vault prompt */}
         {saved && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-2xl py-3">
-              <Check size={16} className="text-green-600" />
-              <span className="text-sm font-medium text-green-700">Logged!</span>
+          <div className="space-y-2" role="status" aria-live="polite">
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-2xl py-3 px-4">
+              <div className="flex items-center gap-2">
+                <Check size={16} className="text-green-600" />
+                <span className="text-sm font-medium text-green-700">Logged!</span>
+              </div>
+              <button 
+                onClick={() => setSaved(false)} 
+                className="text-green-600/60 hover:text-green-800 transition-colors"
+                aria-label="Dismiss message"
+              >
+                <X size={16} />
+              </button>
             </div>
             {savedMealName && (
               <button

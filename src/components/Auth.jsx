@@ -9,6 +9,8 @@ export default function Auth() {
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleAuth = async (e) => {
     e.preventDefault()
@@ -18,7 +20,11 @@ export default function Auth() {
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) setErrorMsg(error.message)
-      else alert('Success! You may now sign in.')
+      else {
+        setSuccessMsg('Success! You may now sign in.')
+        setIsSignUp(false)
+        setPassword('')
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setErrorMsg(error.message)
@@ -47,6 +53,7 @@ export default function Auth() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="Email address"
                 required
+                autoComplete="email"
                 className="input-base pl-11"
               />
             </div>
@@ -54,19 +61,33 @@ export default function Auth() {
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Password"
                 required
-                className="input-base pl-11"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                className="input-base pl-11 pr-14"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 uppercase tracking-widest hover:text-brand-500 transition-colors"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
             </div>
           </div>
 
           {errorMsg && (
-            <p className="text-xs text-red-500 font-medium text-center bg-red-50 rounded-xl py-2 px-3">
+            <p className="text-xs text-red-500 font-medium text-center bg-red-50 rounded-xl py-2 px-3 border border-red-100">
               {errorMsg}
+            </p>
+          )}
+          
+          {successMsg && (
+            <p className="text-xs text-green-600 font-medium text-center bg-green-50 rounded-xl py-2 px-3 border border-green-100">
+              {successMsg}
             </p>
           )}
 

@@ -17,6 +17,7 @@ export function useSpeech() {
       window.SpeechRecognition || window.webkitSpeechRecognition
 
     if (!SpeechRecognition) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('Speech recognition is not supported in this browser.')
       return
     }

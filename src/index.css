@@ -11,7 +11,7 @@
 
 @layer components {
   .mobile-screen {
-    @apply max-w-sm mx-auto min-h-screen bg-cream-50 flex flex-col pb-16;
+    @apply max-w-md mx-auto min-h-screen bg-cream-50 flex flex-col pb-16 pt-[env(safe-area-inset-top)];
   }
   .btn-primary {
     @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600;
@@ -20,7 +20,7 @@
     @apply px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-cream-100 transition-colors;
   }
   .input-base {
-    @apply w-full rounded-xl border border-cream-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all;
+    @apply w-full rounded-xl border border-cream-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all;
   }
   .card {
     @apply bg-white rounded-2xl border border-cream-100 p-5 shadow-sm;

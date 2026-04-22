@@ -38,6 +38,7 @@ export default function App() {
 
   useEffect(() => { 
     if (session) fetchRecentMeals() 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
 
   if (loadingSession) {
@@ -51,10 +52,10 @@ export default function App() {
   const userId = session.user.id
 
   return (
-    <div className="max-w-sm mx-auto relative">
+    <div className="max-w-md mx-auto relative">
       <button
         onClick={() => supabase.auth.signOut()}
-        className="absolute top-5 right-5 z-50 text-gray-400 hover:text-red-400 transition-colors bg-white/50 backdrop-blur-sm p-2 rounded-full border border-cream-100 shadow-sm"
+        className="absolute top-[max(20px,env(safe-area-inset-top))] right-[max(20px,env(safe-area-inset-right))] z-50 text-gray-400 hover:text-red-400 transition-colors bg-white/50 backdrop-blur-sm p-3 rounded-full border border-cream-100 shadow-sm"
         title="Sign Out"
         aria-label="Sign out"
       >
@@ -75,12 +76,13 @@ export default function App() {
           <Vault userId={userId} />
         )}
       </main>
-      <nav className="max-w-sm mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
+      <nav className="max-w-md mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },
           { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },
           { id: 'calendar',   label: 'Calendar',    Icon: CalendarDays  },
           { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
+        // eslint-disable-next-line no-unused-vars
         ].map(({ id, label, Icon }) => (
           <button
             key={id}

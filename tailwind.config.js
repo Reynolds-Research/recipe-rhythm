@@ -5,6 +5,10 @@ export default {
     extend: {
       fontFamily: {
         sans: ['DM Sans', 'sans-serif'],
+        serif: ['Fraunces', 'Georgia', 'serif'],
+      },
+      spacing: {
+        safe: 'env(safe-area-inset-bottom)',
       },
       colors: {
         brand: {

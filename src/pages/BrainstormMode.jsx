@@ -173,7 +173,7 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
     >
       <div
         {...(isServed ? {} : { ...attributes, ...listeners })}
-        className={isServed ? 'text-gray-200 p-1 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-brand-400 p-1'}
+        className={isServed ? 'text-gray-200 p-2.5 cursor-not-allowed -ml-1.5' : 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-brand-400 p-2.5 -ml-1.5'}
       >
         <GripVertical size={18} strokeWidth={2} />
       </div>
@@ -181,13 +181,13 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
         {dow}
       </span>
       <span
-        className={`text-sm flex-1 font-medium leading-snug flex items-center gap-2 ${
+        className={`text-sm flex-1 min-w-0 font-medium leading-snug flex flex-col items-start gap-1 ${
           showCookedToggle && slot.cooked
             ? 'line-through text-gray-400'
             : 'text-gray-900'
         }`}
       >
-        {slot.name}
+        <span className="truncate w-full block">{slot.name}</span>
         {slot.is_wildcard && (
           <div className="flex items-center gap-1.5">
             <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
@@ -1038,7 +1038,7 @@ export default function BrainstormMode({ userId }) {
       {/* Swap picker — bottom sheet */}
       {swapDate && (
         <div
-          className="absolute inset-0 bg-black/40 z-50 flex items-end"
+          className="fixed inset-0 bg-black/40 z-50 flex items-end"
           onClick={() => setSwapDate(null)}
         >
           <div

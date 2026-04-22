@@ -274,19 +274,14 @@ export default function CalendarView({ userId, initialMonth }) {
             } else if (periodState === 'active') {
               tint = 'bg-brand-100/70 border-brand-200'
             }
-            const ring = isToday ? 'ring-2 ring-brand-400' : ''
+            const ring = isToday ? 'ring-1 ring-brand-400' : ''
             const muted = !cell.inMonth ? 'opacity-40' : ''
             const clickable = hasItems ? 'cursor-pointer hover:brightness-95' : 'cursor-default'
 
             // The meal preview line: first item's name, ~10 chars. Cooked items
             // get strikethrough + muted color.
             const preview = hasItems ? items[0] : null
-            const previewText = preview
-              ? preview.name.length > 10
-                ? `${preview.name.slice(0, 10)}…`
-                : preview.name
-              : ''
-            const moreCount = items.length - 1
+            const previewText = preview ? preview.name : ''
 
             return (
               <button
@@ -301,25 +296,23 @@ export default function CalendarView({ userId, initialMonth }) {
                 aria-label={`${cell.iso}${hasItems ? ` — ${items.length} scheduled` : ''}`}
               >
                 <span
-                  className={`text-[10px] font-bold ${
-                    isToday ? 'text-brand-600' : 'text-gray-600'
+                  className={`absolute top-1 right-1 text-[8px] font-bold flex items-center justify-center ${
+                    isToday ? 'w-4 h-4 bg-brand-500 text-white rounded-full' : 'w-4 h-4 text-gray-500'
                   }`}
                 >
                   {cell.dayNum}
                 </span>
                 {preview && (
                   <span
-                    className={`text-[9px] font-medium leading-tight truncate ${
+                    className={`text-[9px] font-medium leading-tight line-clamp-2 mt-3 text-left w-full ${
                       preview.cooked
                         ? 'line-through text-gray-400'
                         : 'text-gray-800'
                     }`}
                     data-testid={`calendar-preview-${cell.iso}`}
+                    title={previewText}
                   >
                     {previewText}
-                    {moreCount > 0 && (
-                      <span className="ml-0.5 text-gray-400">+{moreCount}</span>
-                    )}
                   </span>
                 )}
               </button>

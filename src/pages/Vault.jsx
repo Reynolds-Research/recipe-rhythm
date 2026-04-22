@@ -202,6 +202,7 @@ export default function Vault({ userId }) {
   const [editingId, setEditingId]         = useState(null)
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
+  const [vaultError, setVaultError]       = useState(null)
 
   // Form state
   const [name, setName]                       = useState('')
@@ -217,7 +218,6 @@ export default function Vault({ userId }) {
   const [vegetables, setVegetables]           = useState([])
   const [fruits, setFruits]                   = useState([])
 
-  useEffect(() => { fetchRecipes() }, [])
 
   const [imageBase64, setImageBase64]         = useState(null)
   const [imageType, setImageType]             = useState(null)
@@ -305,6 +305,9 @@ export default function Vault({ userId }) {
     setLoading(false)
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchRecipes() }, [])
+
   const resetForm = () => {
     setName('')
     setCuisineType('')
@@ -337,7 +340,7 @@ export default function Vault({ userId }) {
       .limit(1)
 
     if (existing && existing.length > 0) {
-      alert(`"${finalName}" is already in your vault!`)
+      setVaultError(`"${finalName}" is already in your vault!`)
       setSaving(false)
       return
     }
@@ -358,7 +361,7 @@ export default function Vault({ userId }) {
           if (data && data.publicUrl) publicUrl = data.publicUrl
         } else {
           console.error('[Vault] Image upload failed:', uploadError)
-          alert('Image upload failed. Please verify that your Supabase "recipe_images" bucket has a permissive INSERT policy configured for authenticated users! Continuing without image...')
+          setVaultError('Image upload failed. Saving without image.')
         }
       } catch (err) {
         console.error('[Vault] Error preparing image for upload:', err)
@@ -495,6 +498,13 @@ export default function Vault({ userId }) {
         </p>
       </div>
 
+      {vaultError && (
+        <div className="mx-5 mt-4 px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100 flex items-center justify-between">
+          <span>{vaultError}</span>
+          <button onClick={() => setVaultError(null)} className="text-red-400 hover:text-red-600"><X size={16} /></button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
 
         {/* Add recipe form */}
@@ -517,7 +527,7 @@ export default function Vault({ userId }) {
                 </div>
               )}
               {aiError && !suggesting && (
-                <p className="text-[10px] text-red-400 font-medium">AI failed — check console</p>
+                <p className="text-[10px] text-red-400 font-medium">Couldn't analyze. Fill manually.</p>
               )}
             </div>
 
@@ -792,16 +802,16 @@ export default function Vault({ userId }) {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center gap-2 pt-2 border-t border-cream-100 mt-2">
                       <button
                         onClick={() => startEdit(recipe)}
-                        className="text-[10px] font-bold text-brand-500 uppercase tracking-widest hover:text-brand-600 transition-colors"
+                        className="py-2 px-3 text-[11px] font-bold text-brand-600 bg-brand-50 rounded-lg uppercase tracking-widest hover:bg-brand-100 transition-colors flex-1 text-center"
                       >
                         Edit components
                       </button>
                       <button
                         onClick={() => handleDelete(recipe.id)}
-                        className="flex items-center gap-1.5 text-[10px] font-bold text-red-400/80 uppercase tracking-widest hover:text-red-500 transition-colors"
+                        className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-bold text-red-600 bg-red-50 uppercase tracking-widest hover:bg-red-100 transition-colors flex-1"
                       >
                         <Trash2 size={12} strokeWidth={2.5} />
                         Remove
@@ -820,7 +830,7 @@ export default function Vault({ userId }) {
           const available = STARTER_SUGGESTIONS.filter(s => !vaultNames.has(s.toLowerCase()))
           if (available.length === 0 || recipes.length >= 15) return null
           return (
-            <div className="pt-2">
+            <div className="pt-2 min-w-0">
               <div className="flex items-center gap-2 mb-3">
                 <p className="text-[10px] font-bold text-gray-400 tracking-[0.2em] uppercase">Need a head start?</p>
                 <div className="flex-1 h-px bg-cream-200" />
