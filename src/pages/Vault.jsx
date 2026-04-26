@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink, Camera, Image as ImageIcon, Star } from 'lucide-react'
-import { analyzeRecipe } from '../lib/analyzeRecipe'
+import { Plus, Trash2, X, ChevronDown, ChevronUp, Loader2, BookmarkPlus, ExternalLink, Star } from 'lucide-react'
 import Logo from '../components/Logo'
 import { useHaptics } from '../hooks/useHaptics'
 import ChipPicker from './Vault/ChipPicker'
+import RecipeForm from './Vault/RecipeForm'
 import { useVault } from './Vault/useVault'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
@@ -124,122 +124,21 @@ export default function Vault({ userId }) {
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
   const [expandedId, setExpandedId]       = useState(null)
-  const [suggesting, setSuggesting]       = useState(false)
-  const [aiApplied, setAiApplied]         = useState(false)
-  const [aiError, setAiError]             = useState(false)
   const [addingSuggestion, setAddingSuggestion] = useState(null) // name string while in-flight
   const [editingId, setEditingId]         = useState(null)
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
   const { trigger } = useHaptics()
 
-  // Form state
-  const [name, setName]                       = useState('')
-  const [cuisineType, setCuisineType]         = useState('')
-  const [flavorProfile, setFlavorProfile]     = useState('')
-  const [notes, setNotes]                     = useState('')
-  const [recipeUrl, setRecipeUrl]             = useState('')
-  const [proteins, setProteins]               = useState([])
-  const [cookingMethod, setCookingMethod]     = useState(null)
-  const [mainCarb, setMainCarb]               = useState(null)
-  const [dietaryTags, setDietaryTags]         = useState([])
-  const [dairyComponents, setDairyComponents] = useState([])
-  const [vegetables, setVegetables]           = useState([])
-  const [fruits, setFruits]                   = useState([])
-
-
-  const [imageFile, setImageFile]             = useState(null)
-  const [imagePreview, setImagePreview]       = useState(null)
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
-    setAiApplied(false)
-  }
-
-  const handleManualSuggest = async () => {
-    if (!name.trim() && !recipeUrl.trim() && !imageFile) return
-    if (suggesting) return
-    trigger('light')
-    setSuggesting(true)
-    setAiError(false)
-    
-    // For AI suggestion, we'd need to convert file to base64 or URL
-    // This assumes backend handles URLs or we implement base64 conversion
-    const s = await analyzeRecipe({
-      name: name.trim(),
-      url: recipeUrl.trim()
-    })
-    
-    if (s) {
-      if (s.cuisine_type)             setCuisineType(s.cuisine_type)
-      if (s.flavor_profile)           setFlavorProfile(s.flavor_profile)
-      if (s.proteins?.length)         setProteins(s.proteins)
-      if (s.cooking_method)           setCookingMethod(s.cooking_method)
-      if (s.main_carb)                setMainCarb(s.main_carb)
-      if (s.dietary_tags?.length)     setDietaryTags(s.dietary_tags)
-      if (s.dairy_components?.length) setDairyComponents(s.dairy_components)
-      if (s.vegetables?.length)       setVegetables(s.vegetables)
-      if (s.fruits?.length)           setFruits(s.fruits)
-      setAiApplied(true)
-    } else {
-      setAiError(true)
-    }
-    setSuggesting(false)
-  }
-
-  const handleAddExtra = (category, value) => addExtra(category, value)
-
-  const resetForm = () => {
-    setName('')
-    setCuisineType('')
-    setFlavorProfile('')
-    setNotes('')
-    setRecipeUrl('')
-    setProteins([])
-    setCookingMethod(null)
-    setMainCarb(null)
-    setDietaryTags([])
-    setDairyComponents([])
-    setVegetables([])
-    setFruits([])
-    setAiApplied(false)
-    setAiError(false)
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setImageFile(null)
-    setImagePreview(null)
-  }
-
-  const handleAdd = async () => {
-    if (!name.trim()) return
+  // Form-submit handler bridges the form's onSubmit callback to the data
+  // hook. Returns `{ ok }` so the form can reset on success.
+  const handleSubmitRecipe = async (input) => {
     setSaving(true)
     trigger('success')
-
-    const result = await addRecipe({
-      name,
-      cuisineType,
-      flavorProfile,
-      notes,
-      recipeUrl,
-      proteins,
-      cookingMethod,
-      mainCarb,
-      dietaryTags,
-      dairyComponents,
-      vegetables,
-      fruits,
-      imageFile,
-    })
-
+    const result = await addRecipe(input)
     setSaving(false)
-    if (result.ok) {
-      resetForm()
-      setShowForm(false)
-    }
+    if (result.ok) setShowForm(false)
+    return result
   }
 
   /**
@@ -330,7 +229,7 @@ export default function Vault({ userId }) {
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center relative">
         <div className="absolute top-1/2 -translate-y-1/2 right-5">
           <button
-            onClick={() => { trigger('light'); setShowForm(prev => !prev); if (showForm) resetForm() }}
+            onClick={() => { trigger('light'); setShowForm(prev => !prev) }}
             aria-label={showForm ? 'Close add recipe form' : 'Add a new recipe'}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95
               ${showForm
@@ -362,160 +261,12 @@ export default function Vault({ userId }) {
 
         {/* Add recipe form */}
         {showForm && (
-          <div className="card space-y-5 border-brand-100 bg-brand-50/30 backdrop-blur-sm">
-
-            {/* Form header with AI status */}
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold text-brand-600 tracking-wider uppercase">Add a new recipe</p>
-              {suggesting && (
-                <div className="flex items-center gap-1.5 text-[11px] text-brand-400 font-medium">
-                  <Loader2 size={10} className="animate-spin" />
-                  Analyzing…
-                </div>
-              )}
-              {aiApplied && !suggesting && (
-                <div className="flex items-center gap-1 text-[11px] text-brand-500 font-medium">
-                  <Sparkles size={10} />
-                  AI filled — tweak as needed
-                </div>
-              )}
-              {aiError && !suggesting && (
-                <p className="text-[11px] text-red-400 font-medium">Couldn't analyze. Fill manually.</p>
-              )}
-            </div>
-
-            {/* Base info for AI */}
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={name}
-                onChange={e => { setName(e.target.value); setAiApplied(false) }}
-                placeholder="Recipe name (e.g. Thai meatball soup)"
-                className="input-base"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={recipeUrl}
-                  onChange={e => { setRecipeUrl(e.target.value); setAiApplied(false) }}
-                  placeholder="Recipe URL (optional)"
-                  className="input-base flex-1"
-                />
-                <div className="relative">
-                  <button
-                    type="button"
-                    className={`h-full border rounded-xl px-4 flex items-center justify-center transition-colors relative overflow-hidden ${
-                      imagePreview ? 'bg-brand-50 border-brand-500 text-brand-600' : 'bg-white border-cream-200 text-brand-500 hover:bg-brand-50'
-                    }`}
-                    title="Upload recipe image"
-                    aria-label="Upload recipe image"
-                  >
-                    {imagePreview ? <ImageIcon size={20} /> : <Camera size={20} />}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={handleImageUpload}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {imagePreview && (
-                <div className="relative inline-block mt-4 mb-2">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="h-32 w-32 object-cover rounded-xl shadow-sm border border-cream-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      URL.revokeObjectURL(imagePreview)
-                      setImageFile(null)
-                      setImagePreview(null)
-                    }}
-                    className="absolute -top-2 -right-2 bg-white text-gray-400 rounded-full p-1 shadow-sm border border-cream-100 hover:text-red-500 transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleManualSuggest}
-                disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageFile)}
-                className="w-full py-2.5 rounded-xl border border-brand-200 bg-brand-50/50 text-brand-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {suggesting ? (
-                  <><Loader2 size={16} className="animate-spin" /> Analyzing…</>
-                ) : (
-                  <><Sparkles size={16} /> Auto-fill Components</>
-                )}
-              </button>
-            </div>
-
-            {/* Cuisine + Flavor row */}
-            <div className="grid grid-cols-2 gap-3">
-              <select value={cuisineType} onChange={e => setCuisineType(e.target.value)} className="input-base text-sm">
-                <option value="">Cuisine…</option>
-                {CUISINE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select value={flavorProfile} onChange={e => setFlavorProfile(e.target.value)} className="input-base text-sm">
-                <option value="">Flavor…</option>
-                {FLAVOR_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-
-            <FieldSection label="Protein">
-              <ChipPicker options={PROTEIN_OPTIONS} value={proteins} onChange={setProteins} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            <FieldSection label="Cooking method">
-              <ChipPicker options={COOKING_METHOD_OPTIONS} value={cookingMethod} onChange={setCookingMethod} multi={false} category="cooking_method" extras={extrasByCategory.cooking_method || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            <FieldSection label="Main carb">
-              <ChipPicker options={CARB_OPTIONS} value={mainCarb} onChange={setMainCarb} multi={false} category="main_carb" extras={extrasByCategory.main_carb || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            <FieldSection label="Dietary tags">
-              <ChipPicker options={DIETARY_OPTIONS} value={dietaryTags} onChange={setDietaryTags} multi category="dietary_tags" extras={extrasByCategory.dietary_tags || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            <FieldSection label="Dairy">
-              <ChipPicker options={DAIRY_OPTIONS} value={dairyComponents} onChange={setDairyComponents} multi category="dairy_components" extras={extrasByCategory.dairy_components || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            <FieldSection label="Vegetables">
-              <ChipPicker options={VEGETABLE_OPTIONS} value={vegetables} onChange={setVegetables} multi category="vegetables" extras={extrasByCategory.vegetables || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            <FieldSection label="Fruit">
-              <ChipPicker options={FRUIT_OPTIONS} value={fruits} onChange={setFruits} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={handleAddExtra} />
-            </FieldSection>
-
-            {/* Notes */}
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Notes (e.g. add more lime next time)"
-              className="input-base"
-            />
-
-
-
-            <button
-              onClick={handleAdd}
-              disabled={!name.trim() || saving}
-              className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {saving ? 'Saving…' : 'Save to vault'}
-            </button>
-          </div>
+          <RecipeForm
+            saving={saving}
+            extrasByCategory={extrasByCategory}
+            onAddExtra={addExtra}
+            onSubmit={handleSubmitRecipe}
+          />
         )}
 
         {/* Empty state */}
@@ -595,25 +346,25 @@ export default function Vault({ userId }) {
                       />
                     </FieldSection>
                     <FieldSection label="Protein">
-                      <ChipPicker options={PROTEIN_OPTIONS} value={editFields.proteins} onChange={v => setEditFields(f => ({ ...f, proteins: v }))} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={PROTEIN_OPTIONS} value={editFields.proteins} onChange={v => setEditFields(f => ({ ...f, proteins: v }))} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <FieldSection label="Cooking method">
-                      <ChipPicker options={COOKING_METHOD_OPTIONS} value={editFields.cooking_method} onChange={v => setEditFields(f => ({ ...f, cooking_method: v }))} multi={false} category="cooking_method" extras={extrasByCategory.cooking_method || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={COOKING_METHOD_OPTIONS} value={editFields.cooking_method} onChange={v => setEditFields(f => ({ ...f, cooking_method: v }))} multi={false} category="cooking_method" extras={extrasByCategory.cooking_method || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <FieldSection label="Main carb">
-                      <ChipPicker options={CARB_OPTIONS} value={editFields.main_carb} onChange={v => setEditFields(f => ({ ...f, main_carb: v }))} multi={false} category="main_carb" extras={extrasByCategory.main_carb || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={CARB_OPTIONS} value={editFields.main_carb} onChange={v => setEditFields(f => ({ ...f, main_carb: v }))} multi={false} category="main_carb" extras={extrasByCategory.main_carb || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <FieldSection label="Dietary tags">
-                      <ChipPicker options={DIETARY_OPTIONS} value={editFields.dietary_tags} onChange={v => setEditFields(f => ({ ...f, dietary_tags: v }))} multi category="dietary_tags" extras={extrasByCategory.dietary_tags || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={DIETARY_OPTIONS} value={editFields.dietary_tags} onChange={v => setEditFields(f => ({ ...f, dietary_tags: v }))} multi category="dietary_tags" extras={extrasByCategory.dietary_tags || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <FieldSection label="Dairy">
-                      <ChipPicker options={DAIRY_OPTIONS} value={editFields.dairy_components} onChange={v => setEditFields(f => ({ ...f, dairy_components: v }))} multi category="dairy_components" extras={extrasByCategory.dairy_components || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={DAIRY_OPTIONS} value={editFields.dairy_components} onChange={v => setEditFields(f => ({ ...f, dairy_components: v }))} multi category="dairy_components" extras={extrasByCategory.dairy_components || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <FieldSection label="Vegetables">
-                      <ChipPicker options={VEGETABLE_OPTIONS} value={editFields.vegetables} onChange={v => setEditFields(f => ({ ...f, vegetables: v }))} multi category="vegetables" extras={extrasByCategory.vegetables || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={VEGETABLE_OPTIONS} value={editFields.vegetables} onChange={v => setEditFields(f => ({ ...f, vegetables: v }))} multi category="vegetables" extras={extrasByCategory.vegetables || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <FieldSection label="Fruit">
-                      <ChipPicker options={FRUIT_OPTIONS} value={editFields.fruits} onChange={v => setEditFields(f => ({ ...f, fruits: v }))} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={handleAddExtra} />
+                      <ChipPicker options={FRUIT_OPTIONS} value={editFields.fruits} onChange={v => setEditFields(f => ({ ...f, fruits: v }))} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={addExtra} />
                     </FieldSection>
                     <input
                       type="text"
