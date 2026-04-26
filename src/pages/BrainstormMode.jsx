@@ -364,10 +364,13 @@ export default function BrainstormMode({ userId }) {
         .eq('user_id', userId)
         .gte('eaten_on', formatLocalYmd(ninetyDaysAgo))
         .order('eaten_on', { ascending: false }),
+      // PRD-001 P0.5: filter soft-deleted vault rows out of brainstorm /
+      // recommendation candidates.
       supabase
         .from('vault')
         .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       fetchMostRecentPlan(supabase, userId),
     ])

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink, Camera, Image as ImageIcon } from 'lucide-react'
+import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink, Camera, Image as ImageIcon, Star } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import Logo from '../components/Logo'
@@ -192,6 +192,57 @@ function ComponentRow({ label, values }) {
   )
 }
 
+/**
+ * StarRating — PRD-001 P1.1 family rating widget.
+ *
+ * 1–5 tap-to-rate stars. `value` is `null` (unrated) or an integer 1..5.
+ * Tapping an unfilled star sets the rating to that star's number; tapping
+ * the currently-selected (rightmost-filled) star clears the rating back
+ * to `null`. The component resolves the toggle and calls `onChange` with
+ * the resulting value (number or null) — callers shouldn't have to know
+ * about toggling.
+ *
+ * Stops click propagation so taps don't also toggle the parent recipe
+ * card's expand/collapse handler.
+ */
+function StarRating({ value, onChange, size = 18, label = 'Family rating' }) {
+  return (
+    <div
+      className="flex items-center gap-0.5"
+      role="radiogroup"
+      aria-label={label}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {[1, 2, 3, 4, 5].map(n => {
+        const filled = value !== null && value !== undefined && n <= value
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              // Toggle: re-tapping the currently-selected star clears to NULL.
+              onChange(value === n ? null : n)
+            }}
+            aria-label={`${n} star${n === 1 ? '' : 's'}`}
+            aria-checked={value === n}
+            role="radio"
+            className={`p-0.5 rounded transition-colors ${
+              filled ? 'text-amber-400' : 'text-gray-300 hover:text-amber-300'
+            }`}
+          >
+            <Star
+              size={size}
+              strokeWidth={2}
+              fill={filled ? 'currentColor' : 'none'}
+            />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function Vault({ userId }) {
   const [recipes, setRecipes]       = useState([])
   const [loading, setLoading]       = useState(true)
@@ -269,10 +320,15 @@ export default function Vault({ userId }) {
 
   const fetchRecipes = async () => {
     setLoading(true)
+    // PRD-001 P0.5: filter soft-deleted rows. The vault list never shows
+    // recipes the user has deleted; the underlying rows are preserved so
+    // historical references in meals.vault_id and meal_plan_items.vault_id
+    // still resolve.
     const { data, error } = await supabase
       .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) console.error('[Vault] fetchRecipes failed:', error.message)
@@ -309,10 +365,14 @@ export default function Vault({ userId }) {
     setSaving(true)
     trigger('success')
 
+    // PRD-001 P0.5: only block adds against ACTIVE vault rows. A user who
+    // soft-deleted "Tacos" should be able to re-add "Tacos" — the deleted
+    // row stays in place for history, and the new add gets its own id.
     const { data: existing } = await supabase
       .from('vault')
       .select('id')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .ilike('name', finalName)
       .limit(1)
 
@@ -404,9 +464,24 @@ export default function Vault({ userId }) {
     }
   }
 
+  /**
+   * PRD-001 P0.5 — Soft-delete a vault recipe.
+   *
+   * Sets `deleted_at = now()` rather than issuing a DELETE so that historical
+   * references from meals.vault_id and meal_plan_items.vault_id continue to
+   * resolve to a real row (with name, image_url, etc.) for history views.
+   * The Vault SELECT in fetchRecipes() filters `.is('deleted_at', null)`, so
+   * the row disappears from the user-visible list immediately.
+   *
+   * Local state is updated synchronously so the card animates out without
+   * waiting on the network round-trip.
+   */
   const handleDelete = async (id) => {
     trigger('error')
-    await supabase.from('vault').delete().eq('id', id).eq('user_id', userId)
+    await supabase.from('vault')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', userId)
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
@@ -474,6 +549,34 @@ export default function Vault({ userId }) {
     setEditingId(null)
     setEditFields({})
     fetchRecipes()
+  }
+
+  /**
+   * PRD-001 P1.1 — Family rating updates are immediate (no "Save changes"
+   * button). The StarRating component already resolved the tap-to-toggle
+   * behavior, so `newRating` is the final value to write (1..5 or null).
+   *
+   * Optimistically updates local state first so the star fill is instant,
+   * then writes to Supabase. On error we refetch authoritative state to
+   * roll back the optimistic change.
+   */
+  const handleRatingChange = async (recipeId, newRating) => {
+    trigger('light')
+
+    setRecipes(prev =>
+      prev.map(r => r.id === recipeId ? { ...r, family_rating: newRating } : r)
+    )
+
+    const { error } = await supabase
+      .from('vault')
+      .update({ family_rating: newRating })
+      .eq('id', recipeId)
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('[Vault] handleRatingChange failed:', error.message)
+      fetchRecipes()
+    }
   }
 
   if (loading) {
@@ -715,6 +818,14 @@ export default function Vault({ userId }) {
                     </span>
                   )}
                 </div>
+                {/* PRD-001 P1.1 — family rating, always visible at a glance */}
+                <div className="mt-1.5">
+                  <StarRating
+                    value={recipe.family_rating ?? null}
+                    onChange={(newRating) => handleRatingChange(recipe.id, newRating)}
+                    size={14}
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0 text-gray-300 group-hover:text-brand-400 transition-colors">
                 {expandedId === recipe.id
@@ -739,6 +850,14 @@ export default function Vault({ userId }) {
                         {FLAVOR_OPTIONS.map(fl => <option key={fl} value={fl}>{fl}</option>)}
                       </select>
                     </div>
+                    {/* PRD-001 P1.1 — rating saves immediately (independent of "Save changes") */}
+                    <FieldSection label="Family rating">
+                      <StarRating
+                        value={recipe.family_rating ?? null}
+                        onChange={(newRating) => handleRatingChange(recipe.id, newRating)}
+                        size={22}
+                      />
+                    </FieldSection>
                     <FieldSection label="Protein">
                       <ChipPicker options={PROTEIN_OPTIONS} value={editFields.proteins} onChange={v => setEditFields(f => ({ ...f, proteins: v }))} multi storageKey="proteins" />
                     </FieldSection>

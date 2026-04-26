@@ -2,16 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { matchVaultByName } from '../vaultMatch'
 
 // Helper: build a minimal supabase mock where:
-//   - .from('vault').select().eq().ilike().limit() resolves to `exactRows`
+//   - .from('vault').select().eq().is().ilike().limit() resolves to `exactRows`
 //   - .rpc('vault_fuzzy_match', ...) resolves to `fuzzyRows`
 // Both `exactRows` and `fuzzyRows` are { data, error } objects so each test
 // can simulate "no match" or "error" independently.
+//
+// PRD-001 P0.5 added the .is('deleted_at', null) link in the exact-match
+// chain so deleted recipes never auto-link to a logged meal.
 function makeSupabase({ exact = { data: [], error: null }, fuzzy = { data: [], error: null }, rpcSpy } = {}) {
   const ilike  = vi.fn().mockReturnThis()
+  const is     = vi.fn().mockReturnThis()
   const eq     = vi.fn().mockReturnThis()
   const select = vi.fn().mockReturnThis()
   const limit  = vi.fn().mockResolvedValue(exact)
-  const fromChain = { select, eq, ilike, limit }
+  const fromChain = { select, eq, is, ilike, limit }
   const from = vi.fn(() => fromChain)
   const rpc  = rpcSpy ?? vi.fn().mockResolvedValue(fuzzy)
   return { client: { from, rpc }, fromChain, from, rpc }
@@ -34,7 +38,22 @@ describe('matchVaultByName', () => {
     expect(result.matches).toEqual([exactRow])
     expect(from).toHaveBeenCalledWith('vault')
     expect(fromChain.eq).toHaveBeenCalledWith('user_id', 'user-1')
+    expect(fromChain.is).toHaveBeenCalledWith('deleted_at', null)
     expect(fromChain.ilike).toHaveBeenCalledWith('name', 'carnitas tacos')
+  })
+
+  it('PRD-001 P0.5: the exact-match chain filters soft-deleted rows', async () => {
+    // Even when there are no rows to return, the .is('deleted_at', null)
+    // filter must be in the chain. This test makes the contract explicit
+    // so accidentally removing the filter would fail loudly.
+    const { client, fromChain } = makeSupabase({
+      exact: { data: [], error: null },
+      fuzzy: { data: [], error: null },
+    })
+
+    await matchVaultByName(client, 'user-1', 'Tacos')
+
+    expect(fromChain.is).toHaveBeenCalledWith('deleted_at', null)
   })
 
   it('returns confidence "fuzzy" with multiple results when pg_trgm finds candidates', async () => {

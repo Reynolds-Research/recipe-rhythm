@@ -10,6 +10,7 @@ import BrainstormMode from '../BrainstormMode'
 const supabaseChain = {
   select: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
+  is: vi.fn().mockReturnThis(),       // PRD-001 P0.5: vault SELECT now filters .is('deleted_at', null)
   gte: vi.fn().mockReturnThis(),
   order: vi.fn().mockReturnThis(),
   limit: vi.fn().mockReturnThis(),
