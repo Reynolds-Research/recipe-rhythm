@@ -4,6 +4,11 @@ import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import Logo from '../components/Logo'
 import { useHaptics } from '../hooks/useHaptics'
+import {
+  CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
+  COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
+  DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
+} from '../lib/constants'
 
 /**
  * Vault
@@ -11,55 +16,6 @@ import { useHaptics } from '../hooks/useHaptics'
  * Claude auto-suggests all component fields from the recipe name.
  * Custom tags per category persist via localStorage.
  */
-
-const CUISINE_OPTIONS = [
-  'American', 'Chinese', 'French', 'Greek', 'Indian',
-  'Italian', 'Japanese', 'Korean', 'Mexican', 'Middle Eastern',
-  'Spanish', 'Thai', 'Vietnamese', 'Other',
-]
-
-const FLAVOR_OPTIONS = [
-  'Savory', 'Spicy', 'Umami', 'Fresh', 'Rich', 'Sweet', 'Tangy',
-]
-
-const PROTEIN_OPTIONS = [
-  'Chicken', 'Beef', 'Pork', 'Fish', 'Shrimp/Seafood',
-  'Tofu', 'Eggs', 'Beans/Lentils', 'Lamb', 'Turkey', 'Duck', 'None',
-]
-
-const COOKING_METHOD_OPTIONS = [
-  'Grilled', 'Baked', 'Roasted', 'Stir-fried', 'Braised',
-  'Soup/Stew', 'Fried', 'Steamed', 'Raw/Salad', 'Pan-seared',
-  'Slow-cooked', 'Smoked',
-]
-
-const CARB_OPTIONS = [
-  'Rice', 'Pasta', 'Noodles', 'Bread', 'Potato',
-  'Quinoa', 'Couscous', 'Polenta', 'Tortilla/Wrap', 'None',
-]
-
-const DIETARY_OPTIONS = [
-  'Vegetarian', 'Vegan', 'Gluten-Free', 'Dairy-Free',
-  'Low-Carb', 'High-Protein', 'Nut-Free', 'Paleo',
-]
-
-const DAIRY_OPTIONS = [
-  'Cheese', 'Cream', 'Butter', 'Milk', 'Yogurt',
-  'Parmesan', 'Mozzarella', 'None',
-]
-
-const VEGETABLE_OPTIONS = [
-  'Tomato', 'Spinach/Greens', 'Mushrooms', 'Bell Peppers',
-  'Onion/Garlic', 'Broccoli', 'Zucchini', 'Eggplant', 'Carrot',
-  'Corn', 'Peas', 'Cucumber', 'Asparagus', 'Sweet Potato',
-  'Cauliflower', 'Brussels Sprouts', 'Celery', 'Cabbage',
-]
-
-const FRUIT_OPTIONS = [
-  'Avocado', 'Lemon/Lime', 'Orange', 'Apple', 'Mango',
-  'Pineapple', 'Berries', 'Banana', 'Coconut', 'Peach',
-  'Pomegranate', 'Grapes',
-]
 
 const STARTER_SUGGESTIONS = [
   'Spaghetti Bolognese', 'Chicken Stir-fry', 'Beef Tacos', 'Salmon with Roasted Veg',
