@@ -81,6 +81,20 @@ Derived from `src/pages/Vault.jsx:370-387`.
 | `deleted_at` | `timestamptz` nullable | **Added 2026-04-26** via [PRD-001 Phase 2 Step 1 migration](../supabase/migrations/20260426000001_vault_soft_delete.sql). Soft-delete timestamp. `NULL` = active recipe; non-`NULL` = deleted (preserved so historical references in `meals.vault_id` and `meal_plan_items.vault_id` continue to resolve). All client-side Vault SELECTs filter `WHERE deleted_at IS NULL`; the `vault_fuzzy_match` RPC was updated in the same migration to apply the same filter server-side. Indexed via the partial index `vault_user_active_idx`. |
 | `created_at` | `timestamptz` | Assumed default `now()`. |
 
+### `public.vault_options`
+**Added 2026-04-26** via [PRD-001 Phase 2 Step 3 migration](../supabase/migrations/20260426000002_vault_options_table.sql). One row per (user, category, value) custom chip-picker tag. Backs `src/lib/vaultOptions.js`; replaces the previous per-device `vault_extra_*` localStorage scheme used by `Vault.jsx`'s ChipPicker. Built-in option lists still live in [`src/lib/constants.js`](../src/lib/constants.js); this table holds only the user's custom additions on top of those.
+
+| Column | Type | Notes |
+|---|---|---|
+| `user_id` | `uuid` NOT NULL | References `auth.users(id)` `ON DELETE CASCADE`. RLS key. |
+| `category` | `text` NOT NULL | One of the nine canonical categories enforced by a CHECK constraint: `cuisine_type`, `flavor_profile`, `proteins`, `cooking_method`, `main_carb`, `dietary_tags`, `dairy_components`, `vegetables`, `fruits`. Mirrors the export list in `src/lib/constants.js`. Note the rename: the legacy localStorage suffix was `dairy`; the canonical category here is `dairy_components`. |
+| `value` | `text` NOT NULL | The user's custom tag value. Trimmed by `addVaultOption` before insert; empty strings rejected. |
+| `created_at` | `timestamptz` NOT NULL | Default `now()`. |
+
+**Primary key:** composite `(user_id, category, value)` — same value for the same user/category is a no-op upsert. `addVaultOption` uses `onConflict: 'user_id,category,value'` so the migration helper can re-import idempotently.
+
+**RLS:** four owner-scoped policies set in the migration — `vault_options_select_own`, `vault_options_insert_own`, `vault_options_update_own`, `vault_options_delete_own` — all keyed on `auth.uid() = user_id`. Mirrors the `meals` / `vault` / `meal_plan_items` pattern. The Row-Level-Security Status table at the top of this doc was last live-verified 2026-04-19 and does not yet list this table — re-run [`supabase/audits/c3_rls_verification.sql`](../supabase/audits/c3_rls_verification.sql) when convenient to refresh.
+
 ### `public.profiles`
 **Not referenced in `src/`. Confirmed 0 rows on 2026-04-18.** Starter-template
 remnant. Recommended: drop it — see
@@ -173,6 +187,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260426_family_rating.sql`](../supabase/migrations/verify_20260426_family_rating.sql) | 2026-04-26 | Read-only verification queries for the family-rating migration: column shape, CHECK constraint, comment, and a smoke-count of unrated/rated rows. |
 | [`20260426000001_vault_soft_delete.sql`](../supabase/migrations/20260426000001_vault_soft_delete.sql) | 2026-04-26 | PRD-001 Phase 2 Step 1 (P0.5): adds `vault.deleted_at` (timestamptz, nullable) + partial index `vault_user_active_idx ON vault (user_id) WHERE deleted_at IS NULL`. Updates the `vault_fuzzy_match` RPC body to filter `AND v.deleted_at IS NULL` (same signature as Phase 1 — `match_id`, `match_name`, `image_url`, `similarity`). Note: this is filename slot `…000001` even though it ships AFTER `…000003` (P1.1) — the slot was reserved for Phase 2 in advance. Both apply cleanly because the user runs migrations manually via the Supabase SQL Editor; ordering is per-application not by filename. |
 | [`verify_20260426_soft_delete.sql`](../supabase/migrations/verify_20260426_soft_delete.sql) | 2026-04-26 | Read-only verification queries for the soft-delete migration: column shape, partial-index existence, comment, RPC body has the new filter, RPC output columns are still `match_id`/`match_name`/`image_url`/`similarity`, and a smoke-count of active vs. soft-deleted rows. |
+| [`20260426000002_vault_options_table.sql`](../supabase/migrations/20260426000002_vault_options_table.sql) | 2026-04-26 | PRD-001 Phase 2 Step 3 (P0.7): creates `public.vault_options` table with composite PK `(user_id, category, value)`, CHECK constraint on the nine canonical category names, owner-scoped RLS. Backs `src/lib/vaultOptions.js`; replaces the previous `vault_extra_*` localStorage scheme in `Vault.jsx`. |
+| [`verify_20260426_vault_options.sql`](../supabase/migrations/verify_20260426_vault_options.sql) | 2026-04-26 | Read-only verification queries for the vault_options migration: column shape, primary key, CHECK contents, RLS policies, RLS-enabled bit. |
 
 ## Related audit items + ADRs
 
