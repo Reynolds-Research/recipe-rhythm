@@ -139,6 +139,11 @@ export default function RecipeCard({
                 AI-filled
               </span>
             )}
+            {recipe.prep_time_minutes != null && (
+              <span className="text-[11px] text-gray-500 font-medium">
+                · {recipe.prep_time_minutes} min
+              </span>
+            )}
           </div>
           {/* PRD-001 P1.1 — family rating, always visible at a glance */}
           <div className="mt-1.5">

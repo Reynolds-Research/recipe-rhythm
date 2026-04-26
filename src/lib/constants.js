@@ -74,6 +74,7 @@ export function buildAnalyzeRecipePromptBlock() {
   "dietary_tags": array from [${DIETARY_OPTIONS.join(', ')}],
   "dairy_components": array from [${DAIRY_OPTIONS.join(', ')}],
   "vegetables": array from [${VEGETABLE_OPTIONS.join(', ')}],
-  "fruits": array from [${FRUIT_OPTIONS.join(', ')}]
+  "fruits": array from [${FRUIT_OPTIONS.join(', ')}],
+  "prep_time_minutes": positive integer estimate of total prep + cook time in minutes, or null if you cannot reasonably estimate
 }`
 }

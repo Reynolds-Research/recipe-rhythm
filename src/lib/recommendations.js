@@ -80,13 +80,23 @@ function buildWeeklyAttributes(meals, vaultById) {
  *  -10  Same main carb as something eaten this week
  *  -10  Per overlapping protein with this week's meals
  *  +30  Max frequency bonus — items the user has actually cooked before
+ *  +50  Max family-rating boost (+10 per star, NULL = 0). PRD-002 P0.5.
+ *  -15  Prep-time penalty when prep_time_minutes > preferences.max_prep_time_minutes / 2.
+ *       No-op until Phase 3 ships household_preferences. PRD-002 P0.5.
  *  +15  Random shuffle so results feel fresh each session
+ *
+ * Hard-excludes (return -1 before scoring):
+ *  - item.id in recentVaultIds (eaten in last 7 days)
+ *  - item.id in excludeSet (PRD-002 P0.8: prior-batch + current-plan)
  */
-function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap) {
+function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap, excludeSet, preferences) {
   let score = 100
 
   // Hard exclude anything eaten in the last 7 days
   if (recentVaultIds.has(item.id)) return -1
+
+  // PRD-002 P0.8: hard-exclude prior-batch / current-plan ids
+  if (excludeSet.has(item.id)) return -1
 
   // Cuisine & flavor diversity bonuses
   if (item.cuisine_type   && !weeklyAttributes.cuisines.has(item.cuisine_type))     score += 25
@@ -107,6 +117,24 @@ function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap) {
   const timesCooked = frequencyMap.get(item.id) || 0
   score += Math.min(timesCooked * 8, 30)
 
+  // PRD-002 P0.5: Family-rating boost. +10 per star, max +50. NULL = 0
+  // (unrated recipes don't get penalized, they just don't get the boost).
+  if (item.family_rating != null) {
+    score += 10 * item.family_rating
+  }
+
+  // PRD-002 P0.5: Prep-time penalty. Only applied when the user has a
+  // max_prep_time_minutes cap set (forthcoming via household_preferences
+  // in Phase 3). Until then this branch is unreachable.
+  const maxPrep = preferences?.max_prep_time_minutes
+  if (
+    maxPrep != null &&
+    item.prep_time_minutes != null &&
+    item.prep_time_minutes > maxPrep / 2
+  ) {
+    score -= 15
+  }
+
   // Small random jitter so results feel fresh each session
   score += Math.random() * 15
 
@@ -125,8 +153,25 @@ function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap) {
  * @param {Array}  servedPlanItems - Items from the prior week's served plan (pseudo-meals
  *                                   with vault_id + scheduled_date) to factor into recency
  *                                   and frequency scoring.
+ * @param {Object} options         - PRD-002 P0.5 / P0.8 options bag.
+ *   @param {Array}  options.excludeIds   - Vault ids to hard-exclude (treated like recently-eaten).
+ *                                          Used by BrainstormMode to suppress current-plan + prior-batch
+ *                                          items so "regenerate" / single-slot picks return new candidates.
+ *   @param {Object} options.preferences  - Household preferences (forthcoming in Phase 3).
+ *                                          Today only `max_prep_time_minutes` is read; if set, items
+ *                                          whose prep_time_minutes > max/2 take a -15 penalty.
  */
-export function getRecommendations(vaultItems, recentMeals, wildcards = [], count = 7, servedPlanItems = []) {
+export function getRecommendations(
+  vaultItems,
+  recentMeals,
+  wildcards = [],
+  count = 7,
+  servedPlanItems = [],
+  options = {},
+) {
+  const { excludeIds = [], preferences = {} } = options
+  const excludeSet = new Set(excludeIds)
+
   // Merge served plan items into the meal history so the engine treats
   // recently-planned meals the same as recently-eaten ones for recency/frequency.
   const syntheticMeals = servedPlanItems
@@ -142,7 +187,10 @@ export function getRecommendations(vaultItems, recentMeals, wildcards = [], coun
 
   // Score and sort vault items
   const scoredVault = vaultItems
-    .map(item => ({ ...item, _score: scoreVaultItem(item, recentVaultIds, weeklyAttrs, frequencyMap) }))
+    .map(item => ({
+      ...item,
+      _score: scoreVaultItem(item, recentVaultIds, weeklyAttrs, frequencyMap, excludeSet, preferences),
+    }))
     .filter(item => item._score > 0)
     .sort((a, b) => b._score - a._score)
 
