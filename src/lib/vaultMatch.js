@@ -34,10 +34,15 @@ export async function matchVaultByName(supabase, userId, mealName, opts = {}) {
     return { matches: [], confidence: 'none' }
   }
 
+  // PRD-001 P0.5: exclude soft-deleted recipes from the exact-match path.
+  // The fuzzy RPC handles this server-side; the exact path is client-side
+  // and so needs the filter explicitly. Logging "Tacos" should not auto-link
+  // to a deleted "Tacos" recipe — the user removed it for a reason.
   const { data: exact, error: exactErr } = await supabase
     .from('vault')
     .select('id, name, image_url')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .ilike('name', trimmed)
     .limit(5)
 

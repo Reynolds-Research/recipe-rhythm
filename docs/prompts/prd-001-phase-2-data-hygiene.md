@@ -29,13 +29,20 @@ Three pieces of foundational hygiene that don't change user-visible behavior muc
    - `api/analyze-recipe.js` — Vercel mirror with the same prompt
    - `docs/schema.md` — document new column + new table
 3. **Files you'll create:**
-   - `supabase/migrations/20260426000001_vault_soft_delete.sql` (P0.5 + P0.6 RPC update)
+   - `supabase/migrations/20260426000001_vault_soft_delete.sql` (P0.5, including the RPC update)
    - `supabase/migrations/20260426000002_vault_options_table.sql` (P0.7)
-   - `supabase/migrations/verify_20260426.sql`
+   - `supabase/migrations/verify_20260426_soft_delete.sql` (Step 1)
+   - `supabase/migrations/verify_20260426_vault_options.sql` (Step 3)
    - `src/lib/constants.js`
    - `src/lib/__tests__/constants.test.js`
    - `src/lib/vaultOptions.js`
    - `src/lib/__tests__/vaultOptions.test.js`
+
+   > **Note (refresh 2026-04-26):** verify files are now suffixed by step
+   > rather than sharing a single `verify_20260426.sql`, so Step 1 and Step 3
+   > can ship as separate PRs without overwriting each other's verify file.
+   > P1.1 already shipped `verify_20260426_family_rating.sql` on the same
+   > date; the suffixing is consistent with that.
 4. **Files for reference (do NOT modify):**
    - `supabase/migrations/20260418000001_planning_periods_schema.sql` — example soft-delete-style migration patterns + RLS policy form
    - `supabase/migrations/20260425000001_meals_vault_link.sql` — Phase 1's migration (and the `vault_fuzzy_match` RPC if Phase 1 went the RPC route — read this one carefully because Step 1 below has to update the function)
@@ -54,29 +61,51 @@ If the file structure differs from what's described above (e.g., Phase 1 went a 
 1. Add `deleted_at timestamptz` to `vault` (nullable; NULL = active)
 2. Add a partial index for active rows: `CREATE INDEX IF NOT EXISTS vault_user_active_idx ON vault (user_id) WHERE deleted_at IS NULL;`
 3. Add a column comment: "Soft-delete timestamp. NULL = active; non-NULL = deleted (preserved for historical references in meals.vault_id and meal_plan_items.vault_id)."
-4. **If Phase 1 created the `vault_fuzzy_match` RPC**, `CREATE OR REPLACE FUNCTION` it here with the new filter:
+4. **The Phase 1 `vault_fuzzy_match` RPC needs to be re-defined here with the new soft-delete filter.** The corrected SQL block (refreshed 2026-04-26 to match the actual signature on `main` after PR #25 + #26's column rename):
+
    ```sql
-   CREATE OR REPLACE FUNCTION vault_fuzzy_match(p_user_id uuid, p_query text, p_threshold real DEFAULT 0.6)
-   RETURNS TABLE (id uuid, name text, image_url text, similarity real)
+   -- DROP first: CREATE OR REPLACE cannot change RETURNS TABLE column names
+   -- on an existing function. We're not changing them here, but we keep the
+   -- DROP for parity with Phase 1's pattern and to make this migration safe
+   -- to re-run from any prior state.
+   DROP FUNCTION IF EXISTS vault_fuzzy_match(uuid, text, real);
+
+   CREATE OR REPLACE FUNCTION vault_fuzzy_match(
+     p_user_id   uuid,
+     p_query     text,
+     p_threshold real DEFAULT 0.6
+   )
+   RETURNS TABLE (
+     match_id   uuid,
+     match_name text,
+     image_url  text,
+     similarity real
+   )
    LANGUAGE sql STABLE
    AS $$
-     SELECT id, name, image_url, similarity(name, p_query) AS similarity
-     FROM vault
-     WHERE user_id = p_user_id
-       AND deleted_at IS NULL                       -- NEW: respect soft-delete
-       AND similarity(name, p_query) >= p_threshold
-     ORDER BY similarity DESC
+     SELECT v.id, v.name, v.image_url, similarity(v.name, p_query)
+     FROM public.vault v
+     WHERE v.user_id = p_user_id
+       AND v.deleted_at IS NULL                           -- NEW: respect soft-delete
+       AND similarity(v.name, p_query) >= p_threshold
+     ORDER BY similarity(v.name, p_query) DESC
      LIMIT 5;
    $$;
+
+   COMMENT ON FUNCTION vault_fuzzy_match(uuid, text, real) IS
+     'PRD-001 P0.2 (filter added P0.5): up to 5 vault rows whose name has pg_trgm similarity >= p_threshold to p_query, excluding soft-deleted rows. SECURITY INVOKER — RLS on vault still applies.';
    ```
-   If Phase 1 went the client-side similarity route instead (no RPC), skip this and the matcher's SELECT in Step 1c below picks up the filter.
+
+   **Why these specifics matter** (so future-you can update this confidently):
+   - Output column names are `match_id`, `match_name`, `image_url`, `similarity` — Phase 1 PR #25 prefixed `id`/`name` to dodge an OUT-vs-table-column ambiguity Postgres flagged on fresh DBs / Supabase Preview Branches. `image_url` was left un-prefixed because it didn't trigger the ambiguity. Changing any of these column names would fail the `CREATE OR REPLACE` (Postgres rejects column-name changes), which is what PR #26 had to fix.
+   - The body uses an explicit table alias `v` and qualifies every column reference (`v.id`, `v.name`, `v.image_url`, `v.deleted_at`) — this is the pattern that makes the function safe in `LANGUAGE sql` against the OUT-name vs. column-name ambiguity.
 5. Idempotent: every statement should be safe to re-run.
 
-**Update** `supabase/migrations/verify_20260426.sql` (create alongside) with read-only verification queries: column exists, index exists, RPC body includes the new filter (if applicable).
+**Create** `supabase/migrations/verify_20260426_soft_delete.sql` with read-only verification queries: column exists, partial index exists, RPC body includes the `deleted_at IS NULL` filter, and a smoke-count of active vs. soft-deleted rows. (Step 3 will create its own `verify_20260426_vault_options.sql`.)
 
 ### 1b) Update Vault.jsx delete handler
 
-In `src/pages/Vault.jsx`, find the delete handler (~line 407-411):
+In `src/pages/Vault.jsx`, find the delete handler (~line 458 post-P1.1; was ~407 in the original prompt):
 
 ```js
 const handleDelete = async (id) => {
@@ -103,14 +132,15 @@ Add a code comment referencing PRD-001 P0.5.
 
 ### 1c) Filter every Vault SELECT to ignore deleted rows
 
-There are exactly four SELECT sites that need `.is('deleted_at', null)` added:
+There are exactly three client-side SELECT sites that need `.is('deleted_at', null)` added (line numbers are post-P1.1, which added ~95 lines to `Vault.jsx`):
 
 | File | Approx line | What it does |
 |---|---|---|
-| `src/pages/Vault.jsx` | 273 (`fetchRecipes`) | Main vault list |
-| `src/pages/Vault.jsx` | 313 (duplicate check before insert) | Prevents adding a recipe that's already in the vault |
-| `src/pages/LogMode.jsx` | 50 (post-save vault check) | Decides whether to offer "Save to Cookbook" |
-| `src/pages/BrainstormMode.jsx` | 368 (vault fetch for planning) | Source for recommendations / candidates |
+| `src/pages/Vault.jsx` | ~324 (`fetchRecipes`) | Main vault list |
+| `src/pages/Vault.jsx` | ~364 (duplicate check before insert in `handleAdd`) | Prevents adding a recipe that's already in the vault |
+| `src/pages/BrainstormMode.jsx` | ~368 (vault fetch for planning) | Source for recommendations / candidates |
+
+> **Note (refresh 2026-04-26):** the original Phase 2 prompt listed `LogMode.jsx:50 (post-save vault check)` here. There is no such SELECT in `LogMode.jsx` — LogMode's only `from('vault')` is the INSERT inside `handleSaveToVault`. LogMode's *fuzzy-match* against the vault is delegated to `src/lib/vaultMatch.js`, which calls the `vault_fuzzy_match` RPC. The RPC update in Step 1a above adds the `deleted_at IS NULL` filter server-side, so LogMode inherits it without a client-side change. No edit to `LogMode.jsx` is required for soft-delete.
 
 For each: add `.is('deleted_at', null)` to the chained query. Examples:
 

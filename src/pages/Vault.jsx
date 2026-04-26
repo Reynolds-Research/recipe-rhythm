@@ -320,10 +320,15 @@ export default function Vault({ userId }) {
 
   const fetchRecipes = async () => {
     setLoading(true)
+    // PRD-001 P0.5: filter soft-deleted rows. The vault list never shows
+    // recipes the user has deleted; the underlying rows are preserved so
+    // historical references in meals.vault_id and meal_plan_items.vault_id
+    // still resolve.
     const { data, error } = await supabase
       .from('vault')
       .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) console.error('[Vault] fetchRecipes failed:', error.message)
@@ -360,10 +365,14 @@ export default function Vault({ userId }) {
     setSaving(true)
     trigger('success')
 
+    // PRD-001 P0.5: only block adds against ACTIVE vault rows. A user who
+    // soft-deleted "Tacos" should be able to re-add "Tacos" — the deleted
+    // row stays in place for history, and the new add gets its own id.
     const { data: existing } = await supabase
       .from('vault')
       .select('id')
       .eq('user_id', userId)
+      .is('deleted_at', null)
       .ilike('name', finalName)
       .limit(1)
 
@@ -455,9 +464,24 @@ export default function Vault({ userId }) {
     }
   }
 
+  /**
+   * PRD-001 P0.5 — Soft-delete a vault recipe.
+   *
+   * Sets `deleted_at = now()` rather than issuing a DELETE so that historical
+   * references from meals.vault_id and meal_plan_items.vault_id continue to
+   * resolve to a real row (with name, image_url, etc.) for history views.
+   * The Vault SELECT in fetchRecipes() filters `.is('deleted_at', null)`, so
+   * the row disappears from the user-visible list immediately.
+   *
+   * Local state is updated synchronously so the card animates out without
+   * waiting on the network round-trip.
+   */
   const handleDelete = async (id) => {
     trigger('error')
-    await supabase.from('vault').delete().eq('id', id).eq('user_id', userId)
+    await supabase.from('vault')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', userId)
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 

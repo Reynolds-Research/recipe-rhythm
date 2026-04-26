@@ -23,9 +23,11 @@ describe('Vault Component', () => {
   })
 
   it('renders loading state initially', () => {
-    const mockSelect = vi.fn().mockResolvedValue({ data: [], error: null })
+    // PRD-001 P0.5: fetchRecipes chain is now .eq().is().order(). Mock
+    // mirrors that shape.
+    const mockOrder = vi.fn().mockResolvedValue({ data: [], error: null })
     supabase.from.mockImplementation(() => ({
-      select: () => ({ eq: () => ({ order: mockSelect }) })
+      select: () => ({ eq: () => ({ is: () => ({ order: mockOrder }) }) }),
     }))
 
     render(<Vault userId="test-user" />)
@@ -36,9 +38,9 @@ describe('Vault Component', () => {
     const mockData = [
       { id: '1', name: 'Test Recipe 1', cuisine_type: 'American', created_at: new Date().toISOString() }
     ]
-    const mockSelect = vi.fn().mockResolvedValue({ data: mockData, error: null })
+    const mockOrder = vi.fn().mockResolvedValue({ data: mockData, error: null })
     supabase.from.mockImplementation(() => ({
-      select: () => ({ eq: () => ({ order: mockSelect }) })
+      select: () => ({ eq: () => ({ is: () => ({ order: mockOrder }) }) }),
     }))
 
     render(<Vault userId="test-user" />)
@@ -51,37 +53,58 @@ describe('Vault Component', () => {
   })
 })
 
-// PRD-001 P1.1 — Family rating
+// Helper that builds a `from()` mock supporting:
+//   - the fetchRecipes chain: .select().eq().is().order() — PRD-001 P0.5
+//     added the .is('deleted_at', null) link
+//   - the handleAdd duplicate-check chain: .select('id').eq().is().ilike().limit()
+//   - the rating-update chain: .update().eq().eq()           — PRD-001 P1.1
+//   - the soft-delete chain:  .update().eq().eq()            — PRD-001 P0.5
+//   - the legacy (pre-P0.5) hard-delete chain: .delete().eq().eq()
+//     (kept reachable so a test can assert it's NOT called)
 //
-// Helper that builds a `from()` mock supporting BOTH the initial fetch chain
-// (`select(...).eq(...).order(...)`) and the rating-update chain
-// (`update(...).eq(...).eq(...)`). Tests pass `recipes` for the initial state
-// and `onUpdate` to capture the payload sent to Supabase on rating changes.
-function buildVaultFromMock({ recipes = [], onUpdate = () => {} } = {}) {
-  return () => ({
+// Returns the `from` impl plus spies so tests can assert specific calls.
+//   - isSpy:      records every .is() call across all chains for filter-asserts
+//   - updateSpy:  the .update(payload) entry-point spy
+//   - deleteSpy:  the .delete() entry-point spy (must remain uncalled post-P0.5)
+function buildVaultFromMock({ recipes = [], duplicateRows = [], onUpdate = () => {}, onDelete = () => {} } = {}) {
+  const orderResolved     = Promise.resolve({ data: recipes, error: null })
+  const limitResolved     = Promise.resolve({ data: duplicateRows, error: null })
+
+  // .is() returns a chain object that exposes both .order (fetchRecipes path)
+  // and .ilike(...).limit(...) (handleAdd duplicate-check path).
+  const isSpy = vi.fn(() => ({
+    order: vi.fn(() => orderResolved),
+    ilike: vi.fn(() => ({ limit: vi.fn(() => limitResolved) })),
+  }))
+
+  const updateSpy = vi.fn((payload) => ({
+    eq: vi.fn(() => ({
+      eq: vi.fn(() => {
+        onUpdate(payload)
+        return Promise.resolve({ error: null })
+      }),
+    })),
+  }))
+
+  const deleteSpy = vi.fn(() => ({
+    eq: vi.fn(() => ({
+      eq: vi.fn(() => {
+        onDelete()
+        return Promise.resolve({ error: null })
+      }),
+    })),
+  }))
+
+  const fromImpl = () => ({
     select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        order: vi.fn(() => Promise.resolve({ data: recipes, error: null })),
-        ilike: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
-        })),
-      })),
+      eq: vi.fn(() => ({ is: isSpy })),
     })),
-    update: vi.fn((payload) => ({
-      eq: vi.fn(() => ({
-        eq: vi.fn(() => {
-          onUpdate(payload)
-          return Promise.resolve({ error: null })
-        }),
-      })),
-    })),
+    update: updateSpy,
     insert: vi.fn(() => Promise.resolve({ error: null })),
-    delete: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ error: null })),
-      })),
-    })),
+    delete: deleteSpy,
   })
+
+  return { fromImpl, isSpy, updateSpy, deleteSpy }
 }
 
 describe('Vault — PRD-001 P1.1 family rating', () => {
@@ -97,7 +120,10 @@ describe('Vault — PRD-001 P1.1 family rating', () => {
         capturedSelect = cols
         return {
           eq: () => ({
-            order: () => Promise.resolve({ data: [], error: null }),
+            // PRD-001 P0.5 added .is('deleted_at', null) to the chain.
+            is: () => ({
+              order: () => Promise.resolve({ data: [], error: null }),
+            }),
           }),
         }
       },
@@ -120,9 +146,11 @@ describe('Vault — PRD-001 P1.1 family rating', () => {
       family_rating: null,
       created_at: new Date().toISOString(),
     }]
-    supabase.from.mockImplementation(
-      buildVaultFromMock({ recipes, onUpdate: (p) => { capturedPayload = p } })
-    )
+    const { fromImpl } = buildVaultFromMock({
+      recipes,
+      onUpdate: (p) => { capturedPayload = p },
+    })
+    supabase.from.mockImplementation(fromImpl)
 
     const user = userEvent.setup()
     render(<Vault userId="test-user" />)
@@ -149,9 +177,11 @@ describe('Vault — PRD-001 P1.1 family rating', () => {
       family_rating: 3,
       created_at: new Date().toISOString(),
     }]
-    supabase.from.mockImplementation(
-      buildVaultFromMock({ recipes, onUpdate: (p) => { capturedPayload = p } })
-    )
+    const { fromImpl } = buildVaultFromMock({
+      recipes,
+      onUpdate: (p) => { capturedPayload = p },
+    })
+    supabase.from.mockImplementation(fromImpl)
 
     const user = userEvent.setup()
     render(<Vault userId="test-user" />)
@@ -180,7 +210,8 @@ describe('Vault — PRD-001 P1.1 family rating', () => {
       proteins: ['Pork'],
       created_at: new Date().toISOString(),
     }]
-    supabase.from.mockImplementation(buildVaultFromMock({ recipes }))
+    const { fromImpl } = buildVaultFromMock({ recipes })
+    supabase.from.mockImplementation(fromImpl)
 
     const user = userEvent.setup()
     render(<Vault userId="test-user" />)
@@ -194,5 +225,103 @@ describe('Vault — PRD-001 P1.1 family rating', () => {
     // After tapping a star, the card should still be collapsed (no detail
     // labels). The card's onClick handler must not have fired.
     expect(screen.queryByText('Carb')).not.toBeInTheDocument()
+  })
+})
+
+describe('Vault — PRD-001 P0.5 soft-delete', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('fetchRecipes filters .is(deleted_at, null) so deleted recipes are hidden', async () => {
+    const recipes = [{
+      id: 'recipe-active',
+      name: 'Carbonara',
+      family_rating: null,
+      created_at: new Date().toISOString(),
+    }]
+    const { fromImpl, isSpy } = buildVaultFromMock({ recipes })
+    supabase.from.mockImplementation(fromImpl)
+
+    render(<Vault userId="test-user" />)
+
+    await waitFor(() => expect(screen.getByText('Carbonara')).toBeInTheDocument())
+
+    // The fetchRecipes chain went through .is('deleted_at', null).
+    expect(isSpy).toHaveBeenCalledWith('deleted_at', null)
+  })
+
+  it('handleDelete writes UPDATE deleted_at = <ISO timestamp> and never issues a DELETE', async () => {
+    let capturedPayload = null
+    const recipes = [{
+      id: 'recipe-victim',
+      name: 'Old Soup',
+      family_rating: null,
+      created_at: new Date().toISOString(),
+    }]
+    const { fromImpl, updateSpy, deleteSpy } = buildVaultFromMock({
+      recipes,
+      onUpdate: (p) => { capturedPayload = p },
+    })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    await waitFor(() => expect(screen.getByText('Old Soup')).toBeInTheDocument())
+
+    // The "Remove" button is in the expanded card. Click the recipe row to
+    // expand. We click the recipe NAME (not the star buttons, which stop
+    // propagation).
+    await user.click(screen.getByText('Old Soup'))
+
+    const removeButton = await screen.findByRole('button', { name: /Remove/i })
+    await user.click(removeButton)
+
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalled()
+      expect(capturedPayload).toMatchObject({ deleted_at: expect.any(String) })
+    })
+
+    // The legacy hard-delete chain must not have been entered.
+    expect(deleteSpy).not.toHaveBeenCalled()
+
+    // The deleted_at value should parse as a real Date.
+    expect(Number.isFinite(new Date(capturedPayload.deleted_at).getTime())).toBe(true)
+  })
+
+  it('handleAdd duplicate-check filters .is(deleted_at, null) so a soft-deleted name is re-addable', async () => {
+    // We simulate the duplicate-check returning EMPTY (because the only
+    // existing "Tacos" is soft-deleted and the .is filter excludes it).
+    // Verifying that the chain went through .is('deleted_at', null) is
+    // enough — the rest of the add path is covered by other tests.
+    const { fromImpl, isSpy } = buildVaultFromMock({
+      recipes: [],
+      duplicateRows: [],   // duplicate-check returns no active matches
+    })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+
+    // Wait for the initial fetchRecipes call to resolve so we can isolate
+    // any subsequent .is() calls to the handleAdd duplicate-check path.
+    await waitFor(() => expect(isSpy).toHaveBeenCalledWith('deleted_at', null))
+    isSpy.mockClear()
+
+    // Open the add form and submit a name. The handler runs the duplicate
+    // check via .from('vault').select('id').eq().is().ilike().limit().
+    const openAddBtn = screen.getByRole('button', { name: /Add a new recipe/i })
+    await user.click(openAddBtn)
+
+    const nameInput = screen.getByPlaceholderText(/recipe name/i)
+    await user.type(nameInput, 'Tacos')
+
+    const saveButton = screen.getByRole('button', { name: /Save to vault/i })
+    await user.click(saveButton)
+
+    // The duplicate-check chain went through .is('deleted_at', null).
+    await waitFor(() => {
+      expect(isSpy).toHaveBeenCalledWith('deleted_at', null)
+    })
   })
 })
