@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink, Camera, Image as ImageIcon, Star } from 'lucide-react'
-import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
-import { fetchVaultOptions, addVaultOption, migrateLocalStorageExtras } from '../lib/vaultOptions'
 import Logo from '../components/Logo'
 import { useHaptics } from '../hooks/useHaptics'
 import ChipPicker from './Vault/ChipPicker'
+import { useVault } from './Vault/useVault'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
@@ -108,8 +107,20 @@ function StarRating({ value, onChange, size = 18, label = 'Family rating' }) {
 }
 
 export default function Vault({ userId }) {
-  const [recipes, setRecipes]       = useState([])
-  const [loading, setLoading]       = useState(true)
+  const {
+    recipes,
+    loading,
+    vaultError,
+    setVaultError,
+    extrasByCategory,
+    addExtra,
+    addRecipe,
+    addSuggestion,
+    deleteRecipe,
+    updateRecipe,
+    setRating,
+  } = useVault(userId)
+
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
   const [expandedId, setExpandedId]       = useState(null)
@@ -120,11 +131,6 @@ export default function Vault({ userId }) {
   const [editingId, setEditingId]         = useState(null)
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
-  const [vaultError, setVaultError]       = useState(null)
-  // PRD-001 P0.7: custom chip-picker tags grouped by canonical category.
-  // Populated by fetchVaultOptions on mount (after migrateLocalStorageExtras
-  // imports any pre-existing legacy localStorage values, see vaultOptions.js).
-  const [extrasByCategory, setExtrasByCategory] = useState({})
   const { trigger } = useHaptics()
 
   // Form state
@@ -186,57 +192,7 @@ export default function Vault({ userId }) {
     setSuggesting(false)
   }
 
-  const fetchRecipes = async () => {
-    setLoading(true)
-    // PRD-001 P0.5: filter soft-deleted rows. The vault list never shows
-    // recipes the user has deleted; the underlying rows are preserved so
-    // historical references in meals.vault_id and meal_plan_items.vault_id
-    // still resolve.
-    const { data, error } = await supabase
-      .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating')
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-
-    if (error) console.error('[Vault] fetchRecipes failed:', error.message)
-    if (!error && data) setRecipes(data)
-    setLoading(false)
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchRecipes() }, [])
-
-  // PRD-001 P0.7: migrate any legacy localStorage chip-picker values into
-  // the vault_options table (one-time, idempotent — see vaultOptions.js),
-  // then fetch the current per-user grouping. Migration runs before fetch
-  // so freshly-imported values land in extrasByCategory on the first pass.
-  useEffect(() => {
-    if (!userId) return
-    let cancelled = false
-    ;(async () => {
-      await migrateLocalStorageExtras(supabase, userId)
-      const grouped = await fetchVaultOptions(supabase, userId)
-      if (!cancelled) setExtrasByCategory(grouped)
-    })()
-    return () => { cancelled = true }
-  }, [userId])
-
-  // Optimistic add: drop the new value into the grouped map immediately so
-  // every ChipPicker bound to this category re-renders with the new chip;
-  // fire-and-forget the upsert. On failure we log — the chip won't reappear
-  // after the next refresh but the user already saw it added, so a soft
-  // failure is the least surprising behavior.
-  const handleAddExtra = async (category, value) => {
-    setExtrasByCategory(prev => ({
-      ...prev,
-      [category]: [...new Set([...(prev[category] || []), value])],
-    }))
-    const { error } = await addVaultOption(supabase, userId, category, value)
-    if (error) {
-      console.error('[Vault] failed to persist custom tag:', error)
-    }
-  }
+  const handleAddExtra = (category, value) => addExtra(category, value)
 
   const resetForm = () => {
     setName('')
@@ -259,107 +215,30 @@ export default function Vault({ userId }) {
   }
 
   const handleAdd = async () => {
-    const finalName = name.trim()
-    if (!finalName) return
+    if (!name.trim()) return
     setSaving(true)
     trigger('success')
 
-    // PRD-001 P0.5: only block adds against ACTIVE vault rows. A user who
-    // soft-deleted "Tacos" should be able to re-add "Tacos" — the deleted
-    // row stays in place for history, and the new add gets its own id.
-    const { data: existing } = await supabase
-      .from('vault')
-      .select('id')
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .ilike('name', finalName)
-      .limit(1)
-
-    if (existing && existing.length > 0) {
-      setVaultError(`"${finalName}" is already in your vault!`)
-      setSaving(false)
-      return
-    }
-
-    let publicUrl = null
-    if (imageFile) {
-      try {
-        const compressImage = (file) => {
-          return new Promise((resolve) => {
-            const reader = new FileReader()
-            reader.onload = (event) => {
-              const img = new Image()
-              img.onload = () => {
-                const canvas = document.createElement('canvas')
-                let width = img.width
-                let height = img.height
-                const maxDim = 800
-
-                if (width > maxDim || height > maxDim) {
-                  if (width > height) {
-                    height = Math.round((height * maxDim) / width)
-                    width = maxDim
-                  } else {
-                    width = Math.round((width * maxDim) / height)
-                    height = maxDim
-                  }
-                }
-
-                canvas.width = width
-                canvas.height = height
-                const ctx = canvas.getContext('2d')
-                ctx.drawImage(img, 0, 0, width, height)
-                
-                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.7)
-              }
-              img.src = event.target.result
-            }
-            reader.readAsDataURL(file)
-          })
-        }
-
-        const blob = await compressImage(imageFile)
-        const fileName = `${userId}/${Date.now()}.jpg`
-        
-        const { error: uploadError } = await supabase.storage
-          .from('recipe_images')
-          .upload(fileName, blob, { contentType: 'image/jpeg' })
-
-        if (!uploadError) {
-          const { data } = supabase.storage.from('recipe_images').getPublicUrl(fileName)
-          if (data && data.publicUrl) publicUrl = data.publicUrl
-        } else {
-          console.error('[Vault] Image upload failed:', uploadError)
-        }
-      } catch (err) {
-        console.error('[Vault] Error preparing image for upload:', err)
-      }
-    }
-
-    const { error } = await supabase.from('vault').insert({
-      user_id:          userId,
-      name:             finalName,
-      image_url:        publicUrl,
-      cuisine_type:     cuisineType            || null,
-      flavor_profile:   flavorProfile          || null,
-      notes:            notes.trim()           || null,
-      recipe_url:       recipeUrl.trim()       || null,
-      is_wildcard:      false,
-      auto_completed:   false,
-      proteins:         proteins.length        ? proteins        : null,
-      cooking_method:   cookingMethod          || null,
-      main_carb:        mainCarb               || null,
-      dietary_tags:     dietaryTags.length     ? dietaryTags     : null,
-      dairy_components: dairyComponents.length ? dairyComponents : null,
-      vegetables:       vegetables.length      ? vegetables      : null,
-      fruits:           fruits.length          ? fruits          : null,
+    const result = await addRecipe({
+      name,
+      cuisineType,
+      flavorProfile,
+      notes,
+      recipeUrl,
+      proteins,
+      cookingMethod,
+      mainCarb,
+      dietaryTags,
+      dairyComponents,
+      vegetables,
+      fruits,
+      imageFile,
     })
 
     setSaving(false)
-    if (!error) {
+    if (result.ok) {
       resetForm()
       setShowForm(false)
-      fetchRecipes()
     }
   }
 
@@ -377,35 +256,15 @@ export default function Vault({ userId }) {
    */
   const handleDelete = async (id) => {
     trigger('error')
-    await supabase.from('vault')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('user_id', userId)
-    setRecipes(prev => prev.filter(r => r.id !== id))
+    await deleteRecipe(id)
   }
 
   const handleAddSuggestion = async (suggestionName) => {
     if (addingSuggestion) return
     trigger('success')
     setAddingSuggestion(suggestionName)
-    const analysis = await analyzeRecipe(suggestionName)
-    await supabase.from('vault').insert({
-      user_id:          userId,
-      name:             suggestionName,
-      is_wildcard:      false,
-      auto_completed:   true,
-      cuisine_type:     analysis?.cuisine_type     ?? null,
-      flavor_profile:   analysis?.flavor_profile   ?? null,
-      proteins:         analysis?.proteins         ?? [],
-      cooking_method:   analysis?.cooking_method   ?? null,
-      main_carb:        analysis?.main_carb        ?? null,
-      dietary_tags:     analysis?.dietary_tags     ?? [],
-      dairy_components: analysis?.dairy_components ?? [],
-      vegetables:       analysis?.vegetables       ?? [],
-      fruits:           analysis?.fruits           ?? [],
-    })
+    await addSuggestion(suggestionName)
     setAddingSuggestion(null)
-    fetchRecipes()
   }
 
   const toggleExpand = (id) => {
@@ -436,18 +295,10 @@ export default function Vault({ userId }) {
   const handleSaveEdit = async (id) => {
     trigger('success')
     setSavingEdit(true)
-    await supabase.from('vault').update({
-      ...editFields,
-      cuisine_type:   editFields.cuisine_type        || null,
-      flavor_profile: editFields.flavor_profile      || null,
-      notes:          editFields.notes.trim()        || null,
-      recipe_url:     editFields.recipe_url.trim()   || null,
-      auto_completed: false,
-    }).eq('id', id).eq('user_id', userId)
+    await updateRecipe(id, editFields)
     setSavingEdit(false)
     setEditingId(null)
     setEditFields({})
-    fetchRecipes()
   }
 
   /**
@@ -461,21 +312,7 @@ export default function Vault({ userId }) {
    */
   const handleRatingChange = async (recipeId, newRating) => {
     trigger('light')
-
-    setRecipes(prev =>
-      prev.map(r => r.id === recipeId ? { ...r, family_rating: newRating } : r)
-    )
-
-    const { error } = await supabase
-      .from('vault')
-      .update({ family_rating: newRating })
-      .eq('id', recipeId)
-      .eq('user_id', userId)
-
-    if (error) {
-      console.error('[Vault] handleRatingChange failed:', error.message)
-      fetchRecipes()
-    }
+    await setRating(recipeId, newRating)
   }
 
   if (loading) {
