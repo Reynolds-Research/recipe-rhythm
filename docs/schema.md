@@ -51,10 +51,9 @@ Derived from `src/pages/LogMode.jsx:30` and `src/App.jsx:30`.
 | `user_id` | `uuid` | References `auth.users(id)`. Used as the RLS key. |
 | `name` | `text` | Meal name entered via voice/text. |
 | `vault_id` | `uuid` nullable | **Added PRD-001 Phase 1 (P0.1).** References `vault(id)` `ON DELETE SET NULL`. NULL when no match was found at log time, or when the linked vault row was later deleted. Drives frequency/recency scoring in `src/lib/recommendations.js`. Indexed via `(user_id, vault_id)` (`meals_user_vault_idx`). |
+| `notes` | `text` nullable | Free-text note attached to a meal log (e.g. "more lime next time"). Written by `src/pages/LogMode.jsx` and copied onto the vault row when the user promotes the meal via Save-to-Cookbook. Existence confirmed against `information_schema.columns` on 2026-04-25. |
 | `eaten_on` | `date` | Written as `new Date().toISOString().split('T')[0]` — see AUDIT U8 for the timezone caveat. |
 | `created_at` | `timestamptz` | Assumed default `now()`. |
-
-> **Doc gap to verify:** `LogMode.jsx`'s insert also writes a `notes` field. Whether that column actually exists in `public.meals` was not verified before this doc update — confirm via `information_schema.columns` and add a row above (or remove the LogMode write) once known.
 
 ### `public.vault`
 Derived from `src/pages/Vault.jsx:370-387`.
