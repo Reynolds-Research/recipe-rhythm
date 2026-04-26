@@ -34,7 +34,7 @@ as a **P0 finding**.
 
 | Bucket | Public? | SELECT policy | INSERT policy | UPDATE policy | DELETE policy | Notes |
 |---|---|---|---|---|---|---|
-| `recipe_images` | ✅ `public = true` | ✅ implicit via bucket-public flag (any URL is world-readable) | ⚠️ `Allow Authenticated Uploads g90qbt_0` — `WITH CHECK (bucket_id = 'recipe_images')`. Any signed-in user can upload anywhere in the bucket; no per-user folder scoping. | ❌ no policy (blocked except for service role) | ❌ no policy (blocked except for service role) | Used by `src/pages/Vault.jsx`, which uploads to bucket root as `recipe-<timestamp>.jpg` and renders via `getPublicUrl`. Acceptable for the current single-user deployment. Before onboarding a second user: (a) change the upload path in `Vault.jsx` to `${userId}/recipe-<ts>.jpg`, (b) migrate existing objects into per-user folders, (c) apply Template B1 in `c3_rls_remediation_templates.sql`, (d) consider flipping the bucket to `public = false` + signed URLs if image URLs should not be world-guessable. |
+| `recipe_images` | ✅ `public = true` | ✅ implicit via bucket-public flag (any URL is world-readable) | ⚠️ `Allow Authenticated Uploads g90qbt_0` — `WITH CHECK (bucket_id = 'recipe_images')`. Any signed-in user can upload anywhere in the bucket; no per-user folder scoping. | ❌ no policy (blocked except for service role) | ❌ no policy (blocked except for service role) | Used by `src/pages/Vault/useVault.js` (post-P0.9 decomposition; was previously `Vault.jsx`), which uploads to bucket root as `recipe-<timestamp>.jpg` and renders via `getPublicUrl`. Acceptable for the current single-user deployment. Before onboarding a second user: (a) change the upload path in `useVault.js` to `${userId}/recipe-<ts>.jpg`, (b) migrate existing objects into per-user folders, (c) apply Template B1 in `c3_rls_remediation_templates.sql`, (d) consider flipping the bucket to `public = false` + signed URLs if image URLs should not be world-guessable. |
 
 ## Tables — column reference
 
@@ -56,7 +56,7 @@ Derived from `src/pages/LogMode.jsx:30` and `src/App.jsx:30`.
 | `created_at` | `timestamptz` | Assumed default `now()`. |
 
 ### `public.vault`
-Derived from `src/pages/Vault.jsx:370-387`.
+Derived from `src/pages/Vault/useVault.js` (the inserts at lines ~177 and ~204; line numbers drift, prefer grep `from('vault').insert`). Enum-shaped column values come from `src/lib/constants.js` (the canonical option lists post-P0.6).
 
 | Column | Type (inferred) | Notes |
 |---|---|---|
@@ -64,7 +64,7 @@ Derived from `src/pages/Vault.jsx:370-387`.
 | `user_id` | `uuid` | References `auth.users(id)`. |
 | `name` | `text` | Recipe name. |
 | `image_url` | `text` nullable | Public URL from the `recipe_images` bucket. |
-| `cuisine_type` | `text` nullable | Enum-like — see `src/pages/Vault.jsx`. |
+| `cuisine_type` | `text` nullable | Enum-like — see `src/lib/constants.js` (`CUISINE_OPTIONS`, single source of truth post-P0.6). User-added custom values persist in `public.vault_options` (post-P0.7). |
 | `flavor_profile` | `text` nullable | |
 | `notes` | `text` nullable | |
 | `recipe_url` | `text` nullable | |
@@ -165,7 +165,7 @@ WHERE mpi.cooked = false
 ## Storage
 
 ### `recipe_images`
-- Referenced at `src/pages/Vault.jsx:355`, `:359`.
+- Referenced at `src/pages/Vault/useVault.js` (the upload + `getPublicUrl` calls; current line numbers ~163, ~167 — line numbers drift, prefer grep `recipe_images`).
 - Upload path today: `recipe-<epoch-ms>.jpg` at bucket root.
 - RLS policies: see the table at the top of this document.
 - See [`supabase/audits/c3_rls_remediation_templates.sql`](../supabase/audits/c3_rls_remediation_templates.sql)

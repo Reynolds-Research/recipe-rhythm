@@ -7,7 +7,7 @@
 Recipe-Rhythm is a mobile-first meal-planning, grocery-tracking, and recipe-storage app for a single household. Partner collaboration is a future ADR — assume single-user (`auth.uid() = user_id`) for now.
 
 The app has three primary user-facing surfaces:
-- **Vault** (`src/pages/Vault.jsx`) — the recipe library; chip-picker categorical tagging, AI-suggest, image upload
+- **Vault** (`src/pages/Vault/`) — the recipe library; chip-picker categorical tagging, AI-suggest, image upload. Decomposed in PRD-001 P0.9 into `index.jsx` (page shell), `RecipeForm.jsx` (add/edit form), `RecipeCard.jsx` (list row), `ChipPicker.jsx` (the picker), `useVault.js` (data hook + Supabase calls). `App.jsx` imports the default export from `./pages/Vault` — Vite resolves to `Vault/index.jsx`.
 - **LogMode** (`src/pages/LogMode.jsx`) — the daily voice-first "what did you eat" journal
 - **BrainstormMode** (`src/pages/BrainstormMode.jsx`) — the meal-planning surface; drag-and-drop, recommendations, period-based planning per ADR-001
 
