@@ -39,12 +39,10 @@ describe('matchVaultByName', () => {
 
   it('returns confidence "fuzzy" with multiple results when pg_trgm finds candidates', async () => {
     // "Tacos" alone exact-matches nothing; trigram returns both vault rows
-    // ordered by similarity DESC (the RPC enforces this on the server). The
-    // RPC's RETURNS TABLE uses match_id/match_name to avoid a Postgres
-    // ambiguity — the matcher reshapes them to id/name for callers.
+    // ordered by similarity DESC (the RPC enforces this on the server).
     const fuzzyRows = [
-      { match_id: 'v1', match_name: 'Carnitas Tacos', image_url: null, similarity: 0.82 },
-      { match_id: 'v2', match_name: 'Chicken Tacos',  image_url: null, similarity: 0.78 },
+      { id: 'v1', name: 'Carnitas Tacos', image_url: null, similarity: 0.82 },
+      { id: 'v2', name: 'Chicken Tacos',  image_url: null, similarity: 0.78 },
     ]
     const { client, rpc } = makeSupabase({
       exact: { data: [], error: null },
@@ -99,7 +97,7 @@ describe('matchVaultByName', () => {
       // Only the right user gets data back; everyone else gets nothing.
       if (args.p_user_id === 'owner-of-tacos') {
         return Promise.resolve({
-          data: [{ match_id: 'v1', match_name: 'Carnitas Tacos', image_url: null, similarity: 0.9 }],
+          data: [{ id: 'v1', name: 'Carnitas Tacos', image_url: null, similarity: 0.9 }],
           error: null,
         })
       }

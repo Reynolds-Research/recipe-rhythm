@@ -52,15 +52,8 @@ export async function matchVaultByName(supabase, userId, mealName, opts = {}) {
   })
 
   if (!fuzzyErr && fuzzy && fuzzy.length > 0) {
-    // The RPC's RETURNS TABLE uses match_id/match_name to dodge a Postgres
-    // OUT-parameter vs. source-column ambiguity. Re-shape to the (id, name,
-    // image_url) contract callers expect.
     return {
-      matches: fuzzy.map(({ match_id, match_name, image_url }) => ({
-        id:        match_id,
-        name:      match_name,
-        image_url,
-      })),
+      matches: fuzzy.map(({ id, name, image_url }) => ({ id, name, image_url })),
       confidence: 'fuzzy',
     }
   }

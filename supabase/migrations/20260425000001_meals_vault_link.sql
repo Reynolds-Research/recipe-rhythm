@@ -64,28 +64,19 @@ CREATE INDEX IF NOT EXISTS meals_user_vault_idx
 -- Threshold default 0.6 is the PRD-001 OQ.A starting point; callers may pass
 -- a different value to tune sensitivity later.
 
--- Output column names are deliberately offset from `vault`'s real column
--- names (id → match_id, name → match_name, etc.) to avoid the OUT-parameter
--- vs. table-column ambiguity Postgres flags in LANGUAGE sql functions when
--- the RETURNS TABLE column names collide with the source table.
 CREATE OR REPLACE FUNCTION vault_fuzzy_match(
   p_user_id   uuid,
   p_query     text,
   p_threshold real DEFAULT 0.6
 )
-RETURNS TABLE (
-  match_id    uuid,
-  match_name  text,
-  image_url   text,
-  similarity  real
-)
+RETURNS TABLE (id uuid, name text, image_url text, similarity real)
 LANGUAGE sql STABLE
 AS $$
-  SELECT v.id, v.name, v.image_url, similarity(v.name, p_query)
-  FROM public.vault v
-  WHERE v.user_id = p_user_id
-    AND similarity(v.name, p_query) >= p_threshold
-  ORDER BY similarity(v.name, p_query) DESC
+  SELECT id, name, image_url, similarity(name, p_query) AS similarity
+  FROM vault
+  WHERE user_id = p_user_id
+    AND similarity(name, p_query) >= p_threshold
+  ORDER BY similarity DESC
   LIMIT 5;
 $$;
 
