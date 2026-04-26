@@ -16,6 +16,8 @@ The user-visible consequence: my wife sits down each week to plan meals, but the
 
 ## 2. Current State (As Built)
 
+> **Note (2026-04-26):** the table below is the **pre-PRD-001 snapshot** that scoped this work — every "Key issue" listed here was addressed by P0.1–P0.9 + P1.1 and is now resolved on `main`. See the v1.0 entry in §Revision History for the full ship list. Kept here unedited as a historical record of what we set out to fix.
+
 A faithful snapshot, post code review on 2026-04-25:
 
 | Surface | Lives at | What it does today | Key issues |
@@ -192,3 +194,4 @@ Add one Playwright e2e: "log a meal that matches a vault recipe → the meal_pla
 |---|---|---|
 | v0.1 | 2026-04-25 | Initial draft from skill intake; framed as "Recipe Logging" (capture-only). Pre-codebase review. |
 | v0.2 | 2026-04-25 | Renamed to "Recipe Vault & Cooking Record" to match codebase vocabulary. Grounded in code review of `Vault.jsx`, `LogMode.jsx`, `BrainstormMode.jsx`, `analyzeRecipe.js`, `recommendations.js`, `api-server.mjs`, and the live schema. Identified the broken `meals.vault_id` link as the highest-leverage fix; promoted to P0. Decisions locked: soft-delete vault recipes; replace Spoonacular wildcards with existing `/api/swap-suggestions`; defer quantitative ingredients to PRD-003. |
+| v1.0 | 2026-04-26 | **All P0s + P1.1 shipped.** Phase 1 (PR #25, P0.1–P0.4): `meals.vault_id` link, `pg_trgm` extension, `vault_fuzzy_match` RPC, LogMode auto-link + disambiguation UI, promote-to-Cookbook back-link. P1.1 (PR #29): `vault.family_rating` + tap-to-rate stars. Phase 2 (PRs #30 + #32 + #33, P0.5–P0.7): vault soft-delete via `deleted_at`, centralized enum lists in `src/lib/constants.js`, `vault_options` table replacing `vault_extra_*` localStorage. Phase 3 (PRs #35 + #36, P0.8–P0.9): Spoonacular cleanup + wildcards now sourced from `/api/swap-suggestions`, `Vault.jsx` decomposed into `Vault/{index,RecipeForm,RecipeCard,ChipPicker}.jsx` + `useVault.js`. Outstanding from this PRD: P1.2–P1.6 (nice-to-haves) and P2 future considerations. The data foundation PRD-002 was waiting on is now in place. |
