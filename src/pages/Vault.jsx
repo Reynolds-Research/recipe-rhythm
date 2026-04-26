@@ -5,6 +5,7 @@ import { analyzeRecipe } from '../lib/analyzeRecipe'
 import { fetchVaultOptions, addVaultOption, migrateLocalStorageExtras } from '../lib/vaultOptions'
 import Logo from '../components/Logo'
 import { useHaptics } from '../hooks/useHaptics'
+import ChipPicker from './Vault/ChipPicker'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
@@ -29,104 +30,6 @@ const STARTER_SUGGESTIONS = [
   'Lentil Soup', 'Korean Bibimbap', 'Teriyaki Salmon Bowl',
   'Chicken Fajitas', 'Caprese Pasta', 'Tom Yum Soup',
 ]
-
-// --- Chip picker with custom tag support ---
-//
-// PRD-001 P0.7: custom tags are owned by the parent (Vault) component, which
-// reads/writes them via the vault_options Supabase table. The picker holds
-// only its own local-echo copy of `extras` so a newly-typed tag appears
-// immediately, before the round-trip to the DB completes.
-function ChipPicker({ options, value, onChange, multi = true, category = null, extras = [], onExtraAdded = null }) {
-  const [showAdd, setShowAdd]   = useState(false)
-  const [draft, setDraft]       = useState('')
-  const [localExtras, setLocalExtras] = useState(() => extras)
-  const { trigger } = useHaptics()
-
-  // Parent's grouped map is the source of truth — mirror updates here so
-  // adding the same tag in two pickers (or re-fetching from the DB) keeps
-  // every picker in sync.
-  useEffect(() => { setLocalExtras(extras) }, [extras])
-
-  const allOptions = [...options, ...localExtras.filter(e => !options.includes(e))]
-
-  const isActive = (opt) => multi ? (value || []).includes(opt) : value === opt
-
-  const toggle = (opt) => {
-    trigger('selection')
-    if (multi) {
-      const cur = value || []
-      onChange(cur.includes(opt) ? cur.filter(v => v !== opt) : [...cur, opt])
-    } else {
-      onChange(isActive(opt) ? null : opt)
-    }
-  }
-
-  const commitCustom = () => {
-    const tag = draft.trim()
-    if (!tag) { setShowAdd(false); return }
-    const next = [...new Set([...localExtras, tag])]
-    setLocalExtras(next)              // optimistic local echo
-    if (category && onExtraAdded) {
-      onExtraAdded(category, tag)     // parent updates extrasByCategory and persists
-    }
-    // Auto-select the new tag
-    if (multi) onChange([...(value || []).filter(v => v !== tag), tag])
-    else onChange(tag)
-    setDraft('')
-  }
-
-  return (
-    <div className="flex flex-wrap gap-1.5 items-center">
-      {allOptions.map(opt => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => toggle(opt)}
-          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
-            isActive(opt)
-              ? 'bg-brand-500 text-white border-brand-500'
-              : 'bg-white text-gray-500 border-cream-200 hover:border-brand-300 hover:text-brand-600'
-          }`}
-        >
-          {opt}
-        </button>
-      ))}
-
-      {showAdd ? (
-        <div className="flex items-center gap-1">
-          <input
-            autoFocus
-            type="text"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); commitCustom() }
-              if (e.key === 'Escape') { setShowAdd(false); setDraft('') }
-            }}
-            placeholder="Type & press Enter"
-            className="w-32 px-2.5 py-1 text-xs border border-brand-300 rounded-full outline-none focus:ring-1 focus:ring-brand-400 bg-white"
-          />
-          <button
-            type="button"
-            onClick={() => { setShowAdd(false); setDraft('') }}
-            aria-label="Cancel custom tag"
-            className="text-gray-300 hover:text-gray-500 transition-colors"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => { trigger('light'); setShowAdd(true) }}
-          className="px-2.5 py-1 rounded-full text-xs text-gray-400 border border-dashed border-gray-200 hover:border-brand-300 hover:text-brand-500 transition-all"
-        >
-          + custom
-        </button>
-      )}
-    </div>
-  )
-}
 
 function FieldSection({ label, children }) {
   return (
