@@ -447,10 +447,14 @@ export default function BrainstormMode({ userId }) {
 
       if (forceRegenerate || plan.length === 0 || seed.length !== plan.length) {
         const servedMeals = mostRecentPlan?.items ?? []
+        // Pull fresh AI candidates from /api/swap-suggestions to mix alongside
+        // vault hits. fetchSwapSuggestions returns [] on failure, so the
+        // recommendation engine silently falls back to 100% vault picks.
+        const wildcardCandidates = await fetchSwapSuggestions(plan, recentMeals)
         const suggestions = getRecommendations(
           vaultItems,
           recentMeals,
-          [],
+          wildcardCandidates,
           sortedSeed.length,
           servedMeals,
         )
@@ -537,6 +541,8 @@ export default function BrainstormMode({ userId }) {
         if (curr.find((slot) => slot.scheduled_date === ymd)) return curr
         // Pick a single fresh recommendation that isn't already on the plan.
         const taken = new Set(curr.map((s) => s.id).filter(Boolean))
+        // Single-slot picks stay 100% vault — wildcards only flow through the
+        // brainstorm-load path. See PRD-001 P0.8.
         const sugg = getRecommendations(
           vault,
           storedRecentMeals,

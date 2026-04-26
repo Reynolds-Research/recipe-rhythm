@@ -111,7 +111,13 @@ describe('BrainstormMode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    globalThis.fetch = vi.fn()
+    // Default: /api/swap-suggestions responds with no names, so the
+    // brainstorm-load call site falls back to 100% vault recommendations.
+    // Individual tests override this when they need a populated response.
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ names: [] }),
+    })
     setNow()
     fetchMostRecentPlan.mockResolvedValue({ plan: null })
     fetchCurrentLeftovers.mockResolvedValue([])
@@ -275,5 +281,56 @@ describe('BrainstormMode', () => {
     await waitFor(() => {
       expect(screen.getByText('Sushi')).toBeInTheDocument()
     })
+  })
+
+  it('passes wildcards from /api/swap-suggestions into getRecommendations on brainstorm-load', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ names: ['Test Wildcard 1', 'Test Wildcard 2'] }),
+    })
+
+    render(<BrainstormMode userId="user-1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/swap-suggestions',
+      expect.objectContaining({ method: 'POST' }),
+    )
+
+    expect(getRecommendations).toHaveBeenCalled()
+    const lastCallArgs = getRecommendations.mock.calls.at(-1)
+    const wildcardsArg = lastCallArgs[2]
+    expect(Array.isArray(wildcardsArg)).toBe(true)
+    expect(wildcardsArg.length).toBe(2)
+    expect(wildcardsArg.map(w => w.name)).toEqual([
+      'Test Wildcard 1',
+      'Test Wildcard 2',
+    ])
+    expect(wildcardsArg.every(w => w.is_wildcard === true)).toBe(true)
+  })
+
+  it('falls back to empty wildcards (and does not crash) when /api/swap-suggestions fails', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    })
+
+    render(<BrainstormMode userId="user-1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    expect(getRecommendations).toHaveBeenCalled()
+    const lastCallArgs = getRecommendations.mock.calls.at(-1)
+    expect(lastCallArgs[2]).toEqual([])
+
+    // Still renders the served-plan UI without crashing.
+    expect(
+      screen.getByRole('button', { name: /Serve This Plan/i }),
+    ).toBeInTheDocument()
   })
 })
