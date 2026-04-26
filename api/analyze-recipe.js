@@ -3,6 +3,7 @@
  * in api-server.mjs. Keep the two in sync when changing prompt/model.
  */
 import { anthropic, parseJsonLoose, sendUpstreamError } from './_lib/anthropic.js'
+import { buildAnalyzeRecipePromptBlock } from '../src/lib/constants.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -26,18 +27,7 @@ export default async function handler(req, res) {
   if (url) textPrompt += `\nRecipe URL: "${url}"`
   if (imageBase64) textPrompt += `\n(See attached image)`
 
-  textPrompt += `\n
-{
-  "cuisine_type": one of [American, Chinese, French, Greek, Indian, Italian, Japanese, Korean, Mexican, Middle Eastern, Spanish, Thai, Vietnamese, Other] or null,
-  "flavor_profile": one of [Savory, Spicy, Umami, Fresh, Rich, Sweet, Tangy] or null,
-  "proteins": array from [Chicken, Beef, Pork, Fish, Shrimp/Seafood, Tofu, Eggs, Beans/Lentils, Lamb, Turkey, Duck, None],
-  "cooking_method": one of [Grilled, Baked, Roasted, Stir-fried, Braised, Soup/Stew, Fried, Steamed, Raw/Salad, Pan-seared, Slow-cooked, Smoked] or null,
-  "main_carb": one of [Rice, Pasta, Noodles, Bread, Potato, Quinoa, Couscous, Polenta, Tortilla/Wrap, None] or null,
-  "dietary_tags": array from [Vegetarian, Vegan, Gluten-Free, Dairy-Free, Low-Carb, High-Protein, Nut-Free, Paleo],
-  "dairy_components": array from [Cheese, Cream, Butter, Milk, Yogurt, Parmesan, Mozzarella, None],
-  "vegetables": array from [Tomato, Spinach/Greens, Mushrooms, Bell Peppers, Onion/Garlic, Broccoli, Zucchini, Eggplant, Carrot, Corn, Peas, Cucumber, Asparagus, Sweet Potato, Cauliflower, Brussels Sprouts, Celery, Cabbage],
-  "fruits": array from [Avocado, Lemon/Lime, Orange, Apple, Mango, Pineapple, Berries, Banana, Coconut, Peach, Pomegranate, Grapes]
-}`
+  textPrompt += '\n\n' + buildAnalyzeRecipePromptBlock()
 
   content.push({ type: 'text', text: textPrompt })
 
