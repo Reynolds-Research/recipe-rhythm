@@ -1,4 +1,4 @@
-import Sheet from 'react-modal-sheet'
+import { Sheet } from 'react-modal-sheet'
 import { BookOpen, X } from 'lucide-react'
 import { useHaptics } from '../hooks/useHaptics'
 

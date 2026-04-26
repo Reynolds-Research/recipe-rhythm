@@ -8,5 +8,5 @@ vi.mock('react-modal-sheet', () => {
   Sheet.Header = () => React.createElement('div', { 'data-testid': 'mock-sheet-header' });
   Sheet.Content = ({ children }) => React.createElement('div', { 'data-testid': 'mock-sheet-content' }, children);
   Sheet.Backdrop = ({ onClick }) => React.createElement('div', { 'data-testid': 'mock-sheet-backdrop', onClick });
-  return { default: Sheet };
+  return { Sheet };
 });
