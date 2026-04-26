@@ -195,7 +195,7 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
           <div className="flex items-center gap-1.5">
             <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
               <Sparkles size={8} />
-              Wildcard
+              New
             </span>
             {slot.source_url && (
               <a
