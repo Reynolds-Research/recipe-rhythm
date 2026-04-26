@@ -50,8 +50,11 @@ Derived from `src/pages/LogMode.jsx:30` and `src/App.jsx:30`.
 | `id` | `uuid` / `bigint` | PK (assumed). |
 | `user_id` | `uuid` | References `auth.users(id)`. Used as the RLS key. |
 | `name` | `text` | Meal name entered via voice/text. |
+| `vault_id` | `uuid` nullable | **Added PRD-001 Phase 1 (P0.1).** References `vault(id)` `ON DELETE SET NULL`. NULL when no match was found at log time, or when the linked vault row was later deleted. Drives frequency/recency scoring in `src/lib/recommendations.js`. Indexed via `(user_id, vault_id)` (`meals_user_vault_idx`). |
 | `eaten_on` | `date` | Written as `new Date().toISOString().split('T')[0]` — see AUDIT U8 for the timezone caveat. |
 | `created_at` | `timestamptz` | Assumed default `now()`. |
+
+> **Doc gap to verify:** `LogMode.jsx`'s insert also writes a `notes` field. Whether that column actually exists in `public.meals` was not verified before this doc update — confirm via `information_schema.columns` and add a row above (or remove the LogMode write) once known.
 
 ### `public.vault`
 Derived from `src/pages/Vault.jsx:370-387`.
@@ -162,6 +165,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 |---|---|---|
 | [`20260418000001_planning_periods_schema.sql`](../supabase/migrations/20260418000001_planning_periods_schema.sql) | 2026-04-19 (applied) | ADR-001 Phase 1: extends `meal_plans` with period dates + `finalized_at`; creates `meal_plan_items`, `current_leftovers` view, EXCLUDE constraint, RLS policies; backfills existing rows. See [ADR-001](../adr/ADR-001-planning-period-save-state.md). |
 | [`verify_20260418.sql`](../supabase/migrations/verify_20260418.sql) | 2026-04-19 | Read-only verification queries to confirm Phase 1 migration applied correctly. Run after the migration above. |
+| [`20260425000001_meals_vault_link.sql`](../supabase/migrations/20260425000001_meals_vault_link.sql) | 2026-04-25 | PRD-001 Phase 1 (P0.1): enables `pg_trgm`, adds `meals.vault_id` (FK → `vault(id)` ON DELETE SET NULL) + `(user_id, vault_id)` index, defines the `vault_fuzzy_match` RPC. Restores the meals → vault link the recommendation engine relies on. |
+| [`verify_20260425.sql`](../supabase/migrations/verify_20260425.sql) | 2026-04-25 | Read-only verification queries for the meals→vault link migration. Confirms `pg_trgm`, the new column + FK + index + comment, the RPC, and includes a sanity-check probe for the schema-doc gap on `meals.notes`. |
 
 ## Related audit items + ADRs
 
