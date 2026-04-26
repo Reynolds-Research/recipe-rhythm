@@ -160,6 +160,7 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 
 | File | Date | Purpose |
 |---|---|---|
+| [`00000000000000_baseline_schema.sql`](../supabase/migrations/00000000000000_baseline_schema.sql) | 2026-04-25 | Baseline schema (foundational tables created by hand pre-Phase-1; needed so Supabase Preview Branches can replay the migration tree from a blank DB). |
 | [`20260418000001_planning_periods_schema.sql`](../supabase/migrations/20260418000001_planning_periods_schema.sql) | 2026-04-19 (applied) | ADR-001 Phase 1: extends `meal_plans` with period dates + `finalized_at`; creates `meal_plan_items`, `current_leftovers` view, EXCLUDE constraint, RLS policies; backfills existing rows. See [ADR-001](../adr/ADR-001-planning-period-save-state.md). |
 | [`verify_20260418.sql`](../supabase/migrations/verify_20260418.sql) | 2026-04-19 | Read-only verification queries to confirm Phase 1 migration applied correctly. Run after the migration above. |
 
