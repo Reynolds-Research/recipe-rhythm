@@ -77,6 +77,7 @@ Derived from `src/pages/Vault.jsx:370-387`.
 | `dairy_components` | `text[]` nullable | |
 | `vegetables` | `text[]` nullable | |
 | `fruits` | `text[]` nullable | |
+| `family_rating` | `smallint` nullable | **Added 2026-04-26** via [PRD-001 P1.1 migration](../supabase/migrations/20260426000003_vault_family_rating.sql). 1–5 household rating; `NULL` = unrated. CHECK constraint enforces `family_rating IS NULL OR family_rating BETWEEN 1 AND 5`. Drives the "family hits" ranking signal that PRD-002 (Meal Planning) will consume. |
 | `created_at` | `timestamptz` | Assumed default `now()`. |
 
 ### `public.profiles`
@@ -167,6 +168,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260418.sql`](../supabase/migrations/verify_20260418.sql) | 2026-04-19 | Read-only verification queries to confirm Phase 1 migration applied correctly. Run after the migration above. |
 | [`20260425000001_meals_vault_link.sql`](../supabase/migrations/20260425000001_meals_vault_link.sql) | 2026-04-25 | PRD-001 Phase 1 (P0.1): enables `pg_trgm`, adds `meals.vault_id` (FK → `vault(id)` ON DELETE SET NULL) + `(user_id, vault_id)` index, defines the `vault_fuzzy_match` RPC. Restores the meals → vault link the recommendation engine relies on. |
 | [`verify_20260425.sql`](../supabase/migrations/verify_20260425.sql) | 2026-04-25 | Read-only verification queries for the meals→vault link migration. Confirms `pg_trgm`, the new column + FK + index + comment, the RPC, and includes a sanity-check probe for the schema-doc gap on `meals.notes`. |
+| [`20260426000003_vault_family_rating.sql`](../supabase/migrations/20260426000003_vault_family_rating.sql) | 2026-04-26 | PRD-001 P1.1: adds `vault.family_rating` (smallint, nullable, CHECK 1..5). Single shared household rating; drives the "family hits" signal that PRD-002 (Meal Planning) will consume. Filename uses `…000003` so the two reserved slots (`…000001`, `…000002`) for PRD-001 Phase 2 (vault soft-delete + vault_options) can land cleanly later. |
+| [`verify_20260426_family_rating.sql`](../supabase/migrations/verify_20260426_family_rating.sql) | 2026-04-26 | Read-only verification queries for the family-rating migration: column shape, CHECK constraint, comment, and a smoke-count of unrated/rated rows. |
 
 ## Related audit items + ADRs
 
