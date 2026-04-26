@@ -301,6 +301,13 @@ export default function BrainstormMode({ userId }) {
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
 
+  // PRD-002 P0.8: track the prior batch so "regenerate" / single-slot picks
+  // exclude items already shown. Vault hits go through getRecommendations'
+  // excludeIds; AI candidate names are forwarded to /api/swap-suggestions
+  // via fetchSwapSuggestions(excludeNames).
+  const [lastBatchVaultIds, setLastBatchVaultIds] = useState([])
+  const [lastBatchAiNames,  setLastBatchAiNames]  = useState([])
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -315,16 +322,18 @@ export default function BrainstormMode({ userId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchSwapSuggestions = async (currentPlan, recentMeals) => {
+  const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = []) => {
     const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
     const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
+    // PRD-002 P0.8: forward names already shown so the AI skips repeats.
+    const excludeNamesStr = excludeNames.filter(Boolean).join(', ')
 
     let res
     try {
       res = await fetch('/api/swap-suggestions', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ planNames, recentNames }),
+        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesStr }),
       })
     } catch (e) {
       console.error('[fetchSwapSuggestions] fetch failed:', e)
@@ -369,7 +378,7 @@ export default function BrainstormMode({ userId }) {
       // recommendation candidates.
       supabase
         .from('vault')
-        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits')
+        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits, family_rating, prep_time_minutes')
         .eq('user_id', userId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
@@ -451,17 +460,35 @@ export default function BrainstormMode({ userId }) {
 
       if (forceRegenerate || plan.length === 0 || seed.length !== plan.length) {
         const servedMeals = mostRecentPlan?.items ?? []
+        // PRD-002 P0.8: forward prior-batch names so the AI doesn't re-suggest
+        // anything we already showed in the previous regeneration.
+        const aiExcludeNames = [
+          ...lastBatchAiNames,
+          ...plan.map(s => s.name).filter(Boolean),
+        ]
         // Pull fresh AI candidates from /api/swap-suggestions to mix alongside
         // vault hits. fetchSwapSuggestions returns [] on failure, so the
         // recommendation engine silently falls back to 100% vault picks.
-        const wildcardCandidates = await fetchSwapSuggestions(plan, recentMeals)
+        const wildcardCandidates = await fetchSwapSuggestions(plan, recentMeals, aiExcludeNames)
+        // PRD-002 P0.8: union of current plan ids + last batch ids so the
+        // engine never returns a recipe that's already in the plan or that
+        // we just suggested in the prior regeneration.
+        const excludeIds = [
+          ...plan.map(s => s.id).filter(Boolean),
+          ...lastBatchVaultIds,
+        ]
         const suggestions = getRecommendations(
           vaultItems,
           recentMeals,
           wildcardCandidates,
           sortedSeed.length,
           servedMeals,
+          { excludeIds },
         )
+        // PRD-002 P0.8: snapshot what we just returned so the next regeneration
+        // can exclude it.
+        setLastBatchVaultIds(suggestions.filter(s => !s.is_wildcard).map(s => s.id).filter(Boolean))
+        setLastBatchAiNames(suggestions.filter(s => s.is_wildcard).map(s => s.name).filter(Boolean))
         setPlan(buildPlan(suggestions, sortedSeed))
       }
     }
@@ -532,17 +559,22 @@ export default function BrainstormMode({ userId }) {
       const next = [...prev, ymd].sort()
       setPlan((curr) => {
         if (curr.find((slot) => slot.scheduled_date === ymd)) return curr
-        // Pick a single fresh recommendation that isn't already on the plan.
-        const taken = new Set(curr.map((s) => s.id).filter(Boolean))
-        // Single-slot picks stay 100% vault — wildcards only flow through the
-        // brainstorm-load path. See PRD-001 P0.8.
+        // PRD-002 P0.8: hard-exclude current-plan + last-batch ids in the
+        // engine itself rather than picking-then-filtering. Single-slot picks
+        // stay 100% vault — wildcards only flow through the brainstorm-load
+        // path (see PRD-001 P0.8).
+        const excludeIds = [
+          ...curr.map((s) => s.id).filter(Boolean),
+          ...lastBatchVaultIds,
+        ]
         const sugg = getRecommendations(
           vault,
           storedRecentMeals,
           [],
-          curr.length + 1,
+          1,
           loadedPlan?.items ?? [],
-        ).find((s) => !taken.has(s.id))
+          { excludeIds },
+        )[0]
         const newSlot = {
           scheduled_date: ymd,
           name: sugg?.name || 'Add meals to your Cookbook to get suggestions',
@@ -562,7 +594,13 @@ export default function BrainstormMode({ userId }) {
     setSwapDate(date)
     setSwapSuggestions([])
     setLoadingSwap(true)
-    const suggestions = await fetchSwapSuggestions(plan, storedRecentMeals)
+    // PRD-002 P0.8: forward names already shown so we don't see the same
+    // AI suggestion again in the swap sheet.
+    const aiExcludeNames = [
+      ...lastBatchAiNames,
+      ...plan.map(s => s.name).filter(Boolean),
+    ]
+    const suggestions = await fetchSwapSuggestions(plan, storedRecentMeals, aiExcludeNames)
     setSwapSuggestions(suggestions)
     setLoadingSwap(false)
   }

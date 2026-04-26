@@ -312,6 +312,76 @@ describe('BrainstormMode', () => {
     expect(wildcardsArg.every(w => w.is_wildcard === true)).toBe(true)
   })
 
+  // PRD-002 P0.8: regeneration must forward the prior batch so we don't
+  // re-show the same suggestions. Vault ids go through getRecommendations'
+  // excludeIds option; AI candidate names go through the swap-suggestions
+  // POST body's excludeNames field.
+  it('regenerate forwards prior-batch ids + AI names so the next batch is unique', async () => {
+    let postedBodies = []
+    globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
+      const body = init?.body ? JSON.parse(init.body) : {}
+      postedBodies.push(body)
+      // First call returns one AI name; second call (after regenerate) should
+      // not see this name again.
+      const callIndex = postedBodies.length - 1
+      const names = callIndex === 0 ? ['First AI Pick'] : ['Second AI Pick']
+      return Promise.resolve({ ok: true, json: async () => ({ names }) })
+    })
+
+    // First batch: vault picks v1 + v2, plus the AI candidate that flows
+    // through wildcards. Second batch: different vault picks.
+    getRecommendations
+      .mockReturnValueOnce([
+        { id: 'v1', name: 'Roast', is_wildcard: false, source_url: null },
+        { id: 'v2', name: 'Tacos', is_wildcard: false, source_url: null },
+        { id: 'v3', name: 'Ramen', is_wildcard: false, source_url: null },
+        { id: 'v4', name: 'Curry', is_wildcard: false, source_url: null },
+        { id: 'wA', name: 'First AI Pick', is_wildcard: true, source_url: null },
+      ])
+      .mockReturnValueOnce([
+        { id: 'v6', name: 'Pho',     is_wildcard: false, source_url: null },
+        { id: 'v7', name: 'Burger',  is_wildcard: false, source_url: null },
+        { id: 'v8', name: 'Lasagna', is_wildcard: false, source_url: null },
+        { id: 'v9', name: 'Salad',   is_wildcard: false, source_url: null },
+        { id: 'wB', name: 'Second AI Pick', is_wildcard: true, source_url: null },
+      ])
+
+    render(<BrainstormMode userId="user-1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    // First call body should have no excludeNames (no prior batch yet).
+    expect(postedBodies[0]).toHaveProperty('excludeNames')
+    expect(postedBodies[0].excludeNames).toBe('')
+
+    fireEvent.click(screen.getByText(/Regenerate/i))
+
+    await waitFor(() => {
+      expect(getRecommendations).toHaveBeenCalledTimes(2)
+    })
+
+    // Second swap-suggestions call body must include the AI name from batch 1.
+    await waitFor(() => {
+      expect(postedBodies.length).toBe(2)
+    })
+    expect(postedBodies[1].excludeNames).toContain('First AI Pick')
+
+    // Second getRecommendations call must pass the prior batch's vault ids
+    // through the options bag's excludeIds. The signature is
+    // (vault, recent, wildcards, count, served, options).
+    const secondCallArgs = getRecommendations.mock.calls[1]
+    const optionsArg = secondCallArgs[5]
+    expect(optionsArg).toBeDefined()
+    expect(Array.isArray(optionsArg.excludeIds)).toBe(true)
+    // Prior batch vault ids: v1, v2, v3, v4 (the AI one wA is is_wildcard
+    // and goes to AI exclude-names, not vault excludeIds).
+    for (const id of ['v1', 'v2', 'v3', 'v4']) {
+      expect(optionsArg.excludeIds).toContain(id)
+    }
+  })
+
   it('falls back to empty wildcards (and does not crash) when /api/swap-suggestions fails', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
