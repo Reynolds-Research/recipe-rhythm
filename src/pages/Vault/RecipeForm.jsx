@@ -48,6 +48,7 @@ export default function RecipeForm({
   const [dairyComponents, setDairyComponents] = useState([])
   const [vegetables, setVegetables]           = useState([])
   const [fruits, setFruits]                   = useState([])
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState('')
 
   const [imageFile, setImageFile]       = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -90,6 +91,7 @@ export default function RecipeForm({
       if (s.dairy_components?.length) setDairyComponents(s.dairy_components)
       if (s.vegetables?.length)       setVegetables(s.vegetables)
       if (s.fruits?.length)           setFruits(s.fruits)
+      if (s.prep_time_minutes != null) setPrepTimeMinutes(String(s.prep_time_minutes))
       setAiApplied(true)
     } else {
       setAiError(true)
@@ -110,6 +112,7 @@ export default function RecipeForm({
     setDairyComponents([])
     setVegetables([])
     setFruits([])
+    setPrepTimeMinutes('')
     setAiApplied(false)
     setAiError(false)
     if (imagePreview) URL.revokeObjectURL(imagePreview)
@@ -132,6 +135,7 @@ export default function RecipeForm({
       dairyComponents,
       vegetables,
       fruits,
+      prepTimeMinutes: prepTimeMinutes.trim() ? parseInt(prepTimeMinutes, 10) : null,
       imageFile,
     })
     if (result?.ok) resetForm()
@@ -244,6 +248,17 @@ export default function RecipeForm({
           {FLAVOR_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
       </div>
+
+      {/* Prep time */}
+      <input
+        type="number"
+        min="1"
+        inputMode="numeric"
+        value={prepTimeMinutes}
+        onChange={e => setPrepTimeMinutes(e.target.value)}
+        placeholder="Prep + cook time (minutes)"
+        className="input-base text-sm"
+      />
 
       <FieldSection label="Protein">
         <ChipPicker options={PROTEIN_OPTIONS} value={proteins} onChange={setProteins} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={onAddExtra} />

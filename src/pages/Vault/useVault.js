@@ -36,7 +36,7 @@ export function useVault(userId) {
     // still resolve.
     const { data, error } = await supabase
       .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes')
       .eq('user_id', userId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -98,6 +98,7 @@ export function useVault(userId) {
     dairyComponents,
     vegetables,
     fruits,
+    prepTimeMinutes,
     imageFile,
   }) => {
     const finalName = name.trim()
@@ -175,22 +176,23 @@ export function useVault(userId) {
     }
 
     const { error } = await supabase.from('vault').insert({
-      user_id:          userId,
-      name:             finalName,
-      image_url:        publicUrl,
-      cuisine_type:     cuisineType            || null,
-      flavor_profile:   flavorProfile          || null,
-      notes:            notes.trim()           || null,
-      recipe_url:       recipeUrl.trim()       || null,
-      is_wildcard:      false,
-      auto_completed:   false,
-      proteins:         proteins.length        ? proteins        : null,
-      cooking_method:   cookingMethod          || null,
-      main_carb:        mainCarb               || null,
-      dietary_tags:     dietaryTags.length     ? dietaryTags     : null,
-      dairy_components: dairyComponents.length ? dairyComponents : null,
-      vegetables:       vegetables.length      ? vegetables      : null,
-      fruits:           fruits.length          ? fruits          : null,
+      user_id:           userId,
+      name:              finalName,
+      image_url:         publicUrl,
+      cuisine_type:      cuisineType            || null,
+      flavor_profile:    flavorProfile          || null,
+      notes:             notes.trim()           || null,
+      recipe_url:        recipeUrl.trim()       || null,
+      is_wildcard:       false,
+      auto_completed:    false,
+      proteins:          proteins.length        ? proteins        : null,
+      cooking_method:    cookingMethod          || null,
+      main_carb:         mainCarb               || null,
+      dietary_tags:      dietaryTags.length     ? dietaryTags     : null,
+      dairy_components:  dairyComponents.length ? dairyComponents : null,
+      vegetables:        vegetables.length      ? vegetables      : null,
+      fruits:            fruits.length          ? fruits          : null,
+      prep_time_minutes: prepTimeMinutes        ?? null,
     })
 
     if (error) return { ok: false, reason: 'insert-failed', error }
@@ -202,19 +204,20 @@ export function useVault(userId) {
   const addSuggestion = async (suggestionName) => {
     const analysis = await analyzeRecipe(suggestionName)
     await supabase.from('vault').insert({
-      user_id:          userId,
-      name:             suggestionName,
-      is_wildcard:      false,
-      auto_completed:   true,
-      cuisine_type:     analysis?.cuisine_type     ?? null,
-      flavor_profile:   analysis?.flavor_profile   ?? null,
-      proteins:         analysis?.proteins         ?? [],
-      cooking_method:   analysis?.cooking_method   ?? null,
-      main_carb:        analysis?.main_carb        ?? null,
-      dietary_tags:     analysis?.dietary_tags     ?? [],
-      dairy_components: analysis?.dairy_components ?? [],
-      vegetables:       analysis?.vegetables       ?? [],
-      fruits:           analysis?.fruits           ?? [],
+      user_id:           userId,
+      name:              suggestionName,
+      is_wildcard:       false,
+      auto_completed:    true,
+      cuisine_type:      analysis?.cuisine_type      ?? null,
+      flavor_profile:    analysis?.flavor_profile    ?? null,
+      proteins:          analysis?.proteins          ?? [],
+      cooking_method:    analysis?.cooking_method    ?? null,
+      main_carb:         analysis?.main_carb         ?? null,
+      dietary_tags:      analysis?.dietary_tags      ?? [],
+      dairy_components:  analysis?.dairy_components  ?? [],
+      vegetables:        analysis?.vegetables        ?? [],
+      fruits:            analysis?.fruits            ?? [],
+      prep_time_minutes: analysis?.prep_time_minutes ?? null,
     })
     await fetchRecipes()
   }
