@@ -4,9 +4,7 @@
  * Takes recent meals + vault items and returns a ranked suggestion list.
  */
 
-const RECENCY_DAYS   = 7    // exclude meals eaten within this window
-const VAULT_RATIO    = 0.8  // 80% of suggestions from Vault
-const WILDCARD_RATIO = 0.2  // 20% from Spoonacular wildcards
+const RECENCY_DAYS = 7  // exclude meals eaten within this window
 
 /**
  * Returns meals eaten in the last N days as a Set of vault_ids
@@ -120,7 +118,9 @@ function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap) {
  *
  * @param {Array}  vaultItems      - All Vault items from Supabase (with full metadata)
  * @param {Array}  recentMeals     - Meals from the past 90 days (for frequency + recency)
- * @param {Array}  wildcards       - Recipe objects fetched from Spoonacular
+ * @param {Array}  wildcards       - Recipe candidates returned by /api/swap-suggestions (Haiku 4.5).
+ *                                   Each must have at least { id, name }; is_wildcard:true is set
+ *                                   by this function before returning.
  * @param {number} count           - How many suggestions to return (default 5, Sun–Thu)
  * @param {Array}  servedPlanItems - Items from the prior week's served plan (pseudo-meals
  *                                   with vault_id + scheduled_date) to factor into recency
@@ -146,9 +146,10 @@ export function getRecommendations(vaultItems, recentMeals, wildcards = [], coun
     .filter(item => item._score > 0)
     .sort((a, b) => b._score - a._score)
 
-  // Split the count between vault and wildcards
-  const vaultCount    = Math.round(count * VAULT_RATIO)
-  const wildcardCount = count - vaultCount
+  // Split the count between vault and wildcards. Target ~20% wildcards when
+  // available; fall back to 100% vault when none are passed.
+  const wildcardCount = Math.min(wildcards.length, Math.floor(count * 0.2))
+  const vaultCount    = count - wildcardCount
 
   const vaultPicks    = scoredVault.slice(0, vaultCount)
   const wildcardPicks = wildcards.slice(0, wildcardCount).map(w => ({
