@@ -3,7 +3,9 @@ import { Mic, MicOff, Check, BookOpen, MessageSquare, X } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
+import { matchVaultByName } from '../lib/vaultMatch'
 import Logo from '../components/Logo'
+import VaultMatchSheet from '../components/VaultMatchSheet'
 import { useHaptics } from '../hooks/useHaptics'
 
 /**
@@ -20,23 +22,34 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
   const [savedMealName, setSavedMealName] = useState('')
   const [savedMealNote, setSavedMealNote] = useState('')
 
+  // Disambiguation sheet state — opened when matchVaultByName finds >1 candidate.
+  // pendingSave holds the {name, note} captured at Save time so the sheet's
+  // selection can complete the insert with the user's chosen vault_id.
+  const [sheetOpen, setSheetOpen]           = useState(false)
+  const [pendingMatches, setPendingMatches] = useState([])
+  const [pendingSave, setPendingSave]       = useState(null)
+
   // When the speech hook gives us a transcript, drop it into the editable box
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (transcript) setEditableText(transcript)
   }, [transcript])
 
-  const handleSave = async () => {
-    if (!editableText.trim()) return
-    trigger('success')
+  // Insert the meal row, reset form, and surface the Save-to-Cookbook prompt
+  // when no vault link was resolved. Called from both the inline save path
+  // (0 or 1 match) and the sheet's onSelect (multi-match disambiguation).
+  const finalizeSave = async (finalName, finalNote, resolvedVaultId) => {
     setSaving(true)
 
-    const { error: dbError } = await supabase.from('meals').insert({
-      user_id: userId,
-      name:    editableText.trim(),
-      notes:   note.trim() || null,
-      eaten_on: new Date().toISOString().split('T')[0], // today's date: YYYY-MM-DD
-    })
+    const { error: dbError } = await supabase
+      .from('meals')
+      .insert({
+        user_id:  userId,
+        name:     finalName,
+        notes:    finalNote || null,
+        eaten_on: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        vault_id: resolvedVaultId,
+      })
 
     setSaving(false)
 
@@ -45,27 +58,58 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
       return
     }
 
-    // Check if it's already in the vault before offering to save it
-    const { data: existing } = await supabase
-      .from('vault')
-      .select('id')
-      .eq('user_id', userId)
-      .ilike('name', editableText.trim())
-      .limit(1)
-
-    // Success — show confirmation, reset form
     setSaved(true)
-    if (!existing || existing.length === 0) {
-      setSavedMealName(editableText.trim())
-      setSavedMealNote(note.trim())
+    // Only offer Save-to-Cookbook when there's no existing vault link.
+    if (!resolvedVaultId) {
+      setSavedMealName(finalName)
+      setSavedMealNote(finalNote)
+    } else {
+      setSavedMealName('')
+      setSavedMealNote('')
     }
     setEditableText('')
     setNote('')
     setTranscript('')
     onSave?.()
+  }
 
-    setTranscript('')
-    onSave?.()
+  const handleSave = async () => {
+    const finalName = editableText.trim()
+    if (!finalName) return
+    trigger('success')
+    setSaving(true)
+
+    const finalNote = note.trim()
+    const { matches } = await matchVaultByName(supabase, userId, finalName)
+
+    if (matches.length > 1) {
+      // Hand off to the disambiguation sheet — it'll call back with the chosen id.
+      setPendingSave({ name: finalName, note: finalNote })
+      setPendingMatches(matches)
+      setSheetOpen(true)
+      setSaving(false)
+      return
+    }
+
+    const resolvedVaultId = matches.length === 1 ? matches[0].id : null
+    await finalizeSave(finalName, finalNote, resolvedVaultId)
+  }
+
+  const handleSheetSelect = async (vaultId) => {
+    // vaultId is null when the user picked "None of these".
+    setSheetOpen(false)
+    if (!pendingSave) return
+    const { name, note: pendingNote } = pendingSave
+    setPendingSave(null)
+    setPendingMatches([])
+    await finalizeSave(name, pendingNote, vaultId)
+  }
+
+  const handleSheetClose = () => {
+    // Treat dismiss (backdrop/swipe) the same as "None of these" — the user
+    // explicitly tapped Save, so we honor the intent and log without a link
+    // rather than silently dropping the meal.
+    handleSheetSelect(null)
   }
 
   const handleSaveToVault = async () => {
@@ -245,6 +289,14 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
         </button>
 
       </div>
+
+      <VaultMatchSheet
+        isOpen={sheetOpen}
+        matches={pendingMatches}
+        mealName={pendingSave?.name ?? ''}
+        onSelect={handleSheetSelect}
+        onClose={handleSheetClose}
+      />
     </div>
   )
 }
