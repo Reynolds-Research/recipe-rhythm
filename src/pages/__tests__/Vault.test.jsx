@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Vault from '../Vault'
 import { supabase } from '../../lib/supabase'
+import * as vaultOptionsLib from '../../lib/vaultOptions'
 
 vi.mock('../../lib/supabase', () => ({
   supabase: {
@@ -15,6 +16,21 @@ vi.mock('../../lib/supabase', () => ({
       then: vi.fn(),
     })),
   }
+}))
+
+// PRD-001 P0.7: Vault calls migrateLocalStorageExtras + fetchVaultOptions on
+// mount. Mocking the whole module here keeps those calls out of the
+// supabase.from() spies above (which would otherwise capture the
+// vault_options fetch and clobber the vault SELECT assertions).
+vi.mock('../../lib/vaultOptions', () => ({
+  fetchVaultOptions: vi.fn().mockResolvedValue({}),
+  addVaultOption: vi.fn().mockResolvedValue({ error: null }),
+  removeVaultOption: vi.fn().mockResolvedValue({ error: null }),
+  migrateLocalStorageExtras: vi.fn().mockResolvedValue({ migrated: 0 }),
+  VAULT_OPTION_CATEGORIES: [
+    'cuisine_type', 'flavor_profile', 'proteins', 'cooking_method',
+    'main_carb', 'dietary_tags', 'dairy_components', 'vegetables', 'fruits',
+  ],
 }))
 
 describe('Vault Component', () => {
@@ -323,5 +339,137 @@ describe('Vault — PRD-001 P0.5 soft-delete', () => {
     await waitFor(() => {
       expect(isSpy).toHaveBeenCalledWith('deleted_at', null)
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PRD-001 P0.7 — vault_options table backs the chip-picker custom tags
+// ---------------------------------------------------------------------------
+
+describe('Vault — PRD-001 P0.7 vault_options', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Default: no custom extras, no migration to do.
+    vaultOptionsLib.fetchVaultOptions.mockResolvedValue({})
+    vaultOptionsLib.migrateLocalStorageExtras.mockResolvedValue({ migrated: 0 })
+    vaultOptionsLib.addVaultOption.mockResolvedValue({ error: null })
+  })
+
+  it('runs migrateLocalStorageExtras then fetchVaultOptions on mount', async () => {
+    const { fromImpl } = buildVaultFromMock({ recipes: [] })
+    supabase.from.mockImplementation(fromImpl)
+
+    render(<Vault userId="test-user" />)
+
+    await waitFor(() => {
+      expect(vaultOptionsLib.migrateLocalStorageExtras).toHaveBeenCalledWith(supabase, 'test-user')
+      expect(vaultOptionsLib.fetchVaultOptions).toHaveBeenCalledWith(supabase, 'test-user')
+    })
+
+    // Migration must run before the fetch so freshly-imported values land
+    // in extrasByCategory on the first pass. Compare invocation order via
+    // mock.invocationCallOrder — Vitest gives each mock a per-call index.
+    const migrateOrder = vaultOptionsLib.migrateLocalStorageExtras.mock.invocationCallOrder[0]
+    const fetchOrder   = vaultOptionsLib.fetchVaultOptions.mock.invocationCallOrder[0]
+    expect(migrateOrder).toBeLessThan(fetchOrder)
+  })
+
+  it('renders custom tags from extrasByCategory alongside built-in chip options', async () => {
+    // The vault list has one recipe so we expand it and look at the editor's
+    // proteins picker — that's where the chips are visible.
+    const recipes = [{
+      id: 'r1', name: 'Tacos', cuisine_type: 'Mexican',
+      family_rating: null, created_at: new Date().toISOString(),
+    }]
+    const { fromImpl } = buildVaultFromMock({ recipes })
+    supabase.from.mockImplementation(fromImpl)
+    vaultOptionsLib.fetchVaultOptions.mockResolvedValue({
+      proteins: ['Octopus'],
+    })
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    await waitFor(() => expect(screen.getByText('Tacos')).toBeInTheDocument())
+
+    // Open editor by clicking the recipe name, then the Edit button.
+    await user.click(screen.getByText('Tacos'))
+    await user.click(await screen.findByRole('button', { name: /Edit/i }))
+
+    // The custom protein "Octopus" should now appear as a chip option in
+    // the editor (alongside the built-in PROTEIN_OPTIONS).
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^Octopus$/ })).toBeInTheDocument()
+    })
+  })
+
+  it('adding a custom tag calls addVaultOption with the canonical category name (dairy_components, not dairy)', async () => {
+    // Lock the dairy → dairy_components rename in the JSX call-sites: tap
+    // "+ custom" on the dairy picker, type a tag, hit Enter, expect the
+    // upsert to use the canonical category name.
+    const recipes = [{
+      id: 'r2', name: 'Carbonara', family_rating: null,
+      created_at: new Date().toISOString(),
+    }]
+    const { fromImpl } = buildVaultFromMock({ recipes })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    await waitFor(() => expect(screen.getByText('Carbonara')).toBeInTheDocument())
+
+    // Open the add form (top-of-page CTA) — has 7 ChipPickers including dairy.
+    await user.click(screen.getByRole('button', { name: /Add a new recipe/i }))
+
+    // Find every "+ custom" button (one per ChipPicker). The dairy picker
+    // is the 5th in source order: proteins, cooking_method, main_carb,
+    // dietary_tags, dairy_components, vegetables, fruits.
+    const customButtons = screen.getAllByRole('button', { name: /^\+ custom$/ })
+    expect(customButtons.length).toBeGreaterThanOrEqual(5)
+    await user.click(customButtons[4])
+
+    const input = await screen.findByPlaceholderText(/Type & press Enter/i)
+    await user.type(input, 'Brie{Enter}')
+
+    await waitFor(() => {
+      expect(vaultOptionsLib.addVaultOption).toHaveBeenCalledWith(
+        supabase, 'test-user', 'dairy_components', 'Brie',
+      )
+    })
+  })
+
+  it('a failed addVaultOption does not crash the UI', async () => {
+    // The optimistic local echo means the chip still appears even if the
+    // upsert fails. The component must not throw on the rejection.
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vaultOptionsLib.addVaultOption.mockResolvedValue({ error: 'rls violation' })
+
+    const recipes = [{
+      id: 'r3', name: 'Risotto', family_rating: null,
+      created_at: new Date().toISOString(),
+    }]
+    const { fromImpl } = buildVaultFromMock({ recipes })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    await waitFor(() => expect(screen.getByText('Risotto')).toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /Add a new recipe/i }))
+
+    const customButtons = screen.getAllByRole('button', { name: /^\+ custom$/ })
+    await user.click(customButtons[0])  // proteins picker
+
+    const input = await screen.findByPlaceholderText(/Type & press Enter/i)
+    await user.type(input, 'Iguana{Enter}')
+
+    await waitFor(() => {
+      expect(vaultOptionsLib.addVaultOption).toHaveBeenCalled()
+    })
+
+    // Optimistic echo: the chip still renders despite the failure.
+    expect(screen.getByRole('button', { name: /^Iguana$/ })).toBeInTheDocument()
+    // Component logged but didn't throw — an unhandled throw would have
+    // prevented the chip from appearing or surfaced as an act() warning.
+    errSpy.mockRestore()
   })
 })

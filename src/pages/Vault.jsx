@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Trash2, X, ChevronDown, ChevronUp, Sparkles, Loader2, BookmarkPlus, ExternalLink, Camera, Image as ImageIcon, Star } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
+import { fetchVaultOptions, addVaultOption, migrateLocalStorageExtras } from '../lib/vaultOptions'
 import Logo from '../components/Logo'
 import { useHaptics } from '../hooks/useHaptics'
 import {
@@ -14,7 +15,8 @@ import {
  * Vault
  * The recipe library. Shows all saved recipes with rich component metadata.
  * Claude auto-suggests all component fields from the recipe name.
- * Custom tags per category persist via localStorage.
+ * Custom tags per category persist in the `vault_options` table; legacy
+ * localStorage values are auto-migrated on mount via vaultOptions.js.
  */
 
 const STARTER_SUGGESTIONS = [
@@ -28,23 +30,24 @@ const STARTER_SUGGESTIONS = [
   'Chicken Fajitas', 'Caprese Pasta', 'Tom Yum Soup',
 ]
 
-// localStorage helpers for persisting custom tags per category
-function loadExtras(key) {
-  try { return JSON.parse(localStorage.getItem(`vault_extra_${key}`) || '[]') }
-  catch { return [] }
-}
-function saveExtras(key, tags) {
-  localStorage.setItem(`vault_extra_${key}`, JSON.stringify(tags))
-}
-
 // --- Chip picker with custom tag support ---
-function ChipPicker({ options, value, onChange, multi = true, storageKey = null }) {
+//
+// PRD-001 P0.7: custom tags are owned by the parent (Vault) component, which
+// reads/writes them via the vault_options Supabase table. The picker holds
+// only its own local-echo copy of `extras` so a newly-typed tag appears
+// immediately, before the round-trip to the DB completes.
+function ChipPicker({ options, value, onChange, multi = true, category = null, extras = [], onExtraAdded = null }) {
   const [showAdd, setShowAdd]   = useState(false)
   const [draft, setDraft]       = useState('')
-  const [extras, setExtras]     = useState(() => storageKey ? loadExtras(storageKey) : [])
+  const [localExtras, setLocalExtras] = useState(() => extras)
   const { trigger } = useHaptics()
 
-  const allOptions = [...options, ...extras.filter(e => !options.includes(e))]
+  // Parent's grouped map is the source of truth — mirror updates here so
+  // adding the same tag in two pickers (or re-fetching from the DB) keeps
+  // every picker in sync.
+  useEffect(() => { setLocalExtras(extras) }, [extras])
+
+  const allOptions = [...options, ...localExtras.filter(e => !options.includes(e))]
 
   const isActive = (opt) => multi ? (value || []).includes(opt) : value === opt
 
@@ -61,9 +64,11 @@ function ChipPicker({ options, value, onChange, multi = true, storageKey = null 
   const commitCustom = () => {
     const tag = draft.trim()
     if (!tag) { setShowAdd(false); return }
-    const next = [...new Set([...extras, tag])]
-    setExtras(next)
-    if (storageKey) saveExtras(storageKey, next)
+    const next = [...new Set([...localExtras, tag])]
+    setLocalExtras(next)              // optimistic local echo
+    if (category && onExtraAdded) {
+      onExtraAdded(category, tag)     // parent updates extrasByCategory and persists
+    }
     // Auto-select the new tag
     if (multi) onChange([...(value || []).filter(v => v !== tag), tag])
     else onChange(tag)
@@ -213,6 +218,10 @@ export default function Vault({ userId }) {
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
   const [vaultError, setVaultError]       = useState(null)
+  // PRD-001 P0.7: custom chip-picker tags grouped by canonical category.
+  // Populated by fetchVaultOptions on mount (after migrateLocalStorageExtras
+  // imports any pre-existing legacy localStorage values, see vaultOptions.js).
+  const [extrasByCategory, setExtrasByCategory] = useState({})
   const { trigger } = useHaptics()
 
   // Form state
@@ -294,6 +303,37 @@ export default function Vault({ userId }) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchRecipes() }, [])
+
+  // PRD-001 P0.7: migrate any legacy localStorage chip-picker values into
+  // the vault_options table (one-time, idempotent — see vaultOptions.js),
+  // then fetch the current per-user grouping. Migration runs before fetch
+  // so freshly-imported values land in extrasByCategory on the first pass.
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    ;(async () => {
+      await migrateLocalStorageExtras(supabase, userId)
+      const grouped = await fetchVaultOptions(supabase, userId)
+      if (!cancelled) setExtrasByCategory(grouped)
+    })()
+    return () => { cancelled = true }
+  }, [userId])
+
+  // Optimistic add: drop the new value into the grouped map immediately so
+  // every ChipPicker bound to this category re-renders with the new chip;
+  // fire-and-forget the upsert. On failure we log — the chip won't reappear
+  // after the next refresh but the user already saw it added, so a soft
+  // failure is the least surprising behavior.
+  const handleAddExtra = async (category, value) => {
+    setExtrasByCategory(prev => ({
+      ...prev,
+      [category]: [...new Set([...(prev[category] || []), value])],
+    }))
+    const { error } = await addVaultOption(supabase, userId, category, value)
+    if (error) {
+      console.error('[Vault] failed to persist custom tag:', error)
+    }
+  }
 
   const resetForm = () => {
     setName('')
@@ -690,31 +730,31 @@ export default function Vault({ userId }) {
             </div>
 
             <FieldSection label="Protein">
-              <ChipPicker options={PROTEIN_OPTIONS} value={proteins} onChange={setProteins} multi storageKey="proteins" />
+              <ChipPicker options={PROTEIN_OPTIONS} value={proteins} onChange={setProteins} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             <FieldSection label="Cooking method">
-              <ChipPicker options={COOKING_METHOD_OPTIONS} value={cookingMethod} onChange={setCookingMethod} multi={false} storageKey="cooking_method" />
+              <ChipPicker options={COOKING_METHOD_OPTIONS} value={cookingMethod} onChange={setCookingMethod} multi={false} category="cooking_method" extras={extrasByCategory.cooking_method || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             <FieldSection label="Main carb">
-              <ChipPicker options={CARB_OPTIONS} value={mainCarb} onChange={setMainCarb} multi={false} storageKey="main_carb" />
+              <ChipPicker options={CARB_OPTIONS} value={mainCarb} onChange={setMainCarb} multi={false} category="main_carb" extras={extrasByCategory.main_carb || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             <FieldSection label="Dietary tags">
-              <ChipPicker options={DIETARY_OPTIONS} value={dietaryTags} onChange={setDietaryTags} multi storageKey="dietary_tags" />
+              <ChipPicker options={DIETARY_OPTIONS} value={dietaryTags} onChange={setDietaryTags} multi category="dietary_tags" extras={extrasByCategory.dietary_tags || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             <FieldSection label="Dairy">
-              <ChipPicker options={DAIRY_OPTIONS} value={dairyComponents} onChange={setDairyComponents} multi storageKey="dairy" />
+              <ChipPicker options={DAIRY_OPTIONS} value={dairyComponents} onChange={setDairyComponents} multi category="dairy_components" extras={extrasByCategory.dairy_components || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             <FieldSection label="Vegetables">
-              <ChipPicker options={VEGETABLE_OPTIONS} value={vegetables} onChange={setVegetables} multi storageKey="vegetables" />
+              <ChipPicker options={VEGETABLE_OPTIONS} value={vegetables} onChange={setVegetables} multi category="vegetables" extras={extrasByCategory.vegetables || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             <FieldSection label="Fruit">
-              <ChipPicker options={FRUIT_OPTIONS} value={fruits} onChange={setFruits} multi storageKey="fruits" />
+              <ChipPicker options={FRUIT_OPTIONS} value={fruits} onChange={setFruits} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={handleAddExtra} />
             </FieldSection>
 
             {/* Notes */}
@@ -815,25 +855,25 @@ export default function Vault({ userId }) {
                       />
                     </FieldSection>
                     <FieldSection label="Protein">
-                      <ChipPicker options={PROTEIN_OPTIONS} value={editFields.proteins} onChange={v => setEditFields(f => ({ ...f, proteins: v }))} multi storageKey="proteins" />
+                      <ChipPicker options={PROTEIN_OPTIONS} value={editFields.proteins} onChange={v => setEditFields(f => ({ ...f, proteins: v }))} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <FieldSection label="Cooking method">
-                      <ChipPicker options={COOKING_METHOD_OPTIONS} value={editFields.cooking_method} onChange={v => setEditFields(f => ({ ...f, cooking_method: v }))} multi={false} storageKey="cooking_method" />
+                      <ChipPicker options={COOKING_METHOD_OPTIONS} value={editFields.cooking_method} onChange={v => setEditFields(f => ({ ...f, cooking_method: v }))} multi={false} category="cooking_method" extras={extrasByCategory.cooking_method || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <FieldSection label="Main carb">
-                      <ChipPicker options={CARB_OPTIONS} value={editFields.main_carb} onChange={v => setEditFields(f => ({ ...f, main_carb: v }))} multi={false} storageKey="main_carb" />
+                      <ChipPicker options={CARB_OPTIONS} value={editFields.main_carb} onChange={v => setEditFields(f => ({ ...f, main_carb: v }))} multi={false} category="main_carb" extras={extrasByCategory.main_carb || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <FieldSection label="Dietary tags">
-                      <ChipPicker options={DIETARY_OPTIONS} value={editFields.dietary_tags} onChange={v => setEditFields(f => ({ ...f, dietary_tags: v }))} multi storageKey="dietary_tags" />
+                      <ChipPicker options={DIETARY_OPTIONS} value={editFields.dietary_tags} onChange={v => setEditFields(f => ({ ...f, dietary_tags: v }))} multi category="dietary_tags" extras={extrasByCategory.dietary_tags || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <FieldSection label="Dairy">
-                      <ChipPicker options={DAIRY_OPTIONS} value={editFields.dairy_components} onChange={v => setEditFields(f => ({ ...f, dairy_components: v }))} multi storageKey="dairy" />
+                      <ChipPicker options={DAIRY_OPTIONS} value={editFields.dairy_components} onChange={v => setEditFields(f => ({ ...f, dairy_components: v }))} multi category="dairy_components" extras={extrasByCategory.dairy_components || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <FieldSection label="Vegetables">
-                      <ChipPicker options={VEGETABLE_OPTIONS} value={editFields.vegetables} onChange={v => setEditFields(f => ({ ...f, vegetables: v }))} multi storageKey="vegetables" />
+                      <ChipPicker options={VEGETABLE_OPTIONS} value={editFields.vegetables} onChange={v => setEditFields(f => ({ ...f, vegetables: v }))} multi category="vegetables" extras={extrasByCategory.vegetables || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <FieldSection label="Fruit">
-                      <ChipPicker options={FRUIT_OPTIONS} value={editFields.fruits} onChange={v => setEditFields(f => ({ ...f, fruits: v }))} multi storageKey="fruits" />
+                      <ChipPicker options={FRUIT_OPTIONS} value={editFields.fruits} onChange={v => setEditFields(f => ({ ...f, fruits: v }))} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={handleAddExtra} />
                     </FieldSection>
                     <input
                       type="text"
