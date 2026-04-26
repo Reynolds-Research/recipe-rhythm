@@ -115,22 +115,43 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
   const handleSaveToVault = async () => {
     if (!savedMealName) return
     const analysis = await analyzeRecipe(savedMealName)
-    await supabase.from('vault').insert({
-      user_id:          userId,
-      name:             savedMealName,
-      is_wildcard:      false,
-      auto_completed:   true,
-      notes:            savedMealNote             || null,
-      cuisine_type:     analysis?.cuisine_type     ?? null,
-      flavor_profile:   analysis?.flavor_profile   ?? null,
-      proteins:         analysis?.proteins         ?? [],
-      cooking_method:   analysis?.cooking_method   ?? null,
-      main_carb:        analysis?.main_carb        ?? null,
-      dietary_tags:     analysis?.dietary_tags     ?? [],
-      dairy_components: analysis?.dairy_components ?? [],
-      vegetables:       analysis?.vegetables       ?? [],
-      fruits:           analysis?.fruits           ?? [],
-    })
+    const { data: newVault, error: insertErr } = await supabase
+      .from('vault')
+      .insert({
+        user_id:          userId,
+        name:             savedMealName,
+        is_wildcard:      false,
+        auto_completed:   true,
+        notes:            savedMealNote             || null,
+        cuisine_type:     analysis?.cuisine_type     ?? null,
+        flavor_profile:   analysis?.flavor_profile   ?? null,
+        proteins:         analysis?.proteins         ?? [],
+        cooking_method:   analysis?.cooking_method   ?? null,
+        main_carb:        analysis?.main_carb        ?? null,
+        dietary_tags:     analysis?.dietary_tags     ?? [],
+        dairy_components: analysis?.dairy_components ?? [],
+        vegetables:       analysis?.vegetables       ?? [],
+        fruits:           analysis?.fruits           ?? [],
+      })
+      .select('id')
+      .single()
+
+    // PRD-001 OQ.B: back-link only the most recent matching meal whose
+    // vault_id is still NULL. Aggressive backfill across history is a future
+    // P1 item — we don't want to clobber pre-existing links the user may
+    // have set deliberately, and the recommendation engine only needs recent
+    // signal to start working.
+    if (!insertErr && newVault?.id) {
+      await supabase
+        .from('meals')
+        .update({ vault_id: newVault.id })
+        .eq('user_id', userId)
+        .ilike('name', savedMealName)
+        .is('vault_id', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+    }
+
     setSavedMealName('')
     setSavedMealNote('')
     setSaved(false)
