@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import Sheet from 'react-modal-sheet'
+import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
