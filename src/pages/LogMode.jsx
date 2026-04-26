@@ -4,6 +4,7 @@ import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import { matchVaultByName } from '../lib/vaultMatch'
+import { formatLocalDate } from '../lib/dateUtils'
 import Logo from '../components/Logo'
 import VaultMatchSheet from '../components/VaultMatchSheet'
 import { useHaptics } from '../hooks/useHaptics'
@@ -47,7 +48,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
         user_id:  userId,
         name:     finalName,
         notes:    finalNote || null,
-        eaten_on: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+        eaten_on: formatLocalDate(),
         vault_id: resolvedVaultId,
       })
 

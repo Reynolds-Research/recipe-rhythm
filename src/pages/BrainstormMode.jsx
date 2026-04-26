@@ -5,6 +5,7 @@ import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
 import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
+import { buildLastWeekSlots } from '../lib/lastWeekSlots'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
 import { createServedPlan, setItemCooked, finalizePlan, startNewPeriod } from '../lib/mealPlanWriter'
 import PeriodReview from './PeriodReview'
@@ -381,12 +382,16 @@ export default function BrainstormMode({ userId }) {
 
     setVault(vaultItems)
 
-    // Last week = meals from the past 7 days, mapped to Mon–Fri slots
-    const sevenDaysAgo = addDays(today, -7)
-    const lastWeekMeals = recentMeals.filter(
-      m => new Date(m.eaten_on) >= sevenDaysAgo
-    )
-    setLastWeek(buildLastWeekSlots(lastWeekMeals))
+    // Last-week panel: bound to the immediately prior planning period when one
+    // exists, otherwise the last 7 calendar days ending today (local). AUDIT U3.
+    const todayYmd = formatLocalYmd(today)
+    const priorPeriod = periods
+      .filter((p) => p.period_end && p.period_end < todayYmd)
+      .reduce(
+        (best, p) => (!best || p.period_end > best.period_end ? p : best),
+        null,
+      )
+    setLastWeek(buildLastWeekSlots(recentMeals, priorPeriod, today))
 
     setStoredRecentMeals(recentMeals)
 
@@ -421,7 +426,6 @@ export default function BrainstormMode({ userId }) {
 
       // Determine selection seed.
       let seed = selectedDates
-      const todayYmd = formatLocalYmd(today)
       // Drop any past or now-disabled dates from the persisted selection.
       seed = seed.filter((d) => d >= todayYmd && !disabled.has(d))
 
@@ -502,17 +506,6 @@ export default function BrainstormMode({ userId }) {
   const handleReviewFinalized = async () => {
     setShowReview(false)
     await loadData(false)
-  }
-
-  function buildLastWeekSlots(meals) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-    return days.map(day => {
-      const match = meals.find(m => {
-        const d = new Date(m.eaten_on)
-        return d.toLocaleDateString('en-US', { weekday: 'short' }) === day
-      })
-      return { day, name: match?.name || null }
-    })
   }
 
   // Pair each suggestion with a date. `dates` must be sorted ascending.
