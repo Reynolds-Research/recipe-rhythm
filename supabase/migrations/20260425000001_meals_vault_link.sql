@@ -68,6 +68,13 @@ CREATE INDEX IF NOT EXISTS meals_user_vault_idx
 -- names (id → match_id, name → match_name, etc.) to avoid the OUT-parameter
 -- vs. table-column ambiguity Postgres flags in LANGUAGE sql functions when
 -- the RETURNS TABLE column names collide with the source table.
+--
+-- DROP first: CREATE OR REPLACE cannot change RETURNS TABLE column names on
+-- an existing function (Postgres rejects with "cannot change name of input
+-- parameter"). Any env that already has the pre-rename signature would
+-- otherwise fail this migration.
+DROP FUNCTION IF EXISTS vault_fuzzy_match(uuid, text, real);
+
 CREATE OR REPLACE FUNCTION vault_fuzzy_match(
   p_user_id   uuid,
   p_query     text,
