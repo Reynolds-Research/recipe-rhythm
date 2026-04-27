@@ -303,10 +303,13 @@ export default function BrainstormMode({ userId }) {
 
   // PRD-002 P0.8: track the prior batch so "regenerate" / single-slot picks
   // exclude items already shown. Vault hits go through getRecommendations'
-  // excludeIds; AI candidate names are forwarded to /api/swap-suggestions
-  // via fetchSwapSuggestions(excludeNames).
+  // excludeIds; AI candidate names from the brainstorm-load are forwarded to
+  // /api/swap-suggestions via fetchSwapSuggestions(excludeNames). The per-day
+  // swap sheet tracks its own response names separately so consecutive opens
+  // don't repeat ideas the user just dismissed.
   const [lastBatchVaultIds, setLastBatchVaultIds] = useState([])
   const [lastBatchAiNames,  setLastBatchAiNames]  = useState([])
+  const [lastSwapNames,     setLastSwapNames]     = useState([])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -325,15 +328,16 @@ export default function BrainstormMode({ userId }) {
   const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = []) => {
     const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
     const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
-    // PRD-002 P0.8: forward names already shown so the AI skips repeats.
-    const excludeNamesStr = excludeNames.filter(Boolean).join(', ')
+    // PRD-002 P0.8: excludeNames is forwarded as a string[] so the server can
+    // both render a bulleted "do not suggest" prompt and post-filter responses.
+    const excludeNamesArr = excludeNames.filter(Boolean)
 
     let res
     try {
       res = await fetch('/api/swap-suggestions', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesStr }),
+        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesArr }),
       })
     } catch (e) {
       console.error('[fetchSwapSuggestions] fetch failed:', e)
@@ -594,14 +598,18 @@ export default function BrainstormMode({ userId }) {
     setSwapDate(date)
     setSwapSuggestions([])
     setLoadingSwap(true)
-    // PRD-002 P0.8: forward names already shown so we don't see the same
-    // AI suggestion again in the swap sheet.
+    // PRD-002 P0.8: per-day swap tracks its own dedup state. We forward the
+    // names returned by the previous swap call so consecutive opens don't
+    // repeat. Plan names are also forwarded so the AI skips items already
+    // scheduled.
     const aiExcludeNames = [
-      ...lastBatchAiNames,
+      ...lastSwapNames,
       ...plan.map(s => s.name).filter(Boolean),
     ]
     const suggestions = await fetchSwapSuggestions(plan, storedRecentMeals, aiExcludeNames)
     setSwapSuggestions(suggestions)
+    // Snapshot the names returned so the next openSwap excludes them.
+    setLastSwapNames(suggestions.map(s => s.name).filter(Boolean))
     setLoadingSwap(false)
   }
 
