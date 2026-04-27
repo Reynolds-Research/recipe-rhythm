@@ -6,6 +6,19 @@
 
 const RECENCY_DAYS = 7  // exclude meals eaten within this window
 
+// PRD-002 P0.5 — scoring weights for the family-rating + prep-time signals.
+// Tunable later; see PRD-002 OQ.B for the empirical-tuning note.
+
+// Bonus added per family_rating star. 5-star = +50, NULL rating = +0.
+export const FAMILY_RATING_WEIGHT = 10
+
+// Flat penalty for recipes whose prep_time_minutes exceeds half the cap.
+export const PREP_TIME_PENALTY = 15
+
+// Default prep-time cap (minutes) used until household_preferences ships in
+// Phase 3. With max=90, the penalty kicks in for recipes > 45 min.
+export const DEFAULT_MAX_PREP_TIME_MINUTES = 90
+
 /**
  * Returns meals eaten in the last N days as a Set of vault_ids
  * so we can quickly exclude them from suggestions.
@@ -80,16 +93,24 @@ function buildWeeklyAttributes(meals, vaultById) {
  *  -10  Same main carb as something eaten this week
  *  -10  Per overlapping protein with this week's meals
  *  +30  Max frequency bonus — items the user has actually cooked before
- *  +50  Max family-rating boost (+10 per star, NULL = 0). PRD-002 P0.5.
- *  -15  Prep-time penalty when prep_time_minutes > preferences.max_prep_time_minutes / 2.
- *       No-op until Phase 3 ships household_preferences. PRD-002 P0.5.
+ *  +50  Max family-rating boost (FAMILY_RATING_WEIGHT per star, NULL = 0). PRD-002 P0.5.
+ *  -15  Prep-time penalty (PREP_TIME_PENALTY) when prep_time_minutes > maxPrepTimeMinutes / 2.
+ *       Defaults to DEFAULT_MAX_PREP_TIME_MINUTES (90) until household_preferences ships
+ *       in Phase 3. PRD-002 P0.5.
  *  +15  Random shuffle so results feel fresh each session
  *
  * Hard-excludes (return -1 before scoring):
  *  - item.id in recentVaultIds (eaten in last 7 days)
  *  - item.id in excludeSet (PRD-002 P0.8: prior-batch + current-plan)
  */
-function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap, excludeSet, preferences) {
+function scoreVaultItem(
+  item,
+  recentVaultIds,
+  weeklyAttributes,
+  frequencyMap,
+  excludeSet,
+  maxPrepTimeMinutes = DEFAULT_MAX_PREP_TIME_MINUTES,
+) {
   let score = 100
 
   // Hard exclude anything eaten in the last 7 days
@@ -117,22 +138,18 @@ function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap, ex
   const timesCooked = frequencyMap.get(item.id) || 0
   score += Math.min(timesCooked * 8, 30)
 
-  // PRD-002 P0.5: Family-rating boost. +10 per star, max +50. NULL = 0
-  // (unrated recipes don't get penalized, they just don't get the boost).
-  if (item.family_rating != null) {
-    score += 10 * item.family_rating
-  }
+  // PRD-002 P0.5: Family-rating boost. +FAMILY_RATING_WEIGHT per star
+  // (5-star = +50, NULL = +0 — unrated recipes don't get penalized).
+  score += FAMILY_RATING_WEIGHT * (item.family_rating ?? 0)
 
-  // PRD-002 P0.5: Prep-time penalty. Only applied when the user has a
-  // max_prep_time_minutes cap set (forthcoming via household_preferences
-  // in Phase 3). Until then this branch is unreachable.
-  const maxPrep = preferences?.max_prep_time_minutes
+  // PRD-002 P0.5: Prep-time penalty. Items > half the cap take -PREP_TIME_PENALTY.
+  // Until household_preferences ships in Phase 3, the cap defaults to
+  // DEFAULT_MAX_PREP_TIME_MINUTES (90), so the penalty fires for prep > 45 min.
   if (
-    maxPrep != null &&
     item.prep_time_minutes != null &&
-    item.prep_time_minutes > maxPrep / 2
+    item.prep_time_minutes > maxPrepTimeMinutes / 2
   ) {
-    score -= 15
+    score -= PREP_TIME_PENALTY
   }
 
   // Small random jitter so results feel fresh each session
@@ -158,8 +175,9 @@ function scoreVaultItem(item, recentVaultIds, weeklyAttributes, frequencyMap, ex
  *                                          Used by BrainstormMode to suppress current-plan + prior-batch
  *                                          items so "regenerate" / single-slot picks return new candidates.
  *   @param {Object} options.preferences  - Household preferences (forthcoming in Phase 3).
- *                                          Today only `max_prep_time_minutes` is read; if set, items
- *                                          whose prep_time_minutes > max/2 take a -15 penalty.
+ *                                          Today only `max_prep_time_minutes` is read. If unset, the
+ *                                          engine falls back to DEFAULT_MAX_PREP_TIME_MINUTES (90),
+ *                                          so prep_time_minutes > 45 takes a -PREP_TIME_PENALTY hit.
  */
 export function getRecommendations(
   vaultItems,
@@ -171,6 +189,7 @@ export function getRecommendations(
 ) {
   const { excludeIds = [], preferences = {} } = options
   const excludeSet = new Set(excludeIds)
+  const maxPrepTimeMinutes = preferences.max_prep_time_minutes ?? DEFAULT_MAX_PREP_TIME_MINUTES
 
   // Merge served plan items into the meal history so the engine treats
   // recently-planned meals the same as recently-eaten ones for recency/frequency.
@@ -189,7 +208,7 @@ export function getRecommendations(
   const scoredVault = vaultItems
     .map(item => ({
       ...item,
-      _score: scoreVaultItem(item, recentVaultIds, weeklyAttrs, frequencyMap, excludeSet, preferences),
+      _score: scoreVaultItem(item, recentVaultIds, weeklyAttrs, frequencyMap, excludeSet, maxPrepTimeMinutes),
     }))
     .filter(item => item._score > 0)
     .sort((a, b) => b._score - a._score)

@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getRecommendations } from '../recommendations'
+import {
+  getRecommendations,
+  FAMILY_RATING_WEIGHT,
+  PREP_TIME_PENALTY,
+  DEFAULT_MAX_PREP_TIME_MINUTES,
+} from '../recommendations'
 
 describe('recommendations', () => {
   it('should return empty list if given empty inputs', () => {
@@ -106,7 +111,15 @@ describe('recommendations — PRD-002 P0.5 / P0.8 scoring', () => {
     vi.restoreAllMocks()
   })
 
-  it('boosts vault items by +10 per family_rating star (P0.5)', () => {
+  // Helper: paired items differing only by the field under test, so the
+  // random-jitter term (mocked to 0.5 → +7.5) cancels in the score delta.
+  const pair = (overrideA, overrideB) => [
+    { id: 'a', name: 'A', cuisine_type: 'Italian', proteins: ['Chicken'], ...overrideA },
+    { id: 'b', name: 'B', cuisine_type: 'Italian', proteins: ['Chicken'], ...overrideB },
+  ]
+  const scoreOf = (result, name) => result.find(r => r.name === name)._score
+
+  it('boosts vault items by +FAMILY_RATING_WEIGHT per family_rating star (P0.5)', () => {
     // Two items with identical attributes — only family_rating differs.
     // The 5-star item should outrank the unrated one.
     const vault = [
@@ -121,43 +134,59 @@ describe('recommendations — PRD-002 P0.5 / P0.8 scoring', () => {
     expect(result[1].name).toBe('Unrated meal')
   })
 
-  it('does NOT apply the prep-time penalty when no preferences are passed (P0.5 no-op)', () => {
-    // Without a preferences cap, prep_time_minutes is irrelevant — both
-    // items get the same base score and the result order is the random-jitter
-    // tiebreaker (deterministic at 0.5).
-    const vault = [
-      { id: 'long',  name: 'Long meal',  cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 90 },
-      { id: 'short', name: 'Short meal', cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 20 },
-    ]
-
-    const result = getRecommendations(vault, [], [], 2)
-
-    // Both made it; no -15 penalty was applied (would have collapsed long below short).
-    expect(result.length).toBe(2)
-    const longScore  = result.find(r => r.name === 'Long meal')._score
-    const shortScore = result.find(r => r.name === 'Short meal')._score
-    expect(longScore).toBe(shortScore)
+  it('family_rating delta is exactly FAMILY_RATING_WEIGHT × stars vs. null (P0.5)', () => {
+    for (const stars of [5, 3, 1]) {
+      const vault = pair({ family_rating: stars }, { family_rating: null })
+      const result = getRecommendations(vault, [], [], 2)
+      expect(scoreOf(result, 'A') - scoreOf(result, 'B')).toBe(FAMILY_RATING_WEIGHT * stars)
+    }
   })
 
-  it('applies the prep-time penalty when preferences.max_prep_time_minutes is set (P0.5)', () => {
-    // With max_prep_time = 60, half = 30. The 90-minute meal is over the
-    // half-cap and takes -15; the 20-minute meal is under and does not.
-    const vault = [
-      { id: 'long',  name: 'Long meal',  cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 90 },
-      { id: 'short', name: 'Short meal', cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 20 },
-    ]
+  it('applies the prep-time penalty above the default cap (max=90 → >45 penalized) (P0.5)', () => {
+    // Default cap is 90; half-cap = 45. prep=46 is over → -PREP_TIME_PENALTY.
+    // A null prep_time_minutes is the unpenalized baseline.
+    const vault = pair({ prep_time_minutes: 46 }, { prep_time_minutes: null })
+    const result = getRecommendations(vault, [], [], 2)
+    expect(scoreOf(result, 'B') - scoreOf(result, 'A')).toBe(PREP_TIME_PENALTY)
+  })
 
-    const result = getRecommendations(vault, [], [], 2, [], {
+  it('does NOT penalize at the boundary prep_time = max/2 (P0.5)', () => {
+    // prep=45 with default max=90: 45 is NOT > 45, so no penalty.
+    const vault = pair({ prep_time_minutes: 45 }, { prep_time_minutes: null })
+    const result = getRecommendations(vault, [], [], 2)
+    expect(scoreOf(result, 'A')).toBe(scoreOf(result, 'B'))
+  })
+
+  it('respects a custom maxPrepTimeMinutes via preferences (P0.5)', () => {
+    // With max=60, half=30. prep=31 is over → penalty; prep=30 is exactly the
+    // boundary → no penalty.
+    const overVault = pair({ prep_time_minutes: 31 }, { prep_time_minutes: null })
+    const overResult = getRecommendations(overVault, [], [], 2, [], {
       preferences: { max_prep_time_minutes: 60 },
     })
+    expect(scoreOf(overResult, 'B') - scoreOf(overResult, 'A')).toBe(PREP_TIME_PENALTY)
 
-    expect(result.length).toBe(2)
-    expect(result[0].name).toBe('Short meal')
-    expect(result[1].name).toBe('Long meal')
+    const boundaryVault = pair({ prep_time_minutes: 30 }, { prep_time_minutes: null })
+    const boundaryResult = getRecommendations(boundaryVault, [], [], 2, [], {
+      preferences: { max_prep_time_minutes: 60 },
+    })
+    expect(scoreOf(boundaryResult, 'A')).toBe(scoreOf(boundaryResult, 'B'))
+  })
 
-    const longScore  = result.find(r => r.name === 'Long meal')._score
-    const shortScore = result.find(r => r.name === 'Short meal')._score
-    expect(shortScore - longScore).toBe(15)
+  it('combines family_rating boost and prep-time penalty additively (P0.5)', () => {
+    // Default cap 90; 5-star + prep=60 → +50 (rating) -15 (prep) = +35 vs null/null baseline.
+    const vault = pair(
+      { family_rating: 5, prep_time_minutes: 60 },
+      { family_rating: null, prep_time_minutes: null },
+    )
+    const result = getRecommendations(vault, [], [], 2)
+    expect(scoreOf(result, 'A') - scoreOf(result, 'B')).toBe(
+      FAMILY_RATING_WEIGHT * 5 - PREP_TIME_PENALTY,
+    )
+  })
+
+  it('exposes DEFAULT_MAX_PREP_TIME_MINUTES = 90 (P0.5)', () => {
+    expect(DEFAULT_MAX_PREP_TIME_MINUTES).toBe(90)
   })
 
   it('hard-excludes vault items listed in options.excludeIds (P0.8)', () => {
