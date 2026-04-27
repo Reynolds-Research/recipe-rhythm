@@ -25,3 +25,5 @@ coverage/
 *.sw?
 .env
 .claude/worktrees/
+# Local-only test credentials — NEVER commit
+.claude/test-credentials.md
