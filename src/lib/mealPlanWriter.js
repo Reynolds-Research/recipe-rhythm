@@ -425,3 +425,136 @@ export async function startNewPeriod(
     overflow,
   }
 }
+
+/**
+ * PRD-002 P0.6: insert a "Maybe" / shortlist meal_plan_item.
+ *
+ * Shortlisted rows have NULL scheduled_date and is_shortlisted = TRUE; the
+ * DB-level CHECK `meal_plan_items_scheduled_xor_shortlisted` enforces both
+ * halves. The row is owned by the supplied meal_plan (so the Maybe tray
+ * tracks "this period's shortlist", not a per-user global one).
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @param {string} mealPlanId
+ * @param {{
+ *   name: string,
+ *   id?: string | null,         // vault_id (null for wildcards / synthetic ids)
+ *   is_wildcard?: boolean,
+ *   source_url?: string | null,
+ * }} item
+ * @returns {Promise<{ id: string }>}
+ * @throws {Error} with `.code = 'shortlist_insert_failed'` on DB error.
+ */
+export async function addShortlistItem(supabase, userId, mealPlanId, item) {
+  const { data, error } = await supabase
+    .from('meal_plan_items')
+    .insert({
+      user_id: userId,
+      meal_plan_id: mealPlanId,
+      scheduled_date: null,
+      is_shortlisted: true,
+      position: 0,
+      vault_id: toVaultId(item?.id),
+      name: item?.name ?? '(unnamed)',
+      is_wildcard: !!item?.is_wildcard,
+      source_url: item?.source_url ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    const err = new Error(
+      `Failed to insert shortlist item: ${error?.message ?? 'unknown error'}`,
+    )
+    err.code = 'shortlist_insert_failed'
+    err.cause = error
+    throw err
+  }
+  return { id: data.id }
+}
+
+/**
+ * PRD-002 P0.6: promote a shortlisted item onto a specific calendar date.
+ *
+ * Single UPDATE that flips both halves of the CHECK invariant atomically:
+ * `scheduled_date = <date>, is_shortlisted = false`. The row keeps its id,
+ * vault_id, name, etc. so historical references remain stable.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} itemId - meal_plan_items.id
+ * @param {string} scheduledDate - 'YYYY-MM-DD'
+ * @returns {Promise<void>}
+ * @throws {Error} with `.code = 'schedule_failed'` on DB error.
+ */
+export async function scheduleShortlistItem(supabase, itemId, scheduledDate) {
+  const { error } = await supabase
+    .from('meal_plan_items')
+    .update({ scheduled_date: scheduledDate, is_shortlisted: false })
+    .eq('id', itemId)
+
+  if (error) {
+    const err = new Error(
+      `Failed to schedule shortlist item: ${error.message ?? 'unknown error'}`,
+    )
+    err.code = 'schedule_failed'
+    err.cause = error
+    throw err
+  }
+}
+
+/**
+ * PRD-002 P0.6: move a scheduled item back to the Maybe tray.
+ *
+ * Single UPDATE that flips both halves of the CHECK invariant atomically:
+ * `scheduled_date = null, is_shortlisted = true`.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} itemId - meal_plan_items.id
+ * @returns {Promise<void>}
+ * @throws {Error} with `.code = 'shortlist_move_failed'` on DB error.
+ */
+export async function moveItemToShortlist(supabase, itemId) {
+  const { error } = await supabase
+    .from('meal_plan_items')
+    .update({ scheduled_date: null, is_shortlisted: true })
+    .eq('id', itemId)
+
+  if (error) {
+    const err = new Error(
+      `Failed to move item to shortlist: ${error.message ?? 'unknown error'}`,
+    )
+    err.code = 'shortlist_move_failed'
+    err.cause = error
+    throw err
+  }
+}
+
+/**
+ * PRD-002 P0.6: delete a meal_plan_item outright (used by the "Remove" option
+ * in the Maybe-item action sheet).
+ *
+ * Hard delete — there is no soft-delete column on meal_plan_items. Callers
+ * use this for shortlisted rows the user no longer wants; scheduled rows
+ * are typically left in place and tracked via cooked/finalized state.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} itemId - meal_plan_items.id
+ * @returns {Promise<void>}
+ * @throws {Error} with `.code = 'item_delete_failed'` on DB error.
+ */
+export async function deleteMealPlanItem(supabase, itemId) {
+  const { error } = await supabase
+    .from('meal_plan_items')
+    .delete()
+    .eq('id', itemId)
+
+  if (error) {
+    const err = new Error(
+      `Failed to delete meal_plan_item: ${error.message ?? 'unknown error'}`,
+    )
+    err.code = 'item_delete_failed'
+    err.cause = error
+    throw err
+  }
+}

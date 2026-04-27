@@ -35,6 +35,10 @@ vi.mock('../../lib/mealPlanWriter', () => ({
   setItemCooked: vi.fn(),
   finalizePlan: vi.fn(),
   startNewPeriod: vi.fn(),
+  addShortlistItem: vi.fn(),
+  scheduleShortlistItem: vi.fn(),
+  moveItemToShortlist: vi.fn(),
+  deleteMealPlanItem: vi.fn(),
 }))
 
 vi.mock('../../lib/recommendations', () => ({
@@ -79,7 +83,12 @@ import {
   classifyPlanState,
   listUserPeriods,
 } from '../../lib/mealPlanReader'
-import { createServedPlan } from '../../lib/mealPlanWriter'
+import {
+  createServedPlan,
+  addShortlistItem,
+  scheduleShortlistItem,
+  moveItemToShortlist,
+} from '../../lib/mealPlanWriter'
 import { getRecommendations } from '../../lib/recommendations'
 
 // --- Time control ---------------------------------------------------------
@@ -129,6 +138,9 @@ describe('BrainstormMode', () => {
       period_start: '2026-04-19',
       period_end: '2026-04-23',
     })
+    addShortlistItem.mockResolvedValue({ id: 'shortlist-item-new' })
+    scheduleShortlistItem.mockResolvedValue(undefined)
+    moveItemToShortlist.mockResolvedValue(undefined)
     getRecommendations.mockReturnValue([
       { id: 'v1', name: 'Roast',  is_wildcard: false, source_url: null },
       { id: 'v2', name: 'Tacos',  is_wildcard: false, source_url: null },
@@ -467,5 +479,209 @@ describe('BrainstormMode', () => {
     expect(
       screen.getByRole('button', { name: /Serve This Plan/i }),
     ).toBeInTheDocument()
+  })
+
+  // PRD-002 P0.6: shortlist / "Maybe" tray --------------------------------
+  describe('shortlist (Maybe tray)', () => {
+    // A served, active plan with one scheduled item (item-sched) and one
+    // shortlisted item (item-maybe). Used by every shortlist test.
+    function setupActivePlan({ shortlist = [] } = {}) {
+      fetchMostRecentPlan.mockResolvedValue({
+        plan: {
+          id: 'plan-active',
+          served_at: '2026-04-19T12:00:00Z',
+          period_start: '2026-04-19',
+          period_end: '2026-04-23',
+          finalized_at: null,
+          items: [
+            {
+              scheduled_date: '2026-04-19',
+              name: 'Roast',
+              id: 'v1',
+              is_wildcard: false,
+              source_url: null,
+              item_id: 'item-sched',
+              cooked: false,
+              cooked_at: null,
+              is_shortlisted: false,
+            },
+          ],
+          shortlist,
+          scheduledDates: ['2026-04-19'],
+          source: 'new',
+        },
+      })
+      classifyPlanState.mockReturnValue('active')
+    }
+
+    it('renders both tabs and clicking "Maybe" switches the visible region', async () => {
+      setupActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      const maybeTab = screen.getByRole('tab', { name: /Maybe/i })
+      const thisWeekTab = screen.getByRole('tab', { name: /This Week/i })
+      expect(thisWeekTab).toHaveAttribute('aria-selected', 'true')
+      expect(maybeTab).toHaveAttribute('aria-selected', 'false')
+
+      // The day grid is visible while This Week is active.
+      expect(screen.getByText('Roast')).toBeInTheDocument()
+
+      fireEvent.click(maybeTab)
+
+      await waitFor(() => {
+        expect(maybeTab).toHaveAttribute('aria-selected', 'true')
+      })
+      // Empty Maybe state surfaces the prompt copy.
+      expect(
+        screen.getByText(/Nothing shortlisted yet/i),
+      ).toBeInTheDocument()
+      // The day grid is no longer rendered while Maybe is active.
+      expect(screen.queryByText('Roast')).not.toBeInTheDocument()
+    })
+
+    it('clicking the bookmark on a candidate calls addShortlistItem with the shortlisted shape', async () => {
+      setupActivePlan()
+      // Stub /api/swap-suggestions to surface a candidate the bookmark can
+      // attach to. The active plan path doesn't fire swap-suggestions on
+      // load (the brainstorm-load fetch only runs on no_plan / gap states),
+      // so this fetch is consumed by the per-day swap call below.
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ names: ['Tasty Wildcard'] }),
+      })
+
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      // Open the swap sheet — Swap renders alongside the cooked toggle now
+      // (PRD-002 P0.6, so the bookmark is reachable post-serve).
+      fireEvent.click(screen.getByRole('button', { name: /^Swap$/ }))
+
+      // Wait for the AI candidate to render inside the sheet.
+      await screen.findByText('Tasty Wildcard')
+
+      // The bookmark icon button has aria-label="Add to Maybe".
+      const bookmarks = screen.getAllByLabelText('Add to Maybe')
+      expect(bookmarks.length).toBeGreaterThan(0)
+      fireEvent.click(bookmarks[0])
+
+      await waitFor(() => {
+        expect(addShortlistItem).toHaveBeenCalledTimes(1)
+      })
+      const [, userIdArg, planIdArg, itemArg] = addShortlistItem.mock.calls[0]
+      expect(userIdArg).toBe('user-1')
+      expect(planIdArg).toBe('plan-active')
+      expect(itemArg.name).toBe('Tasty Wildcard')
+      expect(itemArg.is_wildcard).toBe(true)
+    })
+
+    it('with mocked shortlist items present, Maybe tab shows them; Schedule opens the day-picker sheet', async () => {
+      setupActivePlan({
+        shortlist: [
+          {
+            scheduled_date: null,
+            name: 'Saved For Later',
+            id: 'v9',
+            is_wildcard: false,
+            source_url: null,
+            item_id: 'item-maybe',
+            cooked: false,
+            cooked_at: null,
+            is_shortlisted: true,
+          },
+        ],
+      })
+
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('tab', { name: /Maybe/i }))
+
+      // Shortlisted item is visible.
+      expect(await screen.findByText('Saved For Later')).toBeInTheDocument()
+
+      // Click Schedule — the day-picker sheet opens (mocked Sheet renders
+      // children only when isOpen).
+      fireEvent.click(
+        screen.getByRole('button', { name: /Schedule Saved For Later/i }),
+      )
+
+      // The schedule sheet is now mounted. Its sheet body lists the period's
+      // days (Sun 4/19 through Thu 4/23).
+      await waitFor(() => {
+        expect(screen.getByRole('list', { name: /Days in period/i })).toBeInTheDocument()
+      })
+    })
+
+    it('selecting a day from the schedule sheet calls scheduleShortlistItem with the right shape', async () => {
+      setupActivePlan({
+        shortlist: [
+          {
+            scheduled_date: null,
+            name: 'Saved For Later',
+            id: 'v9',
+            is_wildcard: false,
+            source_url: null,
+            item_id: 'item-maybe',
+            cooked: false,
+            cooked_at: null,
+            is_shortlisted: true,
+          },
+        ],
+      })
+
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByRole('tab', { name: /Maybe/i }))
+      fireEvent.click(
+        await screen.findByRole('button', { name: /Schedule Saved For Later/i }),
+      )
+
+      // Click the first listed day inside the schedule sheet.
+      const dayList = await screen.findByRole('list', {
+        name: /Days in period/i,
+      })
+      const dayButtons = dayList.querySelectorAll('button')
+      expect(dayButtons.length).toBeGreaterThan(0)
+      fireEvent.click(dayButtons[0])
+
+      await waitFor(() => {
+        expect(scheduleShortlistItem).toHaveBeenCalledTimes(1)
+      })
+      const [, itemId, scheduledDate] = scheduleShortlistItem.mock.calls[0]
+      expect(itemId).toBe('item-maybe')
+      // First date in the period is period_start = 2026-04-19.
+      expect(scheduledDate).toBe('2026-04-19')
+    })
+
+    it('"Move to Maybe" on a scheduled item calls moveItemToShortlist with the inverse shape', async () => {
+      setupActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      // The day grid renders one scheduled item with item_id='item-sched'.
+      // SortableMealItem exposes a "Move to Maybe" button when isServed +
+      // item_id present.
+      const moveBtn = await screen.findByLabelText('Move to Maybe')
+      fireEvent.click(moveBtn)
+
+      await waitFor(() => {
+        expect(moveItemToShortlist).toHaveBeenCalledTimes(1)
+      })
+      const [, itemIdArg] = moveItemToShortlist.mock.calls[0]
+      expect(itemIdArg).toBe('item-sched')
+    })
   })
 })

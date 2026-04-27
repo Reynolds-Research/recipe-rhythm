@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2 } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2, Bookmark, BookmarkPlus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
@@ -7,7 +7,16 @@ import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
 import { buildLastWeekSlots } from '../lib/lastWeekSlots'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
-import { createServedPlan, setItemCooked, finalizePlan, startNewPeriod } from '../lib/mealPlanWriter'
+import {
+  createServedPlan,
+  setItemCooked,
+  finalizePlan,
+  startNewPeriod,
+  addShortlistItem,
+  scheduleShortlistItem,
+  moveItemToShortlist,
+  deleteMealPlanItem,
+} from '../lib/mealPlanWriter'
 import { AI_CANDIDATE_COUNT } from '../lib/constants'
 import PeriodReview from './PeriodReview'
 import GapDayView from '../components/GapDayView'
@@ -148,8 +157,11 @@ function migrateLegacyWeekdayDates(weekdayList, today, disabled) {
   return out.sort()
 }
 
-function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
+function SortableMealItem({ slot, onSwap, isServed, onToggleCooked, onMoveToMaybe }) {
   const showCookedToggle = isServed && !!onToggleCooked && !!slot.item_id
+  // PRD-002 P0.6: only allow Move-to-Maybe on rows that exist in DB (item_id
+  // present) — pre-serve plan slots are local-only and have no FK target.
+  const canMoveToMaybe = isServed && !!onMoveToMaybe && !!slot.item_id
   const {
     attributes,
     listeners,
@@ -213,7 +225,17 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
           </div>
         )}
       </span>
-      {showCookedToggle ? (
+      {canMoveToMaybe && (
+        <button
+          onClick={() => onMoveToMaybe(slot.item_id)}
+          aria-label="Move to Maybe"
+          title="Move to Maybe"
+          className="flex-shrink-0 p-2 -mr-1 text-brand-400 hover:text-brand-600 transition-colors"
+        >
+          <BookmarkPlus size={16} strokeWidth={2} />
+        </button>
+      )}
+      {showCookedToggle && (
         <label className="flex-shrink-0 flex items-center gap-2 cursor-pointer">
           <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wide">
             Cooked
@@ -226,15 +248,65 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked }) {
             className="h-5 w-5 rounded border-cream-200 text-brand-500 focus:ring-brand-300 focus:ring-2"
           />
         </label>
-      ) : (
-        <button
-          onClick={() => onSwap(slot.scheduled_date)}
-          disabled={isServed}
-          className={`flex-shrink-0 text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors ${isServed ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-        >
-          Swap
-        </button>
       )}
+      {/* PRD-002 P0.6: Swap is reachable both pre-serve (the user is still
+          assembling the plan) and post-serve (the user wants to browse
+          candidates for the Maybe tray). The swap sheet is the only place
+          that surfaces vault + AI candidates today; gating it on !isServed
+          would orphan the Add-to-Maybe affordance. */}
+      <button
+        onClick={() => onSwap(slot.scheduled_date)}
+        className="flex-shrink-0 text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors"
+      >
+        Swap
+      </button>
+    </div>
+  )
+}
+
+// PRD-002 P0.6: the "Maybe" tab view. Renders the shortlist for the active
+// period; each item exposes a "Schedule" button that hands the row up to
+// BrainstormMode's day-picker sheet.
+function ShortlistTab({ items, isServed, onSchedule }) {
+  if (!isServed) {
+    return (
+      <div className="bg-white border border-cream-100 rounded-2xl px-5 py-8 text-center shadow-sm">
+        <p className="text-sm text-gray-500">
+          Serve a plan to start shortlisting candidates for the period.
+        </p>
+      </div>
+    )
+  }
+  if (items.length === 0) {
+    return (
+      <div className="bg-white border border-cream-100 rounded-2xl px-5 py-8 text-center shadow-sm">
+        <p className="text-sm text-gray-500">
+          Nothing shortlisted yet. Tap a candidate's bookmark to save it for later.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm">
+      {items.map((item) => (
+        <div
+          key={item.item_id}
+          className="flex items-center gap-3 py-4"
+          data-testid={`shortlist-item-${item.item_id}`}
+        >
+          <Bookmark size={16} strokeWidth={2} className="text-brand-400 flex-shrink-0" />
+          <span className="text-sm text-gray-900 flex-1 min-w-0 truncate font-medium">
+            {item.name}
+          </span>
+          <button
+            onClick={() => onSchedule(item)}
+            aria-label={`Schedule ${item.name}`}
+            className="flex-shrink-0 text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors"
+          >
+            Schedule
+          </button>
+        </div>
+      ))}
     </div>
   )
 }
@@ -301,6 +373,19 @@ export default function BrainstormMode({ userId }) {
   const [loadingSwap, setLoadingSwap] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
+
+  // PRD-002 P0.6: "Maybe" / shortlist state.
+  // - activeTab toggles between the day-grid view and the shortlist tray.
+  // - shortlist holds the active period's is_shortlisted=TRUE rows.
+  // - scheduleSheetItem is the shortlist row currently in the day-picker sheet
+  //   (null when the sheet is closed).
+  // - bookmarkedNames is an ephemeral feedback set: a candidate's bookmark
+  //   icon fills briefly after a successful "Add to Maybe".
+  const [activeTab, setActiveTab] = useState('thisWeek')
+  const [shortlist, setShortlist] = useState([])
+  const [scheduleSheetItem, setScheduleSheetItem] = useState(null)
+  const [shortlistError, setShortlistError] = useState(null)
+  const [bookmarkedNames, setBookmarkedNames] = useState(() => new Set())
 
   // PRD-002 P0.8: track the prior batch so "regenerate" / single-slot picks
   // exclude items already shown. Vault hits go through getRecommendations'
@@ -429,6 +514,10 @@ export default function BrainstormMode({ userId }) {
     // them since they're not in the visible horizon.
     setDisabledDates(disabled)
 
+    // PRD-002 P0.6: shortlist tray reflects the active plan's shortlisted rows.
+    setShortlist(mostRecentPlan?.shortlist ?? [])
+    setBookmarkedNames(new Set())
+
     if (state === 'active' || state === 'ended_unfinalized') {
       // Restore the served plan as authoritative; lock the UI
       localStorage.removeItem('brainstorm_plan')
@@ -520,6 +609,87 @@ export default function BrainstormMode({ userId }) {
         ),
       )
       setPeriodError('Could not save cooked status. Try again.')
+    }
+  }
+
+  // PRD-002 P0.6: shortlist handlers ------------------------------------
+  // Shortlist rows live on the active meal_plan, so every action is gated on
+  // an existing loadedPlan.id. Pre-serve, the bookmark affordance is hidden.
+
+  const handleAddToMaybe = async (candidate) => {
+    if (!loadedPlan?.id || !candidate?.name) return
+    setShortlistError(null)
+    trigger('light')
+    try {
+      const { id: itemId } = await addShortlistItem(
+        supabase,
+        userId,
+        loadedPlan.id,
+        candidate,
+      )
+      // Optimistic: append to the local shortlist so the Maybe tab shows it
+      // without a round-trip. The next loadData() will reconcile.
+      setShortlist((prev) => [
+        ...prev,
+        {
+          item_id: itemId,
+          scheduled_date: null,
+          name: candidate.name,
+          id: candidate.id ?? null,
+          is_wildcard: !!candidate.is_wildcard,
+          source_url: candidate.source_url ?? null,
+          cooked: false,
+          cooked_at: null,
+          is_shortlisted: true,
+        },
+      ])
+      // Brief visual confirmation: fill the bookmark icon for this candidate.
+      setBookmarkedNames((prev) => new Set(prev).add(candidate.name))
+      setTimeout(() => {
+        setBookmarkedNames((prev) => {
+          const next = new Set(prev)
+          next.delete(candidate.name)
+          return next
+        })
+      }, 1500)
+    } catch {
+      setShortlistError('Could not add to Maybe. Try again.')
+    }
+  }
+
+  const handleScheduleFromShortlist = async (item, date) => {
+    if (!item?.item_id || !date) return
+    setShortlistError(null)
+    trigger('success')
+    try {
+      await scheduleShortlistItem(supabase, item.item_id, date)
+      setScheduleSheetItem(null)
+      await loadData(false)
+    } catch {
+      setShortlistError('Could not schedule. Try again.')
+    }
+  }
+
+  const handleRemoveShortlist = async (item) => {
+    if (!item?.item_id) return
+    setShortlistError(null)
+    try {
+      await deleteMealPlanItem(supabase, item.item_id)
+      setScheduleSheetItem(null)
+      setShortlist((prev) => prev.filter((s) => s.item_id !== item.item_id))
+    } catch {
+      setShortlistError('Could not remove. Try again.')
+    }
+  }
+
+  const handleMoveToMaybe = async (itemId) => {
+    if (!itemId) return
+    setShortlistError(null)
+    try {
+      await moveItemToShortlist(supabase, itemId)
+      await loadData(false)
+    } catch {
+      setShortlistError('Could not move to Maybe. Try again.')
     }
   }
 
@@ -933,6 +1103,50 @@ export default function BrainstormMode({ userId }) {
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
 
+        {/* PRD-002 P0.6: This Week / Maybe segmented tab. */}
+        <div
+          role="tablist"
+          aria-label="Plan view"
+          className="grid grid-cols-2 gap-1 bg-cream-100 rounded-full p-1"
+        >
+          <button
+            role="tab"
+            aria-selected={activeTab === 'thisWeek'}
+            onClick={() => setActiveTab('thisWeek')}
+            className={`py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
+              activeTab === 'thisWeek'
+                ? 'bg-white text-brand-600 shadow-sm'
+                : 'text-gray-500 hover:text-brand-500'
+            }`}
+          >
+            This Week
+          </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === 'maybe'}
+            onClick={() => setActiveTab('maybe')}
+            className={`py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 ${
+              activeTab === 'maybe'
+                ? 'bg-white text-brand-600 shadow-sm'
+                : 'text-gray-500 hover:text-brand-500'
+            }`}
+          >
+            Maybe
+            {shortlist.length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600">
+                {shortlist.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {shortlistError && (
+          <p className="text-xs text-red-500 text-center">{shortlistError}</p>
+        )}
+
+        {activeTab === 'thisWeek' && (
+        <>
+
         {/* End-of-period prompt: shown when the period has ended but the user
             hasn't reviewed it yet. */}
         {planState === 'ended_unfinalized' && (
@@ -1034,6 +1248,7 @@ export default function BrainstormMode({ userId }) {
                         onSwap={openSwap}
                         isServed={isServed}
                         onToggleCooked={isServed ? handleToggleCooked : null}
+                        onMoveToMaybe={isServed ? handleMoveToMaybe : null}
                       />
                     ))
                   )}
@@ -1098,6 +1313,17 @@ export default function BrainstormMode({ userId }) {
 
         </div>
 
+        </>
+        )}
+
+        {activeTab === 'maybe' && (
+          <ShortlistTab
+            items={shortlist}
+            isServed={isServed}
+            onSchedule={(item) => setScheduleSheetItem(item)}
+          />
+        )}
+
       </div>
 
       {/* Swap picker — bottom sheet */}
@@ -1140,6 +1366,20 @@ export default function BrainstormMode({ userId }) {
                               View
                             </a>
                           )}
+                          {isServed && loadedPlan?.id && (
+                            <button
+                              onClick={() => handleAddToMaybe(item)}
+                              aria-label="Add to Maybe"
+                              title="Add to Maybe"
+                              className="flex-shrink-0 p-1.5 text-brand-400 hover:text-brand-600 transition-colors"
+                            >
+                              <Bookmark
+                                size={14}
+                                strokeWidth={2}
+                                fill={bookmarkedNames.has(item.name) ? 'currentColor' : 'none'}
+                              />
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1157,13 +1397,28 @@ export default function BrainstormMode({ userId }) {
                     <div className="pt-2">
                       <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Cookbook</p>
                       {availableVault.map(item => (
-                        <button
-                          key={item.id}
-                          onClick={() => { trigger('light'); handleSwap(swapDate, item); }}
-                          className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
-                        >
-                          {item.name}
-                        </button>
+                        <div key={item.id} className="flex items-center gap-2 py-1">
+                          <button
+                            onClick={() => { trigger('light'); handleSwap(swapDate, item); }}
+                            className="flex-1 text-left py-2 text-sm text-gray-900 hover:text-brand-600 transition-colors"
+                          >
+                            {item.name}
+                          </button>
+                          {isServed && loadedPlan?.id && (
+                            <button
+                              onClick={() => handleAddToMaybe(item)}
+                              aria-label="Add to Maybe"
+                              title="Add to Maybe"
+                              className="flex-shrink-0 p-1.5 text-brand-400 hover:text-brand-600 transition-colors"
+                            >
+                              <Bookmark
+                                size={14}
+                                strokeWidth={2}
+                                fill={bookmarkedNames.has(item.name) ? 'currentColor' : 'none'}
+                              />
+                            </button>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )
@@ -1182,6 +1437,82 @@ export default function BrainstormMode({ userId }) {
         <Sheet.Backdrop onClick={() => setSwapDate(null)} />
       </Sheet>
 
+      {/* PRD-002 P0.6: Schedule-from-Maybe — bottom sheet.
+          Lists every date in the active period. Selecting a date promotes the
+          shortlist row to scheduled (single UPDATE). "Remove" hard-deletes the
+          row. */}
+      <Sheet
+        isOpen={!!scheduleSheetItem}
+        onClose={() => setScheduleSheetItem(null)}
+      >
+        <Sheet.Container className="!rounded-t-3xl !bg-cream-50 shadow-2xl border-t border-cream-200">
+          <Sheet.Header />
+          <Sheet.Content>
+            <div className="px-6 py-2 pb-safe">
+              <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
+                Schedule from Maybe
+              </p>
+              <p className="text-base font-serif italic text-gray-700 mb-6">
+                {scheduleSheetItem?.name}
+              </p>
+
+              <div
+                role="list"
+                aria-label="Days in period"
+                className="divide-y divide-gray-100 max-h-72 overflow-y-auto"
+              >
+                {(() => {
+                  const periodDates = []
+                  if (loadedPlan?.period_start && loadedPlan?.period_end) {
+                    const start = parseYmd(loadedPlan.period_start)
+                    const end = parseYmd(loadedPlan.period_end)
+                    let cursor = start
+                    while (cursor <= end) {
+                      periodDates.push(formatLocalYmd(cursor))
+                      cursor = addDays(cursor, 1)
+                    }
+                  }
+                  if (periodDates.length === 0) {
+                    return (
+                      <p className="text-sm text-gray-400 py-4 text-center">
+                        No active period.
+                      </p>
+                    )
+                  }
+                  return periodDates.map((d) => (
+                    <button
+                      key={d}
+                      role="listitem"
+                      onClick={() =>
+                        handleScheduleFromShortlist(scheduleSheetItem, d)
+                      }
+                      className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
+                    >
+                      {shortDateLabel(d)}
+                    </button>
+                  ))
+                })()}
+              </div>
+
+              <button
+                onClick={() => handleRemoveShortlist(scheduleSheetItem)}
+                className="w-full mt-4 py-3 rounded-2xl border border-red-200 text-sm text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+              >
+                <Trash2 size={14} />
+                Remove
+              </button>
+
+              <button
+                onClick={() => setScheduleSheetItem(null)}
+                className="w-full mt-2 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500"
+              >
+                Cancel
+              </button>
+            </div>
+          </Sheet.Content>
+        </Sheet.Container>
+        <Sheet.Backdrop onClick={() => setScheduleSheetItem(null)} />
+      </Sheet>
 
     </div>
   )
