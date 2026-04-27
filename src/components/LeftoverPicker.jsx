@@ -70,7 +70,7 @@ export default function LeftoverPicker({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 bg-black/50 z-[55] flex items-end sm:items-center justify-center"
       data-testid="leftover-picker"
     >
       <div className="w-full max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl px-6 pt-6 pb-8 shadow-2xl border-t border-cream-200 max-h-[90vh] flex flex-col">

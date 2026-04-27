@@ -370,7 +370,7 @@ function DayPopover({ iso, items, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 bg-black/50 z-[55] flex items-end sm:items-center justify-center"
       onClick={onClose}
       data-testid="calendar-popover-backdrop"
     >

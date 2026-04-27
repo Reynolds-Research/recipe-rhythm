@@ -184,7 +184,7 @@ export default function DateRangePicker({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 bg-black/50 z-[55] flex items-end sm:items-center justify-center"
       onClick={onCancel}
       data-testid="date-range-picker"
     >
@@ -236,12 +236,12 @@ export default function DateRangePicker({
             const edge = isEdge(cell.iso)
             const base = 'aspect-square flex items-center justify-center text-xs rounded-lg transition-colors'
             let cls
-            if (!cell.inMonth) {
-              cls = `${base} text-gray-200`
-            } else if (edge) {
+            if (edge) {
               cls = `${base} bg-brand-500 text-white font-bold`
             } else if (inRange) {
-              cls = `${base} bg-brand-100 text-brand-700 font-semibold`
+              cls = `${base} bg-brand-100 ${cell.inMonth ? 'text-brand-700' : 'text-brand-400'} font-semibold`
+            } else if (!cell.inMonth) {
+              cls = `${base} text-gray-300`
             } else {
               cls = `${base} text-gray-700 hover:bg-brand-50`
             }
