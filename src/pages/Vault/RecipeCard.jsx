@@ -4,7 +4,16 @@ import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
   DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
+  PREP_TIME_BUCKETS, bucketForMinutes,
 } from '../../lib/constants'
+
+const PREP_TIME_LABELS = PREP_TIME_BUCKETS.map(b => b.label)
+const labelToStoredValue = (label) =>
+  PREP_TIME_BUCKETS.find(b => b.label === label)?.storedValue ?? null
+const labelForMinutes = (minutes) => {
+  const id = bucketForMinutes(minutes)
+  return id == null ? null : PREP_TIME_BUCKETS.find(b => b.id === id)?.label ?? null
+}
 
 /**
  * RecipeCard — the per-recipe row in the vault list. Renders the collapsed
@@ -200,6 +209,18 @@ export default function RecipeCard({
               </FieldSection>
               <FieldSection label="Fruit">
                 <ChipPicker options={FRUIT_OPTIONS} value={editFields.fruits} onChange={v => setEditFields(f => ({ ...f, fruits: v }))} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={onAddExtra} />
+              </FieldSection>
+              <FieldSection label="Prep time">
+                <ChipPicker
+                  options={PREP_TIME_LABELS}
+                  value={labelForMinutes(editFields.prep_time_minutes)}
+                  onChange={(label) => setEditFields(f => ({
+                    ...f,
+                    prep_time_minutes: label ? labelToStoredValue(label) : null,
+                  }))}
+                  multi={false}
+                  allowCustom={false}
+                />
               </FieldSection>
               <input
                 type="text"

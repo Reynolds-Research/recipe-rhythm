@@ -99,6 +99,7 @@ export default function Vault({ userId }) {
       fruits:           recipe.fruits           || [],
       notes:            recipe.notes            || '',
       recipe_url:       recipe.recipe_url       || '',
+      prep_time_minutes: recipe.prep_time_minutes ?? null,
     })
   }
 

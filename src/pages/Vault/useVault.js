@@ -36,7 +36,7 @@ export function useVault(userId) {
     // still resolve.
     const { data, error } = await supabase
       .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes')
       .eq('user_id', userId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -98,6 +98,7 @@ export function useVault(userId) {
     dairyComponents,
     vegetables,
     fruits,
+    prepTimeMinutes,
     imageFile,
   }) => {
     const finalName = name.trim()
@@ -191,6 +192,7 @@ export function useVault(userId) {
       dairy_components: dairyComponents.length ? dairyComponents : null,
       vegetables:       vegetables.length      ? vegetables      : null,
       fruits:           fruits.length          ? fruits          : null,
+      prep_time_minutes: prepTimeMinutes ?? null,
     })
 
     if (error) return { ok: false, reason: 'insert-failed', error }
@@ -215,6 +217,7 @@ export function useVault(userId) {
       dairy_components: analysis?.dairy_components ?? [],
       vegetables:       analysis?.vegetables       ?? [],
       fruits:           analysis?.fruits           ?? [],
+      prep_time_minutes: analysis?.prep_time_minutes ?? null,
     })
     await fetchRecipes()
   }

@@ -3,6 +3,7 @@ import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
   DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
+  PREP_TIME_BUCKETS, bucketForMinutes,
   buildAnalyzeRecipePromptBlock,
 } from '../constants'
 
@@ -54,5 +55,57 @@ describe('buildAnalyzeRecipePromptBlock', () => {
   it('starts with the JSON opening brace and ends with the closing brace', () => {
     expect(block.startsWith('{')).toBe(true)
     expect(block.endsWith('}')).toBe(true)
+  })
+
+  it('declares prep_time_minutes as null-safe', () => {
+    // PRD-002 P0.4: the prompt must allow the AI to return null when it
+    // cannot estimate. The client treats null as "leave the chip unselected."
+    expect(block).toMatch(/prep_time_minutes/)
+    expect(block).toMatch(/null/)
+  })
+})
+
+describe('PREP_TIME_BUCKETS', () => {
+  it('has four entries with ascending storedValue and unique ids', () => {
+    expect(PREP_TIME_BUCKETS).toHaveLength(4)
+
+    const ids = PREP_TIME_BUCKETS.map(b => b.id)
+    expect(new Set(ids).size).toBe(ids.length)
+
+    const storedValues = PREP_TIME_BUCKETS.map(b => b.storedValue)
+    for (let i = 1; i < storedValues.length; i++) {
+      expect(storedValues[i]).toBeGreaterThan(storedValues[i - 1])
+    }
+  })
+
+  it('every bucket has the required shape (id, label, storedValue)', () => {
+    for (const bucket of PREP_TIME_BUCKETS) {
+      expect(typeof bucket.id).toBe('string')
+      expect(bucket.id.length).toBeGreaterThan(0)
+      expect(typeof bucket.label).toBe('string')
+      expect(bucket.label.length).toBeGreaterThan(0)
+      expect(Number.isInteger(bucket.storedValue)).toBe(true)
+      expect(bucket.storedValue).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('bucketForMinutes', () => {
+  it.each([
+    [0,    'lt15'],
+    [14,   'lt15'],
+    [15,   'lt15'],     // boundary — matches storedValue for lt15 so write-then-read keeps the chip
+    [16,   '15to30'],
+    [30,   '15to30'],   // boundary — matches storedValue for 15to30
+    [45,   '30to60'],
+    [60,   '30to60'],   // boundary — matches storedValue for 30to60
+    [61,   'gt60'],
+    [120,  'gt60'],
+  ])('maps %i minutes → "%s"', (minutes, expected) => {
+    expect(bucketForMinutes(minutes)).toBe(expected)
+  })
+
+  it('returns null when minutes is null', () => {
+    expect(bucketForMinutes(null)).toBeNull()
   })
 })
