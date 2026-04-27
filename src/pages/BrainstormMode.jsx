@@ -8,6 +8,7 @@ import { getRecommendations } from '../lib/recommendations'
 import { buildLastWeekSlots } from '../lib/lastWeekSlots'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
 import { createServedPlan, setItemCooked, finalizePlan, startNewPeriod } from '../lib/mealPlanWriter'
+import { AI_CANDIDATE_COUNT } from '../lib/constants'
 import PeriodReview from './PeriodReview'
 import GapDayView from '../components/GapDayView'
 import DateRangePicker from '../components/DateRangePicker'
@@ -325,7 +326,7 @@ export default function BrainstormMode({ userId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = []) => {
+  const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = [], count = AI_CANDIDATE_COUNT) => {
     const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
     const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
     // PRD-002 P0.8: excludeNames is forwarded as a string[] so the server can
@@ -337,7 +338,9 @@ export default function BrainstormMode({ userId }) {
       res = await fetch('/api/swap-suggestions', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesArr }),
+        // PRD-002 P0.9: `count` lets the recommender ask for AI_CANDIDATE_COUNT
+        // suggestions instead of the API's default of 1.
+        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesArr, count }),
       })
     } catch (e) {
       console.error('[fetchSwapSuggestions] fetch failed:', e)
@@ -349,7 +352,7 @@ export default function BrainstormMode({ userId }) {
     const data = await res.json()
     const names = Array.isArray(data.names) ? data.names : []
 
-    return names.slice(0, 3).map((name, i) => ({
+    return names.slice(0, count).map((name, i) => ({
       id: `ai-suggestion-${i}`,
       name,
       is_wildcard: true,
@@ -547,6 +550,9 @@ export default function BrainstormMode({ userId }) {
       id:          suggestions[i]?.id || null,
       is_wildcard: suggestions[i]?.is_wildcard || false,
       source_url:  suggestions[i]?.source_url || null,
+      // PRD-002 P0.9: carry the recommender's source tag through so the
+      // SortableMealItem render path can show the "New" badge correctly.
+      source:      suggestions[i]?.source || null,
     }))
   }
 
@@ -585,6 +591,7 @@ export default function BrainstormMode({ userId }) {
           id: sugg?.id || null,
           is_wildcard: sugg?.is_wildcard || false,
           source_url: sugg?.source_url || null,
+          source: sugg?.source || null,
         }
         return [...curr, newSlot].sort((a, b) =>
           a.scheduled_date.localeCompare(b.scheduled_date),
@@ -622,7 +629,11 @@ export default function BrainstormMode({ userId }) {
               name: vaultItem.name,
               id: vaultItem.id,
               is_wildcard: vaultItem.is_wildcard || false,
-              source_url: vaultItem.source_url || null
+              source_url: vaultItem.source_url || null,
+              // Vault items chosen from the cookbook list are not 'ai'; the AI
+              // suggestions in the swap sheet carry is_wildcard:true (the
+              // legacy flag) and we preserve their source tag if present.
+              source: vaultItem.source || (vaultItem.is_wildcard ? 'ai' : 'vault'),
             }
           : slot
       )
@@ -647,6 +658,7 @@ export default function BrainstormMode({ userId }) {
           id: i.id,
           is_wildcard: i.is_wildcard,
           source_url: i.source_url ?? null,
+          source: i.source ?? null,
         })),
         oldIndex,
         newIndex,
@@ -657,6 +669,7 @@ export default function BrainstormMode({ userId }) {
         id:          reorderedMeals[index].id,
         is_wildcard: reorderedMeals[index].is_wildcard,
         source_url:  reorderedMeals[index].source_url || null,
+        source:      reorderedMeals[index].source || null,
       }))
     })
   }

@@ -163,10 +163,14 @@ function scoreVaultItem(
  *
  * @param {Array}  vaultItems      - All Vault items from Supabase (with full metadata)
  * @param {Array}  recentMeals     - Meals from the past 90 days (for frequency + recency)
- * @param {Array}  wildcards       - Recipe candidates returned by /api/swap-suggestions (Haiku 4.5).
- *                                   Each must have at least { id, name }; is_wildcard:true is set
- *                                   by this function before returning.
- * @param {number} count           - How many suggestions to return (default 5, Sun–Thu)
+ * @param {Array}  wildcards       - Pre-fetched AI candidates from /api/swap-suggestions
+ *                                   (Haiku 4.5). Each must have at least { id, name }. PRD-002 P0.9:
+ *                                   they are tagged with source:'ai', assigned the median score of
+ *                                   the vault batch, and merged into the same sorted list as vault
+ *                                   hits — instead of taking a fixed 20% slot allocation as before.
+ * @param {number} count           - How many vault items to include in the merge batch. The
+ *                                   returned list may be longer than `count` (vault batch +
+ *                                   AI items, minus dedups). Callers slice as needed.
  * @param {Array}  servedPlanItems - Items from the prior week's served plan (pseudo-meals
  *                                   with vault_id + scheduled_date) to factor into recency
  *                                   and frequency scoring.
@@ -204,25 +208,53 @@ export function getRecommendations(
   const weeklyAttrs     = buildWeeklyAttributes(allMeals, vaultById)
   const recentVaultIds  = getRecentVaultIds(allMeals)
 
-  // Score and sort vault items
+  // Score and sort vault items. PRD-002 P0.9: tag every vault candidate with
+  // source:'vault' so the UI can distinguish vault hits from AI suggestions.
   const scoredVault = vaultItems
     .map(item => ({
       ...item,
       _score: scoreVaultItem(item, recentVaultIds, weeklyAttrs, frequencyMap, excludeSet, maxPrepTimeMinutes),
+      source: 'vault',
     }))
     .filter(item => item._score > 0)
     .sort((a, b) => b._score - a._score)
 
-  // Split the count between vault and wildcards. Target ~20% wildcards when
-  // available; fall back to 100% vault when none are passed.
-  const wildcardCount = Math.min(wildcards.length, Math.floor(count * 0.2))
-  const vaultCount    = count - wildcardCount
+  // PRD-002 P0.9: take the top `count` vault items as the "vault batch", then
+  // mix AI candidates into the same sorted list rather than allocating a fixed
+  // 20% wildcard slot block. This lets a strong vault hit outrank a mediocre AI
+  // suggestion (and vice-versa) instead of artificially splitting the result.
+  const vaultBatch = scoredVault.slice(0, count)
 
-  const vaultPicks    = scoredVault.slice(0, vaultCount)
-  const wildcardPicks = wildcards.slice(0, wildcardCount).map(w => ({
+  // Drop AI items whose name (case-insensitive, trimmed) exactly matches a
+  // vault item already in the batch. PRD-002 P0.9 OQ.E: fuzzy-match dedup
+  // (e.g., "Tacos" vs "Beef Tacos") is a future enhancement — exact match is
+  // the MVP gate for now.
+  const vaultBatchNamesLower = new Set(
+    vaultBatch.map(v => (v.name || '').trim().toLowerCase()),
+  )
+  const dedupedWildcards = wildcards.filter(w => {
+    const key = (w?.name || '').trim().toLowerCase()
+    return key && !vaultBatchNamesLower.has(key)
+  })
+
+  // PRD-002 P0.9: assign AI items the median of the vault batch's scores.
+  // Median (vs. a fixed mid-tier constant) was chosen because vault score
+  // ranges shift with each user's history — a constant could land far above
+  // or below the live distribution. Sitting AI items in the middle of the
+  // batch keeps them visible without overranking strong, well-rated vault
+  // hits, and aligns with acceptance criterion #4 ("AI items participate in
+  // the sorted output, not appended").
+  const sortedScores = vaultBatch.map(v => v._score).sort((a, b) => a - b)
+  const medianScore = sortedScores.length > 0
+    ? sortedScores[Math.floor(sortedScores.length / 2)]
+    : 100  // fallback when vault is empty (matches scoreVaultItem's base score)
+
+  const taggedWildcards = dedupedWildcards.map(w => ({
     ...w,
-    is_wildcard: true,
+    source: 'ai',
+    is_wildcard: true,  // legacy flag — older render paths still read it
+    _score: medianScore,
   }))
 
-  return [...vaultPicks, ...wildcardPicks]
+  return [...vaultBatch, ...taggedWildcards].sort((a, b) => b._score - a._score)
 }
