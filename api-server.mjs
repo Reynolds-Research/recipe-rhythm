@@ -109,13 +109,13 @@ app.post('/api/analyze-recipe', async (req, res) => {
 app.post('/api/swap-suggestions', async (req, res) => {
   if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
-  const { planNames = '', recentNames = '' } = req.body || {}
+  const { planNames = '', recentNames = '', excludeNames = '' } = req.body || {}
 
   const prompt = `Suggest 3 specific, well-known dinner recipes different from what's already planned. Return ONLY a JSON array of 3 recipe name strings, no markdown.
 
 Already in plan: ${planNames || 'none'}
 Recently eaten: ${recentNames || 'none'}
-
+${excludeNames ? `Avoid suggesting any of these names (already shown or in the plan): ${excludeNames}\n` : ''}
 ["Recipe 1", "Recipe 2", "Recipe 3"]`
 
   try {

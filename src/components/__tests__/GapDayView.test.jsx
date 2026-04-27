@@ -64,8 +64,8 @@ describe('GapDayView', () => {
     expect(screen.getByText('Curry')).toBeInTheDocument()
     expect(screen.getByTestId('gap-leftover-list')).toBeInTheDocument()
     expect(screen.queryByTestId('gap-no-leftovers')).not.toBeInTheDocument()
-    // Wildcard badge shows for the wildcard row
-    expect(screen.getByText(/wildcard/i)).toBeInTheDocument()
+    // PRD-002 P0.9: AI candidates are badged "New" (was previously "Wildcard").
+    expect(screen.getByText(/^new$/i)).toBeInTheDocument()
   })
 
   it('renders the empty-state message when there are no leftovers', async () => {

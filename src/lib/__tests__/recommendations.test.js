@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getRecommendations } from '../recommendations'
 
 describe('recommendations', () => {
@@ -91,5 +91,89 @@ describe('recommendations', () => {
 
     expect(result.length).toBe(5)
     expect(result.every(r => r.is_wildcard !== true)).toBe(true)
+  })
+})
+
+// PRD-002 P0.5 + P0.8 — family_rating boost, prep_time penalty, excludeIds.
+//
+// The base score is jittered by Math.random()*15. To make ranking
+// assertions deterministic we pin Math.random to a constant.
+describe('recommendations — PRD-002 P0.5 / P0.8 scoring', () => {
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('boosts vault items by +10 per family_rating star (P0.5)', () => {
+    // Two items with identical attributes — only family_rating differs.
+    // The 5-star item should outrank the unrated one.
+    const vault = [
+      { id: 'unrated', name: 'Unrated meal', cuisine_type: 'Italian', proteins: ['Chicken'], family_rating: null },
+      { id: 'rated',   name: 'Rated meal',   cuisine_type: 'Italian', proteins: ['Chicken'], family_rating: 5 },
+    ]
+
+    const result = getRecommendations(vault, [], [], 2)
+
+    expect(result.length).toBe(2)
+    expect(result[0].name).toBe('Rated meal')
+    expect(result[1].name).toBe('Unrated meal')
+  })
+
+  it('does NOT apply the prep-time penalty when no preferences are passed (P0.5 no-op)', () => {
+    // Without a preferences cap, prep_time_minutes is irrelevant — both
+    // items get the same base score and the result order is the random-jitter
+    // tiebreaker (deterministic at 0.5).
+    const vault = [
+      { id: 'long',  name: 'Long meal',  cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 90 },
+      { id: 'short', name: 'Short meal', cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 20 },
+    ]
+
+    const result = getRecommendations(vault, [], [], 2)
+
+    // Both made it; no -15 penalty was applied (would have collapsed long below short).
+    expect(result.length).toBe(2)
+    const longScore  = result.find(r => r.name === 'Long meal')._score
+    const shortScore = result.find(r => r.name === 'Short meal')._score
+    expect(longScore).toBe(shortScore)
+  })
+
+  it('applies the prep-time penalty when preferences.max_prep_time_minutes is set (P0.5)', () => {
+    // With max_prep_time = 60, half = 30. The 90-minute meal is over the
+    // half-cap and takes -15; the 20-minute meal is under and does not.
+    const vault = [
+      { id: 'long',  name: 'Long meal',  cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 90 },
+      { id: 'short', name: 'Short meal', cuisine_type: 'Italian', proteins: ['Chicken'], prep_time_minutes: 20 },
+    ]
+
+    const result = getRecommendations(vault, [], [], 2, [], {
+      preferences: { max_prep_time_minutes: 60 },
+    })
+
+    expect(result.length).toBe(2)
+    expect(result[0].name).toBe('Short meal')
+    expect(result[1].name).toBe('Long meal')
+
+    const longScore  = result.find(r => r.name === 'Long meal')._score
+    const shortScore = result.find(r => r.name === 'Short meal')._score
+    expect(shortScore - longScore).toBe(15)
+  })
+
+  it('hard-excludes vault items listed in options.excludeIds (P0.8)', () => {
+    const vault = [
+      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
+      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican',  proteins: ['Beef']    },
+      { id: 'v3', name: 'Vault C', cuisine_type: 'Japanese', proteins: ['Fish']    },
+    ]
+
+    const result = getRecommendations(vault, [], [], 3, [], { excludeIds: ['v2'] })
+
+    // v2 was excluded — only v1 and v3 should appear.
+    expect(result.length).toBe(2)
+    const names = result.map(r => r.name)
+    expect(names).not.toContain('Vault B')
+    expect(names).toContain('Vault A')
+    expect(names).toContain('Vault C')
   })
 })

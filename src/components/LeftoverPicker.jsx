@@ -115,7 +115,7 @@ export default function LeftoverPicker({
                   {item.is_wildcard && (
                     <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
                       <Sparkles size={8} />
-                      Wildcard
+                      New
                     </span>
                   )}
                 </span>
