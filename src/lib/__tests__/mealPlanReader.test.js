@@ -191,6 +191,8 @@ describe('fetchMostRecentPlan', () => {
         item_id: 'mpi-1',
         cooked: false,
         cooked_at: null,
+        // PRD-002 P0.6: every mapped row carries the shortlist flag.
+        is_shortlisted: false,
       },
     ])
   })

@@ -127,7 +127,7 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 | `id` | `uuid` | PK (default `gen_random_uuid()`). |
 | `user_id` | `uuid` | References `auth.users(id)` `ON DELETE CASCADE`. RLS key. Denormalized from `meal_plan_id → meal_plans.user_id` to keep RLS policies simple and fast. |
 | `meal_plan_id` | `uuid` | References `meal_plans(id)` `ON DELETE CASCADE`. Deleting a meal_plan removes all its items. |
-| `scheduled_date` | `date` | The actual calendar date the meal is on. Replaces the weekday-string mapping in the legacy `items` jsonb. Indexed via `(user_id, scheduled_date)`. |
+| `scheduled_date` | `date` nullable | The actual calendar date the meal is on. Replaces the weekday-string mapping in the legacy `items` jsonb. Indexed via `(user_id, scheduled_date)`. **Made nullable 2026-04-27** via [PRD-002 P0.6 migration](../supabase/migrations/20260427000002_meal_plan_items_shortlist.sql) — a NULL `scheduled_date` represents a "Maybe" / shortlist row. The `meal_plan_items_scheduled_xor_shortlisted` CHECK below pairs nullability with `is_shortlisted`. |
 | `position` | `int` | Order within the day (default 0). For future use if multiple meals per day are supported. |
 | `vault_id` | `uuid` nullable | References `vault(id)` `ON DELETE SET NULL`. If the vault recipe is deleted, the meal_plan_item keeps its `name` snapshot but loses the FK. |
 | `name` | `text` | Denormalized snapshot of the recipe name at scheduling time. Survives vault recipe deletion/edit. |
@@ -135,12 +135,16 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 | `source_url` | `text` nullable | Recipe URL (often present for wildcards). |
 | `cooked` | `bool` | Default false. Set to true when the user marks the item cooked during end-of-period review (ADR Phase 4) or mid-period via cooked-toggle. |
 | `cooked_at` | `timestamptz` nullable | Set when `cooked` flips to true. Useful for stats. Backfilled rows from the historical `items` jsonb got `served_at` here. |
+| `is_shortlisted` | `bool` | **Added 2026-04-27** via [PRD-002 P0.6 migration](../supabase/migrations/20260427000002_meal_plan_items_shortlist.sql). Default `false`. `TRUE` = the row is a "Maybe" / shortlist entry the user is considering for the active period but hasn't committed to a day yet (in which case `scheduled_date` is `NULL`). `FALSE` = the row is scheduled to a specific calendar date. The two states are mutually exclusive and exhaustive — see the `meal_plan_items_scheduled_xor_shortlisted` CHECK below. |
 | `created_at` | `timestamptz` | Default `now()`. |
+
+**Constraint:** `meal_plan_items_scheduled_xor_shortlisted` — `CHECK ((scheduled_date IS NULL) = is_shortlisted)`. Biconditional: a row is either scheduled (`scheduled_date` set, `is_shortlisted = false`) OR shortlisted (`scheduled_date IS NULL`, `is_shortlisted = true`), never both, never neither. Added 2026-04-27 via [PRD-002 P0.6 migration](../supabase/migrations/20260427000002_meal_plan_items_shortlist.sql).
 
 **Indexes:**
 - `meal_plan_items_user_scheduled_idx` on `(user_id, scheduled_date)` — supports calendar/timeline queries
 - `meal_plan_items_meal_plan_id_idx` on `(meal_plan_id)` — supports loading all items for a plan
 - `meal_plan_items_user_cooked_idx` on `(user_id, cooked)` — supports the leftover query
+- `meal_plan_items_user_shortlist_idx` on `(user_id, meal_plan_id) WHERE is_shortlisted = true` — partial index supporting the Brainstorm "Maybe" tab query (added 2026-04-27)
 
 ## Views
 
@@ -192,6 +196,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260426_vault_options.sql`](../supabase/migrations/verify_20260426_vault_options.sql) | 2026-04-26 | Read-only verification queries for the vault_options migration: column shape, primary key, CHECK contents, RLS policies, RLS-enabled bit. |
 | [`20260427000001_vault_prep_time.sql`](../supabase/migrations/20260427000001_vault_prep_time.sql) | 2026-04-27 | PRD-002 Phase 2 (P0.4): adds `vault.prep_time_minutes` (int, nullable, CHECK > 0). Populated by the `analyzeRecipe` AI prompt (extended in the same PR) or by the user via the recipe-add form. Drives the prep-time badge in BrainstormMode and (paired with the forthcoming `household_preferences` in Phase 3) the prep-time scoring penalty in `src/lib/recommendations.js`. |
 | [`verify_20260427_prep_time.sql`](../supabase/migrations/verify_20260427_prep_time.sql) | 2026-04-27 | Read-only verification queries for the prep-time migration: column shape, CHECK constraint, comment, and a smoke-count of unrated/rated rows. |
+| [`20260427000002_meal_plan_items_shortlist.sql`](../supabase/migrations/20260427000002_meal_plan_items_shortlist.sql) | 2026-04-27 | PRD-002 Phase 4 (P0.6): relaxes `meal_plan_items.scheduled_date` to nullable, adds `is_shortlisted` boolean (default `false`), and a biconditional CHECK `(scheduled_date IS NULL) = is_shortlisted` so every row is exactly one of "scheduled" or "shortlisted". Adds a partial index `meal_plan_items_user_shortlist_idx` for the Maybe-tab query. RLS policies on `meal_plan_items` already cover the new column (no policy changes). |
+| [`verify_20260427_shortlist.sql`](../supabase/migrations/verify_20260427_shortlist.sql) | 2026-04-27 | Read-only verification queries for the shortlist migration: column shape, CHECK constraint, comment, partial index, and a smoke-count confirming every existing row is still scheduled (none shortlisted yet). |
 
 ## Related audit items + ADRs
 

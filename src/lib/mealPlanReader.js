@@ -83,11 +83,15 @@ export async function fetchMostRecentPlan(supabase, userId) {
   if (planError) throw planError
   if (!plan) return { plan: null }
 
+  // PRD-002 P0.6: shortlisted rows have scheduled_date = NULL; ordering by
+  // scheduled_date sorts NULLs last in PostgREST default behavior, but to
+  // keep ordering deterministic across both tables we partition them client
+  // side after the fetch.
   const { data: newItemRows, error: itemsError } = await supabase
     .from('meal_plan_items')
-    .select('id, scheduled_date, position, vault_id, name, is_wildcard, source_url, cooked, cooked_at')
+    .select('id, scheduled_date, position, vault_id, name, is_wildcard, source_url, cooked, cooked_at, is_shortlisted')
     .eq('meal_plan_id', plan.id)
-    .order('scheduled_date', { ascending: true })
+    .order('scheduled_date', { ascending: true, nullsFirst: false })
     .order('position', { ascending: true })
 
   if (itemsError) throw itemsError
@@ -101,7 +105,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
   }
 
   if (newItemRows && newItemRows.length > 0) {
-    const items = newItemRows.map(row => ({
+    const mapRow = (row) => ({
       scheduled_date: row.scheduled_date,
       name: row.name,
       id: row.vault_id ?? null,
@@ -110,12 +114,16 @@ export async function fetchMostRecentPlan(supabase, userId) {
       item_id: row.id,
       cooked: !!row.cooked,
       cooked_at: row.cooked_at ?? null,
-    }))
+      is_shortlisted: !!row.is_shortlisted,
+    })
+    const scheduledItems  = newItemRows.filter(r => !r.is_shortlisted).map(mapRow)
+    const shortlistItems  = newItemRows.filter(r =>  r.is_shortlisted).map(mapRow)
     return {
       plan: {
         ...basePlan,
-        items,
-        scheduledDates: sortedUnique(items.map(i => i.scheduled_date)),
+        items: scheduledItems,
+        shortlist: shortlistItems,
+        scheduledDates: sortedUnique(scheduledItems.map(i => i.scheduled_date)),
         source: 'new',
       },
     }
@@ -152,6 +160,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
       plan: {
         ...basePlan,
         items,
+        shortlist: [],
         scheduledDates: sortedUnique(items.map(i => i.scheduled_date)),
         source: 'legacy',
       },
@@ -162,6 +171,7 @@ export async function fetchMostRecentPlan(supabase, userId) {
     plan: {
       ...basePlan,
       items: [],
+      shortlist: [],
       scheduledDates: [],
       source: 'new',
     },
