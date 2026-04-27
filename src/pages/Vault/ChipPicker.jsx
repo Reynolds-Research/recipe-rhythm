@@ -24,6 +24,7 @@ export default function ChipPicker({
   category = null,
   extras = [],
   onExtraAdded = null,
+  allowCustom = true,
 }) {
   const [showAdd, setShowAdd]   = useState(false)
   const [draft, setDraft]       = useState('')
@@ -32,8 +33,16 @@ export default function ChipPicker({
 
   // Parent's grouped map is the source of truth — mirror updates here so
   // adding the same tag in two pickers (or re-fetching from the DB) keeps
-  // every picker in sync.
-  useEffect(() => { setLocalExtras(extras) }, [extras])
+  // every picker in sync. The functional updater bails out (returns the
+  // previous reference) when the contents are unchanged so a parent that
+  // re-renders with a fresh `[]` literal doesn't kick off a setState loop.
+  useEffect(() => {
+    setLocalExtras(prev => {
+      if (prev === extras) return prev
+      if (prev.length === extras.length && prev.every((v, i) => v === extras[i])) return prev
+      return extras
+    })
+  }, [extras])
 
   const allOptions = [...options, ...localExtras.filter(e => !options.includes(e))]
 
@@ -80,7 +89,7 @@ export default function ChipPicker({
         </button>
       ))}
 
-      {showAdd ? (
+      {allowCustom && (showAdd ? (
         <div className="flex items-center gap-1">
           <input
             autoFocus
@@ -111,7 +120,7 @@ export default function ChipPicker({
         >
           + custom
         </button>
-      )}
+      ))}
     </div>
   )
 }

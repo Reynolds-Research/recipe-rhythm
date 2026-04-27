@@ -7,7 +7,16 @@ import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
   DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
+  PREP_TIME_BUCKETS, bucketForMinutes,
 } from '../../lib/constants'
+
+const PREP_TIME_LABELS = PREP_TIME_BUCKETS.map(b => b.label)
+const labelToStoredValue = (label) =>
+  PREP_TIME_BUCKETS.find(b => b.label === label)?.storedValue ?? null
+const labelForMinutes = (minutes) => {
+  const id = bucketForMinutes(minutes)
+  return id == null ? null : PREP_TIME_BUCKETS.find(b => b.id === id)?.label ?? null
+}
 
 /**
  * RecipeForm — the add-recipe form. Owns its own draft state, the AI-suggest
@@ -48,7 +57,9 @@ export default function RecipeForm({
   const [dairyComponents, setDairyComponents] = useState([])
   const [vegetables, setVegetables]           = useState([])
   const [fruits, setFruits]                   = useState([])
-  const [prepTimeMinutes, setPrepTimeMinutes] = useState('')
+  // PRD-002 P0.4: prep time stored as the bucket's representative integer
+  // (or null when no chip is selected).
+  const [prepTimeMinutes, setPrepTimeMinutes] = useState(null)
 
   const [imageFile, setImageFile]       = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -91,7 +102,11 @@ export default function RecipeForm({
       if (s.dairy_components?.length) setDairyComponents(s.dairy_components)
       if (s.vegetables?.length)       setVegetables(s.vegetables)
       if (s.fruits?.length)           setFruits(s.fruits)
-      if (s.prep_time_minutes != null) setPrepTimeMinutes(String(s.prep_time_minutes))
+      // PRD-002 P0.4: AI-estimated prep time only fills the chip when the
+      // user hasn't already selected one — manual edits always win.
+      if (s.prep_time_minutes != null && prepTimeMinutes == null) {
+        setPrepTimeMinutes(s.prep_time_minutes)
+      }
       setAiApplied(true)
     } else {
       setAiError(true)
@@ -112,7 +127,7 @@ export default function RecipeForm({
     setDairyComponents([])
     setVegetables([])
     setFruits([])
-    setPrepTimeMinutes('')
+    setPrepTimeMinutes(null)
     setAiApplied(false)
     setAiError(false)
     if (imagePreview) URL.revokeObjectURL(imagePreview)
@@ -135,7 +150,7 @@ export default function RecipeForm({
       dairyComponents,
       vegetables,
       fruits,
-      prepTimeMinutes: prepTimeMinutes.trim() ? parseInt(prepTimeMinutes, 10) : null,
+      prepTimeMinutes,
       imageFile,
     })
     if (result?.ok) resetForm()
@@ -249,17 +264,6 @@ export default function RecipeForm({
         </select>
       </div>
 
-      {/* Prep time */}
-      <input
-        type="number"
-        min="1"
-        inputMode="numeric"
-        value={prepTimeMinutes}
-        onChange={e => setPrepTimeMinutes(e.target.value)}
-        placeholder="Prep + cook time (minutes)"
-        className="input-base text-sm"
-      />
-
       <FieldSection label="Protein">
         <ChipPicker options={PROTEIN_OPTIONS} value={proteins} onChange={setProteins} multi category="proteins" extras={extrasByCategory.proteins || []} onExtraAdded={onAddExtra} />
       </FieldSection>
@@ -286,6 +290,16 @@ export default function RecipeForm({
 
       <FieldSection label="Fruit">
         <ChipPicker options={FRUIT_OPTIONS} value={fruits} onChange={setFruits} multi category="fruits" extras={extrasByCategory.fruits || []} onExtraAdded={onAddExtra} />
+      </FieldSection>
+
+      <FieldSection label="Prep time">
+        <ChipPicker
+          options={PREP_TIME_LABELS}
+          value={labelForMinutes(prepTimeMinutes)}
+          onChange={(label) => setPrepTimeMinutes(label ? labelToStoredValue(label) : null)}
+          multi={false}
+          allowCustom={false}
+        />
       </FieldSection>
 
       {/* Notes */}

@@ -59,10 +59,48 @@ export const FRUIT_OPTIONS = [
 ]
 
 /**
+ * Prep-time buckets for the vault recipe form (PRD-002 P0.4).
+ *
+ * Stored on `vault.prep_time_minutes` as an integer. The chip-picker UI
+ * only shows the four buckets below; `storedValue` is the integer the
+ * picker writes when its bucket is selected. `bucketForMinutes` does the
+ * reverse mapping when an existing recipe is loaded for edit, so the chip
+ * that round-trips a saved integer matches the bucket the user picked.
+ *
+ * Boundary convention (so write-then-read keeps the same chip selected):
+ *   minutes <= 15           → 'lt15'
+ *   15  < minutes <= 30     → '15to30'
+ *   30  < minutes <= 60     → '30to60'
+ *   60  < minutes           → 'gt60'
+ *   null                    → null  (no selection)
+ */
+export const PREP_TIME_BUCKETS = [
+  { id: 'lt15',    label: '< 15 min',  storedValue: 15 },
+  { id: '15to30',  label: '15–30 min', storedValue: 30 },
+  { id: '30to60',  label: '30–60 min', storedValue: 60 },
+  { id: 'gt60',    label: '60+ min',   storedValue: 90 },
+]
+
+export function bucketForMinutes(minutes) {
+  if (minutes == null) return null
+  if (minutes <= 15) return 'lt15'
+  if (minutes <= 30) return '15to30'
+  if (minutes <= 60) return '30to60'
+  return 'gt60'
+}
+
+/**
  * Build the JSON-shape block appended to the analyze-recipe AI prompt.
  * Both api-server.mjs (local Express proxy) and api/analyze-recipe.js
  * (Vercel serverless mirror) call this so the prompt always reflects
  * the latest enum values.
+ *
+ * Response schema for /api/analyze-recipe:
+ *   - cuisine_type, flavor_profile, cooking_method, main_carb: string or null
+ *   - proteins, dietary_tags, dairy_components, vegetables, fruits: arrays
+ *   - prep_time_minutes: integer minutes or null when not estimable from
+ *     the source. The client treats this as null-safe — if the AI returns
+ *     null, the form leaves the prep-time chip unselected.
  */
 export function buildAnalyzeRecipePromptBlock() {
   return `{
