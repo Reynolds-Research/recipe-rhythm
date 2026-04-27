@@ -11,13 +11,23 @@ export default async function handler(req, res) {
   }
   if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
-  const { planNames = '', recentNames = '', excludeNames = '' } = req.body || {}
+  const { planNames = '', recentNames = '', excludeNames = [] } = req.body || {}
+
+  // PRD-002 P0.8: excludeNames is the canonical string[] form. Accept a
+  // comma-separated string for back-compat with older clients.
+  const excludeArr = Array.isArray(excludeNames)
+    ? excludeNames
+    : String(excludeNames).split(',')
+  const excludeList = excludeArr.map(n => String(n).trim()).filter(Boolean)
+  const excludeBullets = excludeList.length
+    ? `\nDo not suggest any of the following recipes (the user has just seen them):\n${excludeList.map(n => `- ${n}`).join('\n')}\n`
+    : ''
 
   const prompt = `Suggest 3 specific, well-known dinner recipes different from what's already planned. Return ONLY a JSON array of 3 recipe name strings, no markdown.
 
 Already in plan: ${planNames || 'none'}
 Recently eaten: ${recentNames || 'none'}
-${excludeNames ? `Avoid suggesting any of these names (already shown or in the plan): ${excludeNames}\n` : ''}
+${excludeBullets}
 ["Recipe 1", "Recipe 2", "Recipe 3"]`
 
   try {
@@ -29,7 +39,13 @@ ${excludeNames ? `Avoid suggesting any of these names (already shown or in the p
     const text = msg.content?.[0]?.text ?? ''
     const parsed = parseJsonLoose(text, /\[[\s\S]*\]/)
     if (!Array.isArray(parsed)) return res.status(502).json({ error: 'parse_failed' })
-    return res.json({ names: parsed.slice(0, 3) })
+
+    // Belt-and-suspenders: drop any name the LLM still echoes back.
+    const excludeSet = new Set(excludeList.map(n => n.toLowerCase()))
+    const filtered = parsed.filter(
+      n => typeof n === 'string' && !excludeSet.has(n.trim().toLowerCase()),
+    )
+    return res.json({ names: filtered.slice(0, 3) })
   } catch (err) {
     return sendUpstreamError(res, err, 'swap-suggestions')
   }

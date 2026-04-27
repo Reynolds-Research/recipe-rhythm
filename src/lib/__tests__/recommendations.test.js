@@ -176,4 +176,35 @@ describe('recommendations — PRD-002 P0.5 / P0.8 scoring', () => {
     expect(names).toContain('Vault A')
     expect(names).toContain('Vault C')
   })
+
+  it('excludeIds = [] is byte-for-byte identical to omitting the option (P0.8)', () => {
+    const vault = [
+      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
+      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican',  proteins: ['Beef']    },
+      { id: 'v3', name: 'Vault C', cuisine_type: 'Japanese', proteins: ['Fish']    },
+    ]
+
+    const without = getRecommendations(vault, [], [], 3)
+    const withEmpty = getRecommendations(vault, [], [], 3, [], { excludeIds: [] })
+
+    // Math.random is pinned to 0.5 in beforeEach, so jitter is identical
+    // across calls — names, order, and scores must match exactly.
+    expect(withEmpty.map(r => r.name)).toEqual(without.map(r => r.name))
+    expect(withEmpty.map(r => r._score)).toEqual(without.map(r => r._score))
+  })
+
+  it('returns [] when excludeIds covers every eligible vault item (P0.8)', () => {
+    const vault = [
+      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
+      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican',  proteins: ['Beef']    },
+      { id: 'v3', name: 'Vault C', cuisine_type: 'Japanese', proteins: ['Fish']    },
+    ]
+
+    const result = getRecommendations(vault, [], [], 3, [], {
+      excludeIds: ['v1', 'v2', 'v3'],
+    })
+
+    // All eligible items excluded — no fallback that re-includes them.
+    expect(result).toEqual([])
+  })
 })

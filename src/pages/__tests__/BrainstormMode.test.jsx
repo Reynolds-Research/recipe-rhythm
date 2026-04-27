@@ -354,7 +354,7 @@ describe('BrainstormMode', () => {
 
     // First call body should have no excludeNames (no prior batch yet).
     expect(postedBodies[0]).toHaveProperty('excludeNames')
-    expect(postedBodies[0].excludeNames).toBe('')
+    expect(postedBodies[0].excludeNames).toEqual([])
 
     fireEvent.click(screen.getByText(/Regenerate/i))
 
@@ -380,6 +380,71 @@ describe('BrainstormMode', () => {
     for (const id of ['v1', 'v2', 'v3', 'v4']) {
       expect(optionsArg.excludeIds).toContain(id)
     }
+  })
+
+  // PRD-002 P0.8: per-day swap dedup tracks its own state. The first ever
+  // swap goes out with excludeNames=[]; the next swap excludes the names the
+  // server returned the previous time.
+  it('per-day swap forwards prior-swap response names so consecutive swaps stay unique', async () => {
+    const postedBodies = []
+    globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
+      const body = init?.body ? JSON.parse(init.body) : {}
+      postedBodies.push(body)
+      // Call 0: brainstorm-load on mount (returns nothing — keeps lastSwapNames clean).
+      // Call 1: first per-day swap → returns three names.
+      // Call 2: second per-day swap → returns three different names.
+      const idx = postedBodies.length - 1
+      let names = []
+      if (idx === 1) names = ['Swap A', 'Swap B', 'Swap C']
+      else if (idx === 2) names = ['Swap D', 'Swap E', 'Swap F']
+      return Promise.resolve({ ok: true, json: async () => ({ names }) })
+    })
+
+    render(<BrainstormMode userId="user-1" />)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    // The brainstorm-load fetch fired on mount.
+    expect(postedBodies.length).toBe(1)
+
+    // First per-day swap.
+    const swapButtons1 = screen.getAllByRole('button', { name: /^Swap$/ })
+    expect(swapButtons1.length).toBeGreaterThan(0)
+    fireEvent.click(swapButtons1[0])
+
+    await waitFor(() => {
+      expect(postedBodies.length).toBe(2)
+    })
+
+    // First swap call: lastSwapNames is still [] (no prior swap response).
+    // Plan names may be present, but none of the swap response names.
+    expect(Array.isArray(postedBodies[1].excludeNames)).toBe(true)
+    expect(postedBodies[1].excludeNames).not.toContain('Swap A')
+    expect(postedBodies[1].excludeNames).not.toContain('Swap B')
+    expect(postedBodies[1].excludeNames).not.toContain('Swap C')
+
+    // Wait for the first swap to render its names — confirms setLastSwapNames
+    // ran before we open the second swap.
+    await waitFor(() => {
+      expect(screen.getByText('Swap A')).toBeInTheDocument()
+    })
+
+    // Second per-day swap (any swap button — re-query after re-render).
+    const swapButtons2 = screen.getAllByRole('button', { name: /^Swap$/ })
+    fireEvent.click(swapButtons2[1] || swapButtons2[0])
+
+    await waitFor(() => {
+      expect(postedBodies.length).toBe(3)
+    })
+
+    // Second swap call: excludeNames must include the names the server
+    // returned for the first swap.
+    expect(Array.isArray(postedBodies[2].excludeNames)).toBe(true)
+    expect(postedBodies[2].excludeNames).toContain('Swap A')
+    expect(postedBodies[2].excludeNames).toContain('Swap B')
+    expect(postedBodies[2].excludeNames).toContain('Swap C')
   })
 
   it('falls back to empty wildcards (and does not crash) when /api/swap-suggestions fails', async () => {
