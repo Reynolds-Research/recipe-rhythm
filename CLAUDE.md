@@ -62,7 +62,7 @@ When given a prompt file, follow it literally. If something in the prompt doesn'
 
 1. **Each phase of a PRD goes on its own branch.** Common naming: `feat/<short-name>`, `fix/<short-name>`, or the auto-generated `claude/<random-name>` Claude Code uses for worktrees.
 2. **Open a PR.** Let CI and Supabase Preview Branch (if configured) run. Merge via GitHub UI.
-3. **Migrations apply to live Supabase manually**, by the user, via the Supabase SQL Editor. Claude Code does NOT have access to the live database. When a prompt asks for migration application, that's a hand-off — print clear instructions and wait.
+3. **Migrations apply to live Supabase manually**, by the user, via the Supabase SQL Editor. Claude Code does NOT have access to the live (prod) database, but **does** have Supabase MCP access for **preview branches** — use it for verification before the prod hand-off (see "MCP-powered verification" below). When a prompt reaches the prod-application step, that's a hand-off — print clear instructions and wait.
 4. **After merge, clean up immediately:** delete the branch locally and remotely, run `git worktree prune`. The next session should start from a clean `main`.
 
 ## Cross-branch / cross-worktree reading
@@ -84,6 +84,53 @@ To compare branches: `git diff main..other-branch -- <path>`.
 - **Pair every migration with a verify SQL file** in the same directory: `verify_<timestamp>.sql`. Read-only checks that confirm the migration applied correctly.
 - **Document every column / table change in `docs/schema.md`** — update column reference tables and the migrations log table at the bottom.
 - **RLS for every new table.** Owner-scoped policies on `user_id`, mirroring the existing `meals` / `vault` / `meal_plan_items` patterns. Never ship a table without RLS.
+
+## MCP-powered verification (preview branches & deployments)
+
+This repo is configured with two MCP connectors that Claude Code SHOULD reach for proactively as part of the standard workflow — not wait to be asked.
+
+**Supabase MCP** — for **preview branches only**. Claude can:
+- Create a Supabase preview branch off the current schema.
+- Apply pending migrations to the preview branch.
+- Run the paired `verify_<timestamp>.sql` against the preview and report results.
+- Run read-only `SELECT` queries to spot-check RLS policies (e.g. confirm a query as user A can't see user B's rows).
+- Pull logs to diagnose Edge Function or query errors.
+
+Claude does NOT apply migrations to the live (prod) database. That hand-off stays with the user via the Supabase SQL Editor.
+
+**Vercel MCP** — for preview deployments. Claude can:
+- Check the status of the PR's preview deployment.
+- Read **build logs** when a deploy fails — try to fix the build before pinging the user.
+- Read **runtime logs** to diagnose API errors against the preview URL.
+
+### Project identifiers & smoke-test setup
+
+When calling Supabase or Vercel MCP tools, use these IDs (the names don't always match the repo name):
+
+- **Supabase project:** `recipe-app` — id `mbhgornybnedsloqzdhz`. Note: the project is named `recipe-app`, not `recipe-rhythm`.
+- **Vercel project:** `recipe-rhythm` — id `prj_OhbZ2aF7RhBz2PwIt6Yj1kgPFu2m`, team `Reynolds-Family-Projects` (id `team_7XvRfk9YMr0q7AbaNMkgJRdr`).
+- **Production URL:** https://recipe-rhythm.vercel.app
+- **Preview URLs:** generated per-PR by Vercel; fetch via the Vercel MCP rather than guessing the URL.
+
+For end-to-end smoke testing (logging into the app, clicking through the UI), a dedicated test user exists. Credentials are stored in `.claude/test-credentials.md` (gitignored, local only). If that file is missing, ask the user.
+
+### Standard workflow for any DB-touching change
+
+1. Write the migration + paired verify SQL.
+2. Create a Supabase preview branch via MCP.
+3. Apply the migration to the preview branch.
+4. Run the verify SQL and report the output.
+5. If verify passes: hand off to the user with clear "apply to prod" instructions.
+6. If verify fails: diagnose, fix the migration, repeat from step 2.
+
+### Standard workflow for any frontend / API change
+
+1. Push the branch; let Vercel build a preview deployment.
+2. Check deploy status via Vercel MCP. Read build logs if it failed and attempt a fix before pinging the user.
+3. If verifying behavior or an error was reported, pull runtime logs from the preview deployment.
+4. Report MCP findings (preview URL, deploy status, any log excerpts) in the PR description before declaring the work done.
+
+If either MCP errors or appears unreachable, **ask the user** — don't silently fall back to the manual workflow. The MCP being unavailable is itself useful information.
 
 ## Test conventions
 
