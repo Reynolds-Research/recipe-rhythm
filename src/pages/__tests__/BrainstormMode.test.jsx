@@ -35,6 +35,7 @@ vi.mock('../../lib/mealPlanWriter', () => ({
   setItemCooked: vi.fn(),
   finalizePlan: vi.fn(),
   startNewPeriod: vi.fn(),
+  addScheduledItem: vi.fn(),
   addShortlistItem: vi.fn(),
   scheduleShortlistItem: vi.fn(),
   moveItemToShortlist: vi.fn(),
@@ -85,6 +86,7 @@ import {
 } from '../../lib/mealPlanReader'
 import {
   createServedPlan,
+  addScheduledItem,
   addShortlistItem,
   scheduleShortlistItem,
   moveItemToShortlist,
@@ -138,6 +140,7 @@ describe('BrainstormMode', () => {
       period_start: '2026-04-19',
       period_end: '2026-04-23',
     })
+    addScheduledItem.mockResolvedValue({ id: 'scheduled-item-new' })
     addShortlistItem.mockResolvedValue({ id: 'shortlist-item-new' })
     scheduleShortlistItem.mockResolvedValue(undefined)
     moveItemToShortlist.mockResolvedValue(undefined)
@@ -394,71 +397,6 @@ describe('BrainstormMode', () => {
     }
   })
 
-  // PRD-002 P0.8: per-day swap dedup tracks its own state. The first ever
-  // swap goes out with excludeNames=[]; the next swap excludes the names the
-  // server returned the previous time.
-  it('per-day swap forwards prior-swap response names so consecutive swaps stay unique', async () => {
-    const postedBodies = []
-    globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
-      const body = init?.body ? JSON.parse(init.body) : {}
-      postedBodies.push(body)
-      // Call 0: brainstorm-load on mount (returns nothing — keeps lastSwapNames clean).
-      // Call 1: first per-day swap → returns three names.
-      // Call 2: second per-day swap → returns three different names.
-      const idx = postedBodies.length - 1
-      let names = []
-      if (idx === 1) names = ['Swap A', 'Swap B', 'Swap C']
-      else if (idx === 2) names = ['Swap D', 'Swap E', 'Swap F']
-      return Promise.resolve({ ok: true, json: async () => ({ names }) })
-    })
-
-    render(<BrainstormMode userId="user-1" />)
-
-    await waitFor(() => {
-      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
-    })
-
-    // The brainstorm-load fetch fired on mount.
-    expect(postedBodies.length).toBe(1)
-
-    // First per-day swap.
-    const swapButtons1 = screen.getAllByRole('button', { name: /^Swap$/ })
-    expect(swapButtons1.length).toBeGreaterThan(0)
-    fireEvent.click(swapButtons1[0])
-
-    await waitFor(() => {
-      expect(postedBodies.length).toBe(2)
-    })
-
-    // First swap call: lastSwapNames is still [] (no prior swap response).
-    // Plan names may be present, but none of the swap response names.
-    expect(Array.isArray(postedBodies[1].excludeNames)).toBe(true)
-    expect(postedBodies[1].excludeNames).not.toContain('Swap A')
-    expect(postedBodies[1].excludeNames).not.toContain('Swap B')
-    expect(postedBodies[1].excludeNames).not.toContain('Swap C')
-
-    // Wait for the first swap to render its names — confirms setLastSwapNames
-    // ran before we open the second swap.
-    await waitFor(() => {
-      expect(screen.getByText('Swap A')).toBeInTheDocument()
-    })
-
-    // Second per-day swap (any swap button — re-query after re-render).
-    const swapButtons2 = screen.getAllByRole('button', { name: /^Swap$/ })
-    fireEvent.click(swapButtons2[1] || swapButtons2[0])
-
-    await waitFor(() => {
-      expect(postedBodies.length).toBe(3)
-    })
-
-    // Second swap call: excludeNames must include the names the server
-    // returned for the first swap.
-    expect(Array.isArray(postedBodies[2].excludeNames)).toBe(true)
-    expect(postedBodies[2].excludeNames).toContain('Swap A')
-    expect(postedBodies[2].excludeNames).toContain('Swap B')
-    expect(postedBodies[2].excludeNames).toContain('Swap C')
-  })
-
   it('falls back to empty wildcards (and does not crash) when /api/swap-suggestions fails', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
@@ -542,12 +480,11 @@ describe('BrainstormMode', () => {
       expect(screen.queryByText('Roast')).not.toBeInTheDocument()
     })
 
-    it('clicking the bookmark on a candidate calls addShortlistItem with the shortlisted shape', async () => {
+    it('clicking the bookmark on a DayPicker candidate calls addShortlistItem with the shortlisted shape', async () => {
       setupActivePlan()
-      // Stub /api/swap-suggestions to surface a candidate the bookmark can
-      // attach to. The active plan path doesn't fire swap-suggestions on
-      // load (the brainstorm-load fetch only runs on no_plan / gap states),
-      // so this fetch is consumed by the per-day swap call below.
+      // PRD-002 P0.7: the picker fires its own /api/swap-suggestions call when
+      // it opens. Surface one AI candidate so the bookmark has something to
+      // attach to.
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({ names: ['Tasty Wildcard'] }),
@@ -558,17 +495,24 @@ describe('BrainstormMode', () => {
         expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
       })
 
-      // Open the swap sheet — Swap renders alongside the cooked toggle now
-      // (PRD-002 P0.6, so the bookmark is reachable post-serve).
-      fireEvent.click(screen.getByRole('button', { name: /^Swap$/ }))
+      // Open the picker via the "+" affordance on the filled day (4/19).
+      const plusBtn = await screen.findByRole('button', {
+        name: /Add another meal to/i,
+      })
+      fireEvent.click(plusBtn)
 
-      // Wait for the AI candidate to render inside the sheet.
+      // Wait for the AI candidate to render inside the picker.
       await screen.findByText('Tasty Wildcard')
 
       // The bookmark icon button has aria-label="Add to Maybe".
       const bookmarks = screen.getAllByLabelText('Add to Maybe')
       expect(bookmarks.length).toBeGreaterThan(0)
-      fireEvent.click(bookmarks[0])
+      // Click the bookmark on the AI row (the last visible bookmark — vault
+      // section also has bookmarks, but Tasty Wildcard's is the AI one).
+      const aiRow = screen.getByText('Tasty Wildcard').closest('div')
+      const aiBookmark =
+        aiRow?.querySelector('[aria-label="Add to Maybe"]') ?? bookmarks[0]
+      fireEvent.click(aiBookmark)
 
       await waitFor(() => {
         expect(addShortlistItem).toHaveBeenCalledTimes(1)
@@ -682,6 +626,107 @@ describe('BrainstormMode', () => {
       })
       const [, itemIdArg] = moveItemToShortlist.mock.calls[0]
       expect(itemIdArg).toBe('item-sched')
+    })
+  })
+
+  // PRD-002 P0.7: tap-a-day picker affordances ----------------------------
+  describe('day picker affordances', () => {
+    function setupActivePlan({ shortlist = [] } = {}) {
+      fetchMostRecentPlan.mockResolvedValue({
+        plan: {
+          id: 'plan-active',
+          served_at: '2026-04-19T12:00:00Z',
+          period_start: '2026-04-19',
+          period_end: '2026-04-23',
+          finalized_at: null,
+          items: [
+            {
+              scheduled_date: '2026-04-19',
+              name: 'Roast',
+              id: 'v1',
+              is_wildcard: false,
+              source_url: null,
+              item_id: 'item-sched',
+              cooked: false,
+              cooked_at: null,
+              is_shortlisted: false,
+            },
+          ],
+          shortlist,
+          scheduledDates: ['2026-04-19'],
+          source: 'new',
+        },
+      })
+      classifyPlanState.mockReturnValue('active')
+    }
+
+    it('tapping an empty day cell opens the DayPicker for that date', async () => {
+      setupActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      // Period 4/19–4/23 with one item on 4/19 → 4/20–4/23 are empty cells.
+      const emptyTaps = await screen.findAllByRole('button', {
+        name: /Schedule a meal for/i,
+      })
+      expect(emptyTaps.length).toBe(4)
+
+      // Tap one. The mocked Sheet renders children only when isOpen, so
+      // querying by the picker's testid confirms it opened.
+      fireEvent.click(emptyTaps[0])
+
+      await waitFor(() => {
+        expect(screen.getByTestId('day-picker')).toBeInTheDocument()
+      })
+    })
+
+    it('tapping the "+" on a non-empty day opens the DayPicker', async () => {
+      setupActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      const plusBtn = await screen.findByRole('button', {
+        name: /Add another meal to/i,
+      })
+      fireEvent.click(plusBtn)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('day-picker')).toBeInTheDocument()
+      })
+    })
+
+    it('tapping an existing meal card does NOT open the picker', async () => {
+      setupActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      // The meal card renders the name "Roast" but isn't itself a picker
+      // trigger. Clicking it should NOT mount the DayPicker.
+      fireEvent.click(screen.getByText('Roast'))
+
+      // The DayPicker stays closed.
+      expect(screen.queryByTestId('day-picker')).not.toBeInTheDocument()
+    })
+
+    it('the legacy always-visible candidate list / Swap UI is no longer in the rendered DOM', async () => {
+      setupActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      // No more "Swap" button per row.
+      expect(screen.queryByRole('button', { name: /^Swap$/ })).not.toBeInTheDocument()
+      // No more "From Your Cookbook" / "AI Suggestions" headers from the old
+      // swap sheet either.
+      expect(screen.queryByText(/From Your Cookbook/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/^AI Suggestions$/i)).not.toBeInTheDocument()
     })
   })
 })
