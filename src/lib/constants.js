@@ -93,6 +93,10 @@ export function bucketForMinutes(minutes) {
 // Tunable per PRD-002 P0.9; raise if vault feels exhausted, lower if AI feels noisy.
 export const AI_CANDIDATE_COUNT = 3
 
+// PRD-002 P0.7: how many top-scored vault candidates to show in the day picker.
+// Tunable per PRD-002 P0.7. AI_CANDIDATE_COUNT (P0.9) controls AI count.
+export const PICKER_VAULT_COUNT = 5
+
 /**
  * Build the JSON-shape block appended to the analyze-recipe AI prompt.
  * Both api-server.mjs (local Express proxy) and api/analyze-recipe.js

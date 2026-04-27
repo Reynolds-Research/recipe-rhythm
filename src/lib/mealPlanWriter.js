@@ -475,6 +475,55 @@ export async function addShortlistItem(supabase, userId, mealPlanId, item) {
 }
 
 /**
+ * PRD-002 P0.7: insert a fresh scheduled meal_plan_item for a given date.
+ *
+ * Used by the day-picker sheet (Vault and AI sections): tapping a candidate
+ * inserts a new row with `scheduled_date = <date>` and `is_shortlisted = false`.
+ * The picker doesn't reorder; rows land at `position = 0` and the existing
+ * drag-to-reorder mechanic in BrainstormMode owns final ordering.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ * @param {string} mealPlanId
+ * @param {string} scheduledDate - 'YYYY-MM-DD'
+ * @param {{
+ *   name: string,
+ *   id?: string | null,         // vault_id (null for wildcards / synthetic ids)
+ *   is_wildcard?: boolean,
+ *   source_url?: string | null,
+ * }} item
+ * @returns {Promise<{ id: string }>}
+ * @throws {Error} with `.code = 'scheduled_insert_failed'` on DB error.
+ */
+export async function addScheduledItem(supabase, userId, mealPlanId, scheduledDate, item) {
+  const { data, error } = await supabase
+    .from('meal_plan_items')
+    .insert({
+      user_id: userId,
+      meal_plan_id: mealPlanId,
+      scheduled_date: scheduledDate,
+      is_shortlisted: false,
+      position: 0,
+      vault_id: toVaultId(item?.id),
+      name: item?.name ?? '(unnamed)',
+      is_wildcard: !!item?.is_wildcard,
+      source_url: item?.source_url ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (error || !data) {
+    const err = new Error(
+      `Failed to insert scheduled item: ${error?.message ?? 'unknown error'}`,
+    )
+    err.code = 'scheduled_insert_failed'
+    err.cause = error
+    throw err
+  }
+  return { id: data.id }
+}
+
+/**
  * PRD-002 P0.6: promote a shortlisted item onto a specific calendar date.
  *
  * Single UPDATE that flips both halves of the CHECK invariant atomically:

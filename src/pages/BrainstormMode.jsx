@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2, Bookmark, BookmarkPlus, Trash2 } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2, Bookmark, BookmarkPlus, Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
@@ -12,7 +12,6 @@ import {
   setItemCooked,
   finalizePlan,
   startNewPeriod,
-  addShortlistItem,
   scheduleShortlistItem,
   moveItemToShortlist,
   deleteMealPlanItem,
@@ -23,6 +22,7 @@ import GapDayView from '../components/GapDayView'
 import DateRangePicker from '../components/DateRangePicker'
 import LeftoverPicker from '../components/LeftoverPicker'
 import DateStripPicker from '../components/DateStripPicker'
+import DayPicker from '../components/Brainstorm/DayPicker'
 import {
   DndContext,
   closestCenter,
@@ -157,7 +157,11 @@ function migrateLegacyWeekdayDates(weekdayList, today, disabled) {
   return out.sort()
 }
 
-function SortableMealItem({ slot, onSwap, isServed, onToggleCooked, onMoveToMaybe }) {
+// PRD-002 P0.7: per-day card. The legacy Swap button has been removed — the
+// day picker (tap on the day cell or its "+") is the new way to browse vault
+// + AI candidates. Move-to-Maybe stays for scheduled rows. Tapping the meal
+// card itself is intentionally a no-op (per acceptance criterion #3).
+function SortableMealItem({ slot, isServed, onToggleCooked, onMoveToMaybe }) {
   const showCookedToggle = isServed && !!onToggleCooked && !!slot.item_id
   // PRD-002 P0.6: only allow Move-to-Maybe on rows that exist in DB (item_id
   // present) — pre-serve plan slots are local-only and have no FK target.
@@ -177,13 +181,11 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked, onMoveToMayb
     zIndex: isDragging ? 50 : 'auto',
   }
 
-  const dow = shortWeekday(slot.scheduled_date)
-
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-4 py-4 bg-white ${
+      className={`flex items-center gap-4 py-3 bg-white ${
         isDragging ? 'opacity-50 shadow-lg relative rounded-xl border-brand-200' : ''
       }`}
     >
@@ -193,9 +195,6 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked, onMoveToMayb
       >
         <GripVertical size={18} strokeWidth={2} />
       </div>
-      <span className="text-[11px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase">
-        {dow}
-      </span>
       <span
         className={`text-sm flex-1 min-w-0 font-medium leading-snug flex flex-col items-start gap-1 ${
           showCookedToggle && slot.cooked
@@ -249,17 +248,76 @@ function SortableMealItem({ slot, onSwap, isServed, onToggleCooked, onMoveToMayb
           />
         </label>
       )}
-      {/* PRD-002 P0.6: Swap is reachable both pre-serve (the user is still
-          assembling the plan) and post-serve (the user wants to browse
-          candidates for the Maybe tray). The swap sheet is the only place
-          that surfaces vault + AI candidates today; gating it on !isServed
-          would orphan the Add-to-Maybe affordance. */}
-      <button
-        onClick={() => onSwap(slot.scheduled_date)}
-        className="flex-shrink-0 text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors"
-      >
-        Swap
-      </button>
+    </div>
+  )
+}
+
+// PRD-002 P0.7: a single day's worth of the grid.
+//   - 0 items: the whole cell is a tap-target (placeholder + Plus icon).
+//   - 1+ items: each item renders as a card; a "+" button below opens the
+//     picker for adding another meal to that day.
+// Tapping an existing meal card is intentionally NOT a picker trigger.
+function DayCell({
+  date,
+  items,
+  isServed,
+  onOpenPicker,
+  onToggleCooked,
+  onMoveToMaybe,
+}) {
+  const dow = shortWeekday(date)
+  const dateLabel = shortDateLabel(date)
+
+  if (items.length === 0) {
+    return (
+      <div className="py-3">
+        <div className="flex items-start gap-3">
+          <span className="text-[11px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase pt-3">
+            {dow}
+          </span>
+          <button
+            type="button"
+            role="button"
+            aria-label={`Schedule a meal for ${dateLabel}`}
+            onClick={() => onOpenPicker(date)}
+            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border border-dashed border-cream-200 text-gray-400 hover:text-brand-500 hover:border-brand-200 hover:bg-brand-50/30 transition-colors"
+          >
+            <Plus size={14} strokeWidth={2.5} />
+            <span className="text-sm italic">Tap to add a meal</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="py-2">
+      <div className="flex items-start gap-3">
+        <span className="text-[11px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase pt-4">
+          {dow}
+        </span>
+        <div className="flex-1 min-w-0">
+          {items.map((slot) => (
+            <SortableMealItem
+              key={slot.item_id ?? `${slot.scheduled_date}-${slot.name}`}
+              slot={slot}
+              isServed={isServed}
+              onToggleCooked={isServed ? onToggleCooked : null}
+              onMoveToMaybe={isServed ? onMoveToMaybe : null}
+            />
+          ))}
+          <button
+            type="button"
+            role="button"
+            aria-label={`Add another meal to ${dateLabel}`}
+            onClick={() => onOpenPicker(date)}
+            className="mt-1 mb-1 flex items-center gap-1.5 text-[11px] font-bold text-brand-500 hover:text-brand-600 uppercase tracking-wide"
+          >
+            <Plus size={12} strokeWidth={2.5} />
+            Add another meal
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -368,9 +426,6 @@ export default function BrainstormMode({ userId }) {
     localStorage.setItem('brainstorm_plan_dates', JSON.stringify(selectedDates))
   }, [selectedDates])
 
-  const [swapDate, setSwapDate] = useState(null)
-  const [swapSuggestions, setSwapSuggestions] = useState([])
-  const [loadingSwap, setLoadingSwap] = useState(false)
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
 
@@ -379,24 +434,24 @@ export default function BrainstormMode({ userId }) {
   // - shortlist holds the active period's is_shortlisted=TRUE rows.
   // - scheduleSheetItem is the shortlist row currently in the day-picker sheet
   //   (null when the sheet is closed).
-  // - bookmarkedNames is an ephemeral feedback set: a candidate's bookmark
-  //   icon fills briefly after a successful "Add to Maybe".
   const [activeTab, setActiveTab] = useState('thisWeek')
   const [shortlist, setShortlist] = useState([])
   const [scheduleSheetItem, setScheduleSheetItem] = useState(null)
   const [shortlistError, setShortlistError] = useState(null)
-  const [bookmarkedNames, setBookmarkedNames] = useState(() => new Set())
+
+  // PRD-002 P0.7: a tap on a day cell or its "+" sets pickerDate, which opens
+  // the DayPicker sheet anchored to that date.
+  const [pickerDate, setPickerDate] = useState(null)
 
   // PRD-002 P0.8: track the prior batch so "regenerate" / single-slot picks
   // exclude items already shown. Vault hits go through getRecommendations'
   // excludeIds; AI candidate names from the brainstorm-load are forwarded to
-  // /api/swap-suggestions via fetchSwapSuggestions(excludeNames). The per-day
-  // swap sheet tracks its own response names separately so consecutive opens
-  // don't repeat ideas the user just dismissed.
+  // /api/swap-suggestions via fetchSwapSuggestions(excludeNames).
   const [lastBatchVaultIds, setLastBatchVaultIds] = useState([])
   const [lastBatchAiNames,  setLastBatchAiNames]  = useState([])
-  const [lastSwapNames,     setLastSwapNames]     = useState([])
 
+  // PRD-002 P0.7: PointerSensor distance is 8px so a single tap on a day cell
+  // never starts a drag. TouchSensor uses a delay-based constraint already.
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -516,7 +571,6 @@ export default function BrainstormMode({ userId }) {
 
     // PRD-002 P0.6: shortlist tray reflects the active plan's shortlisted rows.
     setShortlist(mostRecentPlan?.shortlist ?? [])
-    setBookmarkedNames(new Set())
 
     if (state === 'active' || state === 'ended_unfinalized') {
       // Restore the served plan as authoritative; lock the UI
@@ -615,47 +669,6 @@ export default function BrainstormMode({ userId }) {
   // PRD-002 P0.6: shortlist handlers ------------------------------------
   // Shortlist rows live on the active meal_plan, so every action is gated on
   // an existing loadedPlan.id. Pre-serve, the bookmark affordance is hidden.
-
-  const handleAddToMaybe = async (candidate) => {
-    if (!loadedPlan?.id || !candidate?.name) return
-    setShortlistError(null)
-    trigger('light')
-    try {
-      const { id: itemId } = await addShortlistItem(
-        supabase,
-        userId,
-        loadedPlan.id,
-        candidate,
-      )
-      // Optimistic: append to the local shortlist so the Maybe tab shows it
-      // without a round-trip. The next loadData() will reconcile.
-      setShortlist((prev) => [
-        ...prev,
-        {
-          item_id: itemId,
-          scheduled_date: null,
-          name: candidate.name,
-          id: candidate.id ?? null,
-          is_wildcard: !!candidate.is_wildcard,
-          source_url: candidate.source_url ?? null,
-          cooked: false,
-          cooked_at: null,
-          is_shortlisted: true,
-        },
-      ])
-      // Brief visual confirmation: fill the bookmark icon for this candidate.
-      setBookmarkedNames((prev) => new Set(prev).add(candidate.name))
-      setTimeout(() => {
-        setBookmarkedNames((prev) => {
-          const next = new Set(prev)
-          next.delete(candidate.name)
-          return next
-        })
-      }, 1500)
-    } catch {
-      setShortlistError('Could not add to Maybe. Try again.')
-    }
-  }
 
   const handleScheduleFromShortlist = async (item, date) => {
     if (!item?.item_id || !date) return
@@ -771,44 +784,18 @@ export default function BrainstormMode({ userId }) {
     })
   }
 
-  const openSwap = async (date) => {
-    setSwapDate(date)
-    setSwapSuggestions([])
-    setLoadingSwap(true)
-    // PRD-002 P0.8: per-day swap tracks its own dedup state. We forward the
-    // names returned by the previous swap call so consecutive opens don't
-    // repeat. Plan names are also forwarded so the AI skips items already
-    // scheduled.
-    const aiExcludeNames = [
-      ...lastSwapNames,
-      ...plan.map(s => s.name).filter(Boolean),
-    ]
-    const suggestions = await fetchSwapSuggestions(plan, storedRecentMeals, aiExcludeNames)
-    setSwapSuggestions(suggestions)
-    // Snapshot the names returned so the next openSwap excludes them.
-    setLastSwapNames(suggestions.map(s => s.name).filter(Boolean))
-    setLoadingSwap(false)
+  // PRD-002 P0.7: opening the day picker. Tapping an empty cell or the "+"
+  // affordance on a filled cell sets pickerDate. The DayPicker component
+  // owns its own data fetch and DB writes; on success it calls onScheduled
+  // which closes the sheet and refetches the plan from Supabase.
+  const handleOpenPicker = (date) => {
+    if (!date) return
+    setPickerDate(date)
   }
 
-  const handleSwap = (date, vaultItem) => {
-    setPlan(prev =>
-      prev.map(slot =>
-        slot.scheduled_date === date
-          ? {
-              ...slot,
-              name: vaultItem.name,
-              id: vaultItem.id,
-              is_wildcard: vaultItem.is_wildcard || false,
-              source_url: vaultItem.source_url || null,
-              // Vault items chosen from the cookbook list are not 'ai'; the AI
-              // suggestions in the swap sheet carry is_wildcard:true (the
-              // legacy flag) and we preserve their source tag if present.
-              source: vaultItem.source || (vaultItem.is_wildcard ? 'ai' : 'vault'),
-            }
-          : slot
-      )
-    )
-    setSwapDate(null)
+  const handlePickerScheduled = async () => {
+    setPickerDate(null)
+    await loadData(false)
   }
 
   const handleDragEnd = (event) => {
@@ -855,6 +842,42 @@ export default function BrainstormMode({ userId }) {
     if (plan.length === 0) return false
     return plan.every(hasRealMeal)
   }, [plan, selectedDates])
+
+  // PRD-002 P0.7: dates rendered in the day grid.
+  // Pre-serve: the user's selected dates from the strip picker.
+  // Post-serve: every date in the active period (so empty days get a tappable
+  // placeholder, not just dates with scheduled rows).
+  const dayGridDates = useMemo(() => {
+    if (
+      isServed &&
+      loadedPlan?.period_start &&
+      loadedPlan?.period_end
+    ) {
+      const out = []
+      let cursor = parseYmd(loadedPlan.period_start)
+      const end = parseYmd(loadedPlan.period_end)
+      while (cursor <= end) {
+        out.push(formatLocalYmd(cursor))
+        cursor = addDays(cursor, 1)
+      }
+      return out
+    }
+    return [...selectedDates].sort()
+  }, [isServed, loadedPlan, selectedDates])
+
+  // PRD-002 P0.7: bucket plan slots by scheduled_date so each DayCell can
+  // render its own list of items. Pre-serve every date has 0 or 1; post-serve
+  // a date can hold multiple after the picker inserts a second meal.
+  const itemsByDate = useMemo(() => {
+    const map = new Map()
+    for (const slot of plan) {
+      if (!slot.scheduled_date) continue
+      const arr = map.get(slot.scheduled_date) ?? []
+      arr.push(slot)
+      map.set(slot.scheduled_date, arr)
+    }
+    return map
+  }, [plan])
 
   const handleServe = async () => {
     if (isServed || servingPlan || !canServe) return
@@ -1236,19 +1259,20 @@ export default function BrainstormMode({ userId }) {
                 strategy={verticalListSortingStrategy}
               >
                 <div className="divide-y divide-cream-50">
-                  {plan.length === 0 ? (
+                  {dayGridDates.length === 0 ? (
                     <p className="py-6 text-sm text-gray-400 text-center">
                       Pick a date above to start planning.
                     </p>
                   ) : (
-                    plan.map((slot) => (
-                      <SortableMealItem
-                        key={slot.scheduled_date}
-                        slot={slot}
-                        onSwap={openSwap}
+                    dayGridDates.map((date) => (
+                      <DayCell
+                        key={date}
+                        date={date}
+                        items={itemsByDate.get(date) ?? []}
                         isServed={isServed}
-                        onToggleCooked={isServed ? handleToggleCooked : null}
-                        onMoveToMaybe={isServed ? handleMoveToMaybe : null}
+                        onOpenPicker={handleOpenPicker}
+                        onToggleCooked={handleToggleCooked}
+                        onMoveToMaybe={handleMoveToMaybe}
                       />
                     ))
                   )}
@@ -1326,116 +1350,20 @@ export default function BrainstormMode({ userId }) {
 
       </div>
 
-      {/* Swap picker — bottom sheet */}
-      <Sheet isOpen={!!swapDate} onClose={() => setSwapDate(null)}>
-        <Sheet.Container className="!rounded-t-3xl !bg-cream-50 shadow-2xl border-t border-cream-200">
-          <Sheet.Header />
-          <Sheet.Content>
-            <div className="px-6 py-2 pb-safe">
-              <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
-                SWAP {swapDate && shortDateLabel(swapDate).toUpperCase()}
-              </p>
-              <p className="text-base font-serif italic text-gray-700 mb-6">Pick from your vault</p>
-
-              <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-                <div className="mb-4">
-                  <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">AI Suggestions</p>
-                  {loadingSwap ? (
-                    <p className="text-xs text-gray-400 py-3 text-center">Finding ideas…</p>
-                  ) : swapSuggestions.length === 0 ? (
-                    <p className="text-xs text-gray-400 py-3 text-center">No suggestions available</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {swapSuggestions.map(item => (
-                        <div key={item.id} className="flex items-center gap-2 py-2.5">
-                          <button
-                            onClick={() => { trigger('light'); handleSwap(swapDate, item); }}
-                            className="flex-1 text-left text-sm text-brand-700 font-medium hover:text-brand-800 transition-colors"
-                          >
-                            {item.name}
-                          </button>
-                          {item.source_url && (
-                            <a
-                              href={item.source_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-shrink-0 flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-full px-2.5 py-1 transition-colors"
-                              title="View recipe"
-                            >
-                              <ExternalLink size={10} />
-                              View
-                            </a>
-                          )}
-                          {isServed && loadedPlan?.id && (
-                            <button
-                              onClick={() => handleAddToMaybe(item)}
-                              aria-label="Add to Maybe"
-                              title="Add to Maybe"
-                              className="flex-shrink-0 p-1.5 text-brand-400 hover:text-brand-600 transition-colors"
-                            >
-                              <Bookmark
-                                size={14}
-                                strokeWidth={2}
-                                fill={bookmarkedNames.has(item.name) ? 'currentColor' : 'none'}
-                              />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {(() => {
-                  const planIds = new Set(plan.map(s => s.id).filter(Boolean))
-                  const availableVault = vault.filter(item => !planIds.has(item.id))
-                  return availableVault.length === 0 ? (
-                    <p className="text-sm text-gray-400 py-4 text-center">
-                      {vault.length === 0 ? 'Your vault is empty — save some recipes first' : 'All vault items are already in your plan'}
-                    </p>
-                  ) : (
-                    <div className="pt-2">
-                      <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">From Your Cookbook</p>
-                      {availableVault.map(item => (
-                        <div key={item.id} className="flex items-center gap-2 py-1">
-                          <button
-                            onClick={() => { trigger('light'); handleSwap(swapDate, item); }}
-                            className="flex-1 text-left py-2 text-sm text-gray-900 hover:text-brand-600 transition-colors"
-                          >
-                            {item.name}
-                          </button>
-                          {isServed && loadedPlan?.id && (
-                            <button
-                              onClick={() => handleAddToMaybe(item)}
-                              aria-label="Add to Maybe"
-                              title="Add to Maybe"
-                              className="flex-shrink-0 p-1.5 text-brand-400 hover:text-brand-600 transition-colors"
-                            >
-                              <Bookmark
-                                size={14}
-                                strokeWidth={2}
-                                fill={bookmarkedNames.has(item.name) ? 'currentColor' : 'none'}
-                              />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-              </div>
-
-              <button
-                onClick={() => setSwapDate(null)}
-                className="w-full mt-4 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500"
-              >
-                Cancel
-              </button>
-            </div>
-          </Sheet.Content>
-        </Sheet.Container>
-        <Sheet.Backdrop onClick={() => setSwapDate(null)} />
-      </Sheet>
+      {/* PRD-002 P0.7: tap-a-day picker. Owns its own data fetch + DB writes;
+          the parent only opens (setPickerDate(date)) and refetches on success. */}
+      <DayPicker
+        date={pickerDate}
+        isOpen={!!pickerDate}
+        onClose={() => setPickerDate(null)}
+        onScheduled={handlePickerScheduled}
+        userId={userId}
+        planId={loadedPlan?.id ?? null}
+        vault={vault}
+        recentMeals={storedRecentMeals}
+        plan={plan}
+        shortlist={shortlist}
+      />
 
       {/* PRD-002 P0.6: Schedule-from-Maybe — bottom sheet.
           Lists every date in the active period. Selecting a date promotes the
