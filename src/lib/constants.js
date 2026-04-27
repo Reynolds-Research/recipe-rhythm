@@ -89,6 +89,10 @@ export function bucketForMinutes(minutes) {
   return 'gt60'
 }
 
+// PRD-002 P0.9: how many AI suggestions to mix into each full-grid regenerate.
+// Tunable per PRD-002 P0.9; raise if vault feels exhausted, lower if AI feels noisy.
+export const AI_CANDIDATE_COUNT = 3
+
 /**
  * Build the JSON-shape block appended to the analyze-recipe AI prompt.
  * Both api-server.mjs (local Express proxy) and api/analyze-recipe.js

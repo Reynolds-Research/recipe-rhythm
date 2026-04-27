@@ -1,4 +1,4 @@
-import { Trash2, ChevronDown, ChevronUp, ExternalLink, Star } from 'lucide-react'
+import { Trash2, ChevronDown, ChevronUp, ExternalLink, Star, Sparkles } from 'lucide-react'
 import ChipPicker from './ChipPicker'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
@@ -121,7 +121,14 @@ export default function RecipeCard({
   onSaveEdit,
   onDelete,
   onRatingChange,
+  source,
 }) {
+  // PRD-002 P0.9: AI-suggested candidates render with a "New" badge so the
+  // user can tell them apart from saved vault entries. The flag rides on the
+  // recipe object (recipe.source) when the card lists a recommendation, but
+  // also accepts an explicit `source` prop for callers that don't mutate the
+  // record itself.
+  const isAi = (source ?? recipe?.source) === 'ai'
   return (
     <div className="card group hover:border-brand-200 transition-colors">
       <div
@@ -143,6 +150,15 @@ export default function RecipeCard({
                 {i > 0 && '· '}{item}
               </span>
             ))}
+            {isAi && (
+              <span
+                role="status"
+                aria-label="AI suggestion"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 ring-1 ring-amber-200"
+              >
+                <Sparkles className="w-3 h-3" /> New
+              </span>
+            )}
             {recipe.auto_completed && (
               <span className="text-[11px] font-bold text-amber-500/80 border border-amber-200 bg-amber-50 rounded-full px-1.5 py-0.5 uppercase tracking-wide leading-none">
                 AI-filled

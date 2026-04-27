@@ -40,49 +40,6 @@ describe('recommendations', () => {
     expect(result[0].name).toBe('Tacos')
   })
 
-  it('mixes wildcards in alongside vault picks when provided', () => {
-    const vault = [
-      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
-      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican',  proteins: ['Beef']    },
-      { id: 'v3', name: 'Vault C', cuisine_type: 'Japanese', proteins: ['Fish']    },
-      { id: 'v4', name: 'Vault D', cuisine_type: 'Indian',   proteins: ['Lamb']    },
-      { id: 'v5', name: 'Vault E', cuisine_type: 'Thai',     proteins: ['Pork']    },
-    ]
-    const wildcards = [
-      { id: 'w1', name: 'Wildcard X' },
-      { id: 'w2', name: 'Wildcard Y' },
-    ]
-
-    const result = getRecommendations(vault, [], wildcards, 5)
-
-    // floor(5 * 0.2) === 1, capped by wildcards.length=2 → 1 wildcard slot.
-    expect(result.length).toBe(5)
-    const wildcardEntries = result.filter(r => r.is_wildcard === true)
-    expect(wildcardEntries.length).toBeGreaterThanOrEqual(1)
-    const wildcardNames = wildcardEntries.map(r => r.name)
-    expect(wildcardNames.every(n => ['Wildcard X', 'Wildcard Y'].includes(n))).toBe(true)
-  })
-
-  it('caps wildcards at ~20% of count even when many are provided', () => {
-    const vault = Array.from({ length: 10 }, (_, i) => ({
-      id: `v${i}`,
-      name: `Vault ${i}`,
-      cuisine_type: 'Italian',
-      proteins: ['Chicken'],
-    }))
-    const wildcards = Array.from({ length: 10 }, (_, i) => ({
-      id: `w${i}`,
-      name: `Wildcard ${i}`,
-    }))
-
-    const result = getRecommendations(vault, [], wildcards, 5)
-
-    expect(result.length).toBe(5)
-    // floor(5 * 0.2) === 1 — at most one wildcard slot.
-    const wildcardEntries = result.filter(r => r.is_wildcard === true)
-    expect(wildcardEntries.length).toBe(1)
-  })
-
   it('returns 100% vault picks when wildcards is empty (regression)', () => {
     const vault = [
       { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
@@ -96,6 +53,118 @@ describe('recommendations', () => {
 
     expect(result.length).toBe(5)
     expect(result.every(r => r.is_wildcard !== true)).toBe(true)
+    // PRD-002 P0.9: every vault pick is now tagged source='vault'.
+    expect(result.every(r => r.source === 'vault')).toBe(true)
+  })
+})
+
+// PRD-002 P0.9 — AI candidates are merged into the same sorted list as vault
+// hits (instead of taking a fixed 20% slot allocation), tagged with source,
+// deduped against the vault batch by exact name match, and assigned the
+// median of the vault batch's scores so they participate in the sort.
+describe('recommendations — PRD-002 P0.9 AI candidate merging', () => {
+  beforeEach(() => {
+    // Pin the random jitter so score-based ranking is deterministic.
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('tags vault items source="vault" and AI items source="ai" when both are present', () => {
+    const vault = [
+      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
+      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican',  proteins: ['Beef']    },
+      { id: 'v3', name: 'Vault C', cuisine_type: 'Japanese', proteins: ['Fish']    },
+    ]
+    const wildcards = [
+      { id: 'ai-1', name: 'AI Pick 1' },
+      { id: 'ai-2', name: 'AI Pick 2' },
+      { id: 'ai-3', name: 'AI Pick 3' },
+    ]
+
+    const result = getRecommendations(vault, [], wildcards, 3)
+
+    const ai = result.filter(r => r.source === 'ai')
+    const vaultTagged = result.filter(r => r.source === 'vault')
+    expect(ai).toHaveLength(3)
+    expect(vaultTagged).toHaveLength(3)
+    // Legacy is_wildcard flag still set on AI items for older render paths.
+    expect(ai.every(r => r.is_wildcard === true)).toBe(true)
+    expect(vaultTagged.every(r => r.is_wildcard !== true)).toBe(true)
+  })
+
+  it('drops an AI item whose name exact-matches a vault batch item (case-insensitive)', () => {
+    const vault = [
+      { id: 'v1', name: 'Pad Thai',     cuisine_type: 'Thai',     proteins: ['Shrimp/Seafood'] },
+      { id: 'v2', name: 'Beef Tacos',   cuisine_type: 'Mexican',  proteins: ['Beef']           },
+      { id: 'v3', name: 'Chicken Soup', cuisine_type: 'American', proteins: ['Chicken']        },
+    ]
+    const wildcards = [
+      { id: 'ai-1', name: '  pad thai  ' },     // dup of v1 (case + whitespace)
+      { id: 'ai-2', name: 'Lobster Roll' },     // unique
+      { id: 'ai-3', name: 'BEEF TACOS' },       // dup of v2 (case)
+    ]
+
+    const result = getRecommendations(vault, [], wildcards, 3)
+
+    const ai = result.filter(r => r.source === 'ai')
+    expect(ai).toHaveLength(1)
+    expect(ai[0].name).toBe('Lobster Roll')
+  })
+
+  it('returns vault-only results without throwing when wildcards is empty / undefined', () => {
+    const vault = [
+      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian', proteins: ['Chicken'] },
+      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican', proteins: ['Beef']    },
+    ]
+
+    // The brainstorm-load path falls through to wildcards=[] when the
+    // /api/swap-suggestions fetch fails — it must not throw.
+    expect(() => getRecommendations(vault, [], [],         2)).not.toThrow()
+    expect(() => getRecommendations(vault, [], undefined,  2)).not.toThrow()
+
+    const result = getRecommendations(vault, [], [], 2)
+    expect(result).toHaveLength(2)
+    expect(result.every(r => r.source === 'vault')).toBe(true)
+  })
+
+  it('AI items participate in the sorted output (in score order, not appended)', () => {
+    // Build vault with a wide score spread driven by family_rating (+10/star,
+    // P0.5). With recentMeals=[] every cuisine clears the diversity check the
+    // same way, so family_rating is the cleanest deterministic differentiator.
+    const vault = [
+      // 5★ → +50 family bonus.
+      { id: 'high1', name: 'High Score 1', cuisine_type: 'Thai',     proteins: ['Shrimp/Seafood'], family_rating: 5 },
+      { id: 'high2', name: 'High Score 2', cuisine_type: 'Japanese', proteins: ['Fish'],           family_rating: 5 },
+      // 3★ → +30 family bonus (this is where the median sits).
+      { id: 'mid1',  name: 'Mid Score 1',  cuisine_type: 'Italian',  proteins: ['Chicken'],        family_rating: 3 },
+      { id: 'mid2',  name: 'Mid Score 2',  cuisine_type: 'Mexican',  proteins: ['Beef'],           family_rating: 3 },
+      // Unrated → no family bonus, lowest rank.
+      { id: 'low1',  name: 'Low Score 1',  cuisine_type: 'Indian',   proteins: ['Lamb'] },
+      { id: 'low2',  name: 'Low Score 2',  cuisine_type: 'French',   proteins: ['Duck'] },
+    ]
+    const wildcards = [
+      { id: 'ai-1', name: 'AI Pick A' },
+      { id: 'ai-2', name: 'AI Pick B' },
+    ]
+
+    const result = getRecommendations(vault, [], wildcards, 6)
+
+    // Sanity: AI items show up.
+    const aiIndices = result.map((r, i) => (r.source === 'ai' ? i : -1)).filter(i => i >= 0)
+    expect(aiIndices.length).toBe(2)
+
+    // Acceptance criterion #4: AI items are not all clumped at the end —
+    // there's at least one vault item ranked below an AI item.
+    const lastAiIndex = Math.max(...aiIndices)
+    expect(lastAiIndex).toBeLessThan(result.length - 1)
+    expect(result[result.length - 1].source).toBe('vault')
+
+    // Result is sorted by score descending throughout.
+    for (let i = 1; i < result.length; i++) {
+      expect(result[i - 1]._score).toBeGreaterThanOrEqual(result[i]._score)
+    }
   })
 })
 
