@@ -580,6 +580,43 @@ export async function moveItemToShortlist(supabase, itemId) {
 }
 
 /**
+ * Reset the current meal plan: deletes the meal_plans row, which cascades to
+ * meal_plan_items via the ON DELETE CASCADE FK. The user is left with no
+ * loaded period (BrainstormMode falls back to date-strip planning UI).
+ *
+ * Refuses to delete a finalized plan: past periods are read-only history.
+ * This is enforced as a `.is('finalized_at', null)` filter on the DELETE,
+ * which simply matches zero rows for finalized plans. Callers should also
+ * gate the UI affordance so a user never reaches this code path with a
+ * finalized id.
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} mealPlanId
+ * @returns {Promise<{ deleted: boolean }>} `deleted: true` when a row was
+ *   removed; `deleted: false` when the plan was already finalized (no-op).
+ * @throws {Error} with `.code = 'reset_failed'` on DB error.
+ */
+export async function resetCurrentPlan(supabase, mealPlanId) {
+  const { data, error } = await supabase
+    .from('meal_plans')
+    .delete()
+    .eq('id', mealPlanId)
+    .is('finalized_at', null)
+    .select('id')
+
+  if (error) {
+    const err = new Error(
+      `Failed to reset meal plan: ${error.message ?? 'unknown error'}`,
+    )
+    err.code = 'reset_failed'
+    err.cause = error
+    throw err
+  }
+
+  return { deleted: Array.isArray(data) && data.length > 0 }
+}
+
+/**
  * PRD-002 P0.6: delete a meal_plan_item outright (used by the "Remove" option
  * in the Maybe-item action sheet).
  *

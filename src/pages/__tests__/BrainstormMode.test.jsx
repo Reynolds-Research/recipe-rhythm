@@ -40,6 +40,7 @@ vi.mock('../../lib/mealPlanWriter', () => ({
   scheduleShortlistItem: vi.fn(),
   moveItemToShortlist: vi.fn(),
   deleteMealPlanItem: vi.fn(),
+  resetCurrentPlan: vi.fn(),
 }))
 
 vi.mock('../../lib/recommendations', () => ({
@@ -94,6 +95,7 @@ import {
   addShortlistItem,
   scheduleShortlistItem,
   moveItemToShortlist,
+  resetCurrentPlan,
 } from '../../lib/mealPlanWriter'
 import { getRecommendations } from '../../lib/recommendations'
 import { getPreferences } from '../../lib/preferences'
@@ -149,6 +151,7 @@ describe('BrainstormMode', () => {
     addShortlistItem.mockResolvedValue({ id: 'shortlist-item-new' })
     scheduleShortlistItem.mockResolvedValue(undefined)
     moveItemToShortlist.mockResolvedValue(undefined)
+    resetCurrentPlan.mockResolvedValue({ deleted: true })
     // PRD-002 P0.3: BrainstormMode reads household preferences once per
     // load. Default to a benign empty preferences object.
     getPreferences.mockResolvedValue({
@@ -801,6 +804,137 @@ describe('BrainstormMode', () => {
       // swap sheet either.
       expect(screen.queryByText(/From Your Cookbook/i)).not.toBeInTheDocument()
       expect(screen.queryByText(/^AI Suggestions$/i)).not.toBeInTheDocument()
+    })
+  })
+
+  // Reset current plan ----------------------------------------------------
+  describe('reset current plan', () => {
+    function mockActivePlan({ finalized_at = null } = {}) {
+      fetchMostRecentPlan.mockResolvedValue({
+        plan: {
+          id: 'plan-active',
+          served_at: '2026-04-19T12:00:00Z',
+          period_start: '2026-04-19',
+          period_end: '2026-04-23',
+          finalized_at,
+          items: [
+            {
+              scheduled_date: '2026-04-19',
+              name: 'Roast',
+              id: 'v1',
+              is_wildcard: false,
+              source_url: null,
+              item_id: 'item-sched',
+              cooked: false,
+              cooked_at: null,
+              is_shortlisted: false,
+            },
+          ],
+          shortlist: [],
+          scheduledDates: ['2026-04-19'],
+          source: 'new',
+        },
+      })
+      classifyPlanState.mockReturnValue(finalized_at ? 'finalized' : 'active')
+    }
+
+    it('renders the Reset button on an active served plan', async () => {
+      mockActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+      expect(
+        screen.getByRole('button', { name: /Reset this plan/i }),
+      ).toBeInTheDocument()
+    })
+
+    it('does not render the Reset button when the plan is finalized', async () => {
+      mockActivePlan({ finalized_at: '2026-04-24T00:00:00Z' })
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+      expect(
+        screen.queryByRole('button', { name: /Reset this plan/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('does not render the Reset button on a brand-new (unserved) page', async () => {
+      // Default beforeEach: fetchMostRecentPlan → { plan: null }, planState 'no_plan'
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+      expect(
+        screen.queryByRole('button', { name: /Reset this plan/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('clicking Reset opens a confirm sheet; confirming calls resetCurrentPlan with the loaded plan id and reloads', async () => {
+      mockActivePlan()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      const initialFetchCalls = fetchMostRecentPlan.mock.calls.length
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /Reset this plan/i }),
+      )
+
+      // The confirm sheet's destructive action button surfaces.
+      const confirmBtn = await screen.findByRole('button', {
+        name: /^Reset plan$/i,
+      })
+
+      // Post-reset the page should appear empty so the user falls back into
+      // the date-strip planning UI. Stub fetchMostRecentPlan for the reload.
+      fetchMostRecentPlan.mockResolvedValue({ plan: null })
+      classifyPlanState.mockReturnValue('no_plan')
+
+      fireEvent.click(confirmBtn)
+
+      await waitFor(() => {
+        expect(resetCurrentPlan).toHaveBeenCalledTimes(1)
+      })
+      const [, planIdArg] = resetCurrentPlan.mock.calls[0]
+      expect(planIdArg).toBe('plan-active')
+
+      // loadData(true) re-fetches the most recent plan after the delete.
+      await waitFor(() => {
+        expect(fetchMostRecentPlan.mock.calls.length).toBeGreaterThan(
+          initialFetchCalls,
+        )
+      })
+    })
+
+    it('surfaces an error message when resetCurrentPlan throws', async () => {
+      mockActivePlan()
+      resetCurrentPlan.mockRejectedValueOnce(
+        Object.assign(new Error('boom'), { code: 'reset_failed' }),
+      )
+
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /Reset this plan/i }),
+      )
+      fireEvent.click(
+        await screen.findByRole('button', { name: /^Reset plan$/i }),
+      )
+
+      // The error renders in two places: inline below the action bar and
+      // inside the still-open confirm sheet.
+      await waitFor(() => {
+        expect(
+          screen.getAllByText(/Could not reset plan\. Try again\./i).length,
+        ).toBeGreaterThan(0)
+      })
     })
   })
 })

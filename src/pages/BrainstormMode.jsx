@@ -16,6 +16,7 @@ import {
   scheduleShortlistItem,
   moveItemToShortlist,
   deleteMealPlanItem,
+  resetCurrentPlan,
 } from '../lib/mealPlanWriter'
 import { AI_CANDIDATE_COUNT } from '../lib/constants'
 import PeriodReview from './PeriodReview'
@@ -444,6 +445,11 @@ export default function BrainstormMode({ userId }) {
   // the DayPicker sheet anchored to that date.
   const [pickerDate, setPickerDate] = useState(null)
 
+  // Reset-current-plan flow: confirm sheet + in-flight + error.
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState(null)
+
   // PRD-002 P0.3: household preferences are read once on mount and forwarded
   // to every getRecommendations() call (hard filter) and to the swap-suggestions
   // POST body (so the AI prompt also gets them). null means "no filtering" —
@@ -746,6 +752,33 @@ export default function BrainstormMode({ userId }) {
   const handleReviewFinalized = async () => {
     setShowReview(false)
     await loadData(false)
+  }
+
+  // Reset clears the loaded period entirely (deletes meal_plans row; items
+  // cascade). Only enabled when the loaded plan is the most recent and not
+  // yet finalized — past periods are read-only history.
+  const canResetPlan = !!loadedPlan?.id && !loadedPlan?.finalized_at && isServed
+
+  const handleResetPlan = async () => {
+    if (!canResetPlan || resetting) return
+    setResetting(true)
+    setResetError(null)
+    try {
+      await resetCurrentPlan(supabase, loadedPlan.id)
+      trigger('success')
+      setShowResetConfirm(false)
+      // Wipe local-storage seeds so the post-reset page starts from a true
+      // clean slate (no stale draft plan or selected dates).
+      localStorage.removeItem('brainstorm_plan')
+      localStorage.removeItem('brainstorm_plan_dates')
+      setPlan([])
+      setSelectedDates([])
+      await loadData(true)
+    } catch {
+      setResetError('Could not reset plan. Try again.')
+    } finally {
+      setResetting(false)
+    }
   }
 
   // Pair each suggestion with a date. `dates` must be sorted ascending.
@@ -1359,6 +1392,23 @@ export default function BrainstormMode({ userId }) {
             </button>
           </div>
 
+          {canResetPlan && (
+            <button
+              onClick={() => {
+                setResetError(null)
+                setShowResetConfirm(true)
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition-colors text-sm font-medium"
+            >
+              <Trash2 size={14} />
+              Reset this plan
+            </button>
+          )}
+
+          {resetError && (
+            <p className="text-xs text-red-500 text-center">{resetError}</p>
+          )}
+
         </div>
 
         </>
@@ -1465,6 +1515,56 @@ export default function BrainstormMode({ userId }) {
           </Sheet.Content>
         </Sheet.Container>
         <Sheet.Backdrop onClick={() => setScheduleSheetItem(null)} />
+      </Sheet>
+
+      {/* Reset-plan confirmation sheet. */}
+      <Sheet
+        isOpen={showResetConfirm}
+        onClose={() => !resetting && setShowResetConfirm(false)}
+      >
+        <Sheet.Container className="!rounded-t-3xl !bg-cream-50 shadow-2xl border-t border-cream-200">
+          <Sheet.Header />
+          <Sheet.Content>
+            <div className="px-6 py-2 pb-safe">
+              <p className="text-[11px] font-bold text-red-500 tracking-widest mb-1 uppercase">
+                Reset this plan?
+              </p>
+              <p className="text-base font-serif italic text-gray-700 mb-2">
+                Clear the current period.
+              </p>
+              <p className="text-sm text-gray-600 mb-6">
+                This deletes the dates and every meal in your current plan.
+                It can't be undone. Past, finalized periods aren't affected.
+              </p>
+
+              {resetError && (
+                <p className="text-xs text-red-500 text-center mb-3">
+                  {resetError}
+                </p>
+              )}
+
+              <button
+                onClick={handleResetPlan}
+                disabled={resetting}
+                className="w-full py-3 rounded-2xl border border-red-200 bg-red-50 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {resetting ? (
+                  <><Loader2 size={14} className="animate-spin" /> Resetting…</>
+                ) : (
+                  <><Trash2 size={14} /> Reset plan</>
+                )}
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                disabled={resetting}
+                className="w-full mt-2 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500 disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            </div>
+          </Sheet.Content>
+        </Sheet.Container>
+        <Sheet.Backdrop onClick={() => !resetting && setShowResetConfirm(false)} />
       </Sheet>
 
     </div>
