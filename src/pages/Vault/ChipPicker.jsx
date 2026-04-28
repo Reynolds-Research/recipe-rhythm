@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import { useHaptics } from '../../hooks/useHaptics'
 
@@ -8,13 +8,10 @@ import { useHaptics } from '../../hooks/useHaptics'
  * `vault_options` table; this component only emits an `onExtraAdded(category,
  * value)` callback when the user commits a new tag.
  *
- * PRD-001 P0.7: custom tags are owned by the parent (Vault), which reads/
- * writes them via the vault_options Supabase table. The picker holds only
- * its own local-echo copy of `extras` so a newly-typed tag appears
- * immediately, before the round-trip to the DB completes.
- *
- * Extracted from Vault.jsx in PRD-001 P0.9 (Phase 3 Step 2). Behavior is
- * bit-identical to the pre-split version.
+ * PRD-001 P0.7: custom tags are owned by the parent (Vault) and surfaced
+ * here via the `extras` prop. The parent (`useVault.addExtra`) updates
+ * `extrasByCategory` synchronously inside the same event tick, so the new
+ * chip is already in `extras` by the next render — no local mirror needed.
  */
 export default function ChipPicker({
   options,
@@ -26,25 +23,11 @@ export default function ChipPicker({
   onExtraAdded = null,
   allowCustom = true,
 }) {
-  const [showAdd, setShowAdd]   = useState(false)
-  const [draft, setDraft]       = useState('')
-  const [localExtras, setLocalExtras] = useState(() => extras)
+  const [showAdd, setShowAdd] = useState(false)
+  const [draft, setDraft]     = useState('')
   const { trigger } = useHaptics()
 
-  // Parent's grouped map is the source of truth — mirror updates here so
-  // adding the same tag in two pickers (or re-fetching from the DB) keeps
-  // every picker in sync. The functional updater bails out (returns the
-  // previous reference) when the contents are unchanged so a parent that
-  // re-renders with a fresh `[]` literal doesn't kick off a setState loop.
-  useEffect(() => {
-    setLocalExtras(prev => {
-      if (prev === extras) return prev
-      if (prev.length === extras.length && prev.every((v, i) => v === extras[i])) return prev
-      return extras
-    })
-  }, [extras])
-
-  const allOptions = [...options, ...localExtras.filter(e => !options.includes(e))]
+  const allOptions = [...options, ...extras.filter(e => !options.includes(e))]
 
   const isActive = (opt) => multi ? (value || []).includes(opt) : value === opt
 
@@ -61,8 +44,6 @@ export default function ChipPicker({
   const commitCustom = () => {
     const tag = draft.trim()
     if (!tag) { setShowAdd(false); return }
-    const next = [...new Set([...localExtras, tag])]
-    setLocalExtras(next)              // optimistic local echo
     if (category && onExtraAdded) {
       onExtraAdded(category, tag)     // parent updates extrasByCategory and persists
     }
