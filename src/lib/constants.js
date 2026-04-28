@@ -89,6 +89,38 @@ export function bucketForMinutes(minutes) {
   return 'gt60'
 }
 
+/**
+ * PRD-002 P0.1: Dietary restriction options for household_preferences.
+ *
+ * Stored as text[] in `household_preferences.dietary_restrictions` (the
+ * `id` values, not the labels). The recommender (P0.3) hard-filters
+ * vault recipes against these ids; the settings UI (P0.2) renders the
+ * `label`s as chip choices.
+ *
+ * Adding a new restriction is a code change here — no migration
+ * required. The DB has no CHECK enum on this column; app-level
+ * validation in `src/lib/preferences.js` is the source of truth.
+ *
+ * Note: distinct from `DIETARY_OPTIONS` above, which is the per-recipe
+ * tag vocabulary on `vault.dietary_tags`. The two lists overlap but
+ * serve different purposes (recipe attributes vs. household exclusions)
+ * and are intentionally not unified.
+ */
+export const DIETARY_RESTRICTIONS = [
+  { id: 'vegetarian',     label: 'Vegetarian' },
+  { id: 'vegan',          label: 'Vegan' },
+  { id: 'pescatarian',    label: 'Pescatarian' },
+  { id: 'gluten-free',    label: 'Gluten-free' },
+  { id: 'dairy-free',     label: 'Dairy-free' },
+  { id: 'nut-free',       label: 'Nut-free' },
+  { id: 'shellfish-free', label: 'Shellfish-free' },
+  { id: 'kosher',         label: 'Kosher' },
+  { id: 'halal',          label: 'Halal' },
+  { id: 'keto',           label: 'Keto' },
+  { id: 'paleo',          label: 'Paleo' },
+  { id: 'low-carb',       label: 'Low-carb' },
+]
+
 // PRD-002 P0.9: how many AI suggestions to mix into each full-grid regenerate.
 // Tunable per PRD-002 P0.9; raise if vault feels exhausted, lower if AI feels noisy.
 export const AI_CANDIDATE_COUNT = 3

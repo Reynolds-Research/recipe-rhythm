@@ -4,6 +4,7 @@ import {
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
   DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
   PREP_TIME_BUCKETS, bucketForMinutes,
+  DIETARY_RESTRICTIONS,
   buildAnalyzeRecipePromptBlock,
 } from '../constants'
 
@@ -87,6 +88,24 @@ describe('PREP_TIME_BUCKETS', () => {
       expect(Number.isInteger(bucket.storedValue)).toBe(true)
       expect(bucket.storedValue).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('DIETARY_RESTRICTIONS', () => {
+  it('is a non-empty array of {id, label} objects', () => {
+    expect(Array.isArray(DIETARY_RESTRICTIONS)).toBe(true)
+    expect(DIETARY_RESTRICTIONS.length).toBeGreaterThan(0)
+    for (const r of DIETARY_RESTRICTIONS) {
+      expect(typeof r.id).toBe('string')
+      expect(r.id.length).toBeGreaterThan(0)
+      expect(typeof r.label).toBe('string')
+      expect(r.label.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('has unique ids', () => {
+    const ids = DIETARY_RESTRICTIONS.map(r => r.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })
 
