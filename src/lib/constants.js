@@ -158,6 +158,26 @@ export const DIETARY_RESTRICTIONS = [
   { id: 'low-carb',       label: 'Low-carb' },
 ]
 
+/**
+ * PRD-002 P0.2: Max prep-time buckets for the Preferences settings page.
+ *
+ * Stored as integer in `household_preferences.max_prep_time_minutes`.
+ * The 'No limit' chip writes NULL — the recommender (P0.3) falls back to
+ * DEFAULT_MAX_PREP_TIME_MINUTES when the column is null.
+ *
+ * Distinct from PREP_TIME_BUCKETS above (per-recipe vault input). These
+ * are upper-bound caps on the household level, not per-recipe estimates.
+ * Sorted ascending by storedValue with the null sentinel last so the UI
+ * lays out left-to-right "tighter cap → looser cap → no cap."
+ */
+export const MAX_PREP_TIME_BUCKETS = [
+  { id: '30',   label: '30 min',   storedValue: 30 },
+  { id: '60',   label: '60 min',   storedValue: 60 },
+  { id: '90',   label: '90 min',   storedValue: 90 },
+  { id: '120',  label: '120 min',  storedValue: 120 },
+  { id: 'none', label: 'No limit', storedValue: null },
+]
+
 // PRD-002 P0.9: how many AI suggestions to mix into each full-grid regenerate.
 // Tunable per PRD-002 P0.9; raise if vault feels exhausted, lower if AI feels noisy.
 export const AI_CANDIDATE_COUNT = 3
