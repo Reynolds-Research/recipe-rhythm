@@ -12,9 +12,16 @@ import { useHaptics } from '../../hooks/useHaptics'
  * here via the `extras` prop. The parent (`useVault.addExtra`) updates
  * `extrasByCategory` synchronously inside the same event tick, so the new
  * chip is already in `extras` by the next render — no local mirror needed.
+ *
+ * PRD-002 P0.2: also accepts an `items` prop with `{ id, label }` shape
+ * (alongside the legacy `options: string[]` API). When `items` is supplied
+ * the picker keys on `id` (selected value(s) are id strings) and renders
+ * `label`. Custom extras are disabled in items-mode — the Preferences page
+ * uses fixed app-vocabulary lists, not user-extensible categories.
  */
 export default function ChipPicker({
   options,
+  items,
   value,
   onChange,
   multi = true,
@@ -22,22 +29,31 @@ export default function ChipPicker({
   extras = [],
   onExtraAdded = null,
   allowCustom = true,
+  ariaLabel = null,
 }) {
   const [showAdd, setShowAdd] = useState(false)
   const [draft, setDraft]     = useState('')
   const { trigger } = useHaptics()
 
-  const allOptions = [...options, ...extras.filter(e => !options.includes(e))]
+  const itemsMode = Array.isArray(items)
 
-  const isActive = (opt) => multi ? (value || []).includes(opt) : value === opt
+  // Normalize to a list of { key, label } for rendering. In items-mode the
+  // key is the item's id (what we store + emit). In options-mode the key
+  // and label are the option string itself.
+  const renderItems = itemsMode
+    ? items.map(it => ({ key: it.id, label: it.label }))
+    : [...(options || []), ...extras.filter(e => !(options || []).includes(e))]
+        .map(opt => ({ key: opt, label: opt }))
 
-  const toggle = (opt) => {
+  const isActive = (key) => multi ? (value || []).includes(key) : value === key
+
+  const toggle = (key) => {
     trigger('selection')
     if (multi) {
       const cur = value || []
-      onChange(cur.includes(opt) ? cur.filter(v => v !== opt) : [...cur, opt])
+      onChange(cur.includes(key) ? cur.filter(v => v !== key) : [...cur, key])
     } else {
-      onChange(isActive(opt) ? null : opt)
+      onChange(isActive(key) ? null : key)
     }
   }
 
@@ -53,24 +69,34 @@ export default function ChipPicker({
     setDraft('')
   }
 
-  return (
-    <div className="flex flex-wrap gap-1.5 items-center">
-      {allOptions.map(opt => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => toggle(opt)}
-          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
-            isActive(opt)
-              ? 'bg-brand-500 text-white border-brand-500'
-              : 'bg-white text-gray-500 border-cream-200 hover:border-brand-300 hover:text-brand-600'
-          }`}
-        >
-          {opt}
-        </button>
-      ))}
+  const showCustomEntry = allowCustom && !itemsMode
 
-      {allowCustom && (showAdd ? (
+  return (
+    <div
+      className="flex flex-wrap gap-1.5 items-center"
+      role="group"
+      aria-label={ariaLabel || undefined}
+    >
+      {renderItems.map(({ key, label }) => {
+        const active = isActive(key)
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggle(key)}
+            aria-pressed={multi ? active : undefined}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
+              active
+                ? 'bg-brand-500 text-white border-brand-500'
+                : 'bg-white text-gray-500 border-cream-200 hover:border-brand-300 hover:text-brand-600'
+            }`}
+          >
+            {label}
+          </button>
+        )
+      })}
+
+      {showCustomEntry && (showAdd ? (
         <div className="flex items-center gap-1">
           <input
             autoFocus
