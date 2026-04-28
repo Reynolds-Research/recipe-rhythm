@@ -5,6 +5,7 @@ import {
   DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
   PREP_TIME_BUCKETS, bucketForMinutes,
   DIETARY_RESTRICTIONS,
+  MAX_PREP_TIME_BUCKETS,
   buildAnalyzeRecipePromptBlock,
 } from '../constants'
 
@@ -106,6 +107,39 @@ describe('DIETARY_RESTRICTIONS', () => {
   it('has unique ids', () => {
     const ids = DIETARY_RESTRICTIONS.map(r => r.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+})
+
+describe('MAX_PREP_TIME_BUCKETS', () => {
+  it('has five entries with unique ids', () => {
+    expect(MAX_PREP_TIME_BUCKETS).toHaveLength(5)
+    const ids = MAX_PREP_TIME_BUCKETS.map(b => b.id)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('the "none" entry has storedValue=null', () => {
+    const none = MAX_PREP_TIME_BUCKETS.find(b => b.id === 'none')
+    expect(none).toBeDefined()
+    expect(none.storedValue).toBeNull()
+  })
+
+  it('storedValues are sorted ascending with null last', () => {
+    const values = MAX_PREP_TIME_BUCKETS.map(b => b.storedValue)
+    // Last entry is the null sentinel ("No limit").
+    expect(values[values.length - 1]).toBeNull()
+
+    // Everything before it is a positive integer in ascending order.
+    const numeric = values.slice(0, -1)
+    for (const v of numeric) {
+      expect(Number.isInteger(v)).toBe(true)
+      expect(v).toBeGreaterThan(0)
+    }
+    for (let i = 1; i < numeric.length; i++) {
+      expect(numeric[i]).toBeGreaterThan(numeric[i - 1])
+    }
+
+    // No other null sentinels.
+    expect(numeric.every(v => v !== null)).toBe(true)
   })
 })
 
