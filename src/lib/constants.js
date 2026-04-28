@@ -24,6 +24,43 @@ export const PROTEIN_OPTIONS = [
   'Tofu', 'Eggs', 'Beans/Lentils', 'Lamb', 'Turkey', 'Duck', 'None',
 ]
 
+/**
+ * PRD-002 P0.3: protein → category map used by `passesPreferences` to
+ * enforce the protein-based dietary restrictions (vegetarian / vegan /
+ * pescatarian).
+ *
+ * Four categories:
+ *   - 'meat'             — terrestrial animal flesh; fails vegetarian/vegan/pescatarian
+ *   - 'seafood'          — fish & shellfish; fails vegetarian/vegan
+ *   - 'animal_byproduct' — eggs/dairy; fails vegan
+ *   - 'plant'            — default for any vegetarian/vegan-safe protein.
+ *                          Also the right answer for "None" (a protein-less
+ *                          recipe should pass every dietary restriction).
+ *
+ * Drift guard: a unit test asserts every value in PROTEIN_OPTIONS has an
+ * entry here, so adding a new protein later forces an explicit category
+ * decision instead of silently slipping through the dietary filter.
+ *
+ * Other dietary restrictions (gluten-free, dairy-free, nut-free, etc.) are
+ * NOT enforced in v1 — see the top-of-file comment in
+ * `src/lib/preferenceFilter.js` and the future "allergen tags on vault"
+ * follow-up referenced in PRD-002 P0.3.
+ */
+export const PROTEIN_CATEGORIES = {
+  Chicken:         'meat',
+  Beef:            'meat',
+  Pork:            'meat',
+  Lamb:            'meat',
+  Turkey:          'meat',
+  Duck:            'meat',
+  Fish:            'seafood',
+  'Shrimp/Seafood': 'seafood',
+  Eggs:            'animal_byproduct',
+  Tofu:            'plant',
+  'Beans/Lentils': 'plant',
+  None:            'plant',
+}
+
 export const COOKING_METHOD_OPTIONS = [
   'Grilled', 'Baked', 'Roasted', 'Stir-fried', 'Braised',
   'Soup/Stew', 'Fried', 'Steamed', 'Raw/Salad', 'Pan-seared',

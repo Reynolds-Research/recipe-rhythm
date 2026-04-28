@@ -172,6 +172,15 @@ export default function Preferences({ userId }) {
             allowCustom={false}
             ariaLabel="Dietary restrictions"
           />
+          {/* PRD-002 P0.3: in v1 only protein-based restrictions are
+              actually enforced by the recommender's hard filter; the rest
+              are stored + surfaced here, but use Excluded ingredients to
+              be specific. */}
+          <p className="text-sm text-gray-500 italic mt-2">
+            Vegetarian, vegan, and pescatarian are enforced via the recipe's
+            protein. Other restrictions are stored but not yet enforced — use
+            Excluded ingredients to be specific.
+          </p>
         </Section>
 
         <Section

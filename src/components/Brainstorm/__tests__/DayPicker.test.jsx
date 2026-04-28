@@ -222,5 +222,64 @@ describe('DayPicker', () => {
     expect(
       await screen.findByText(/No suggestions left for this day/i),
     ).toBeInTheDocument()
+    // PRD-002 P0.3: empty-state copy points the user at Settings so they
+    // know the hard filter may be why nothing is left.
+    expect(
+      await screen.findByText(/check your preferences in Settings/i),
+    ).toBeInTheDocument()
+  })
+
+  // PRD-002 P0.3 — preferences plumbing.
+  describe('preferences', () => {
+    const PREFS = {
+      dietary_restrictions: ['vegetarian'],
+      excluded_ingredients: ['cilantro'],
+      excluded_cuisines: ['Italian'],
+      max_prep_time_minutes: 45,
+    }
+
+    it('forwards preferences to getRecommendations and the /api/swap-suggestions POST body', async () => {
+      let postedBody = null
+      globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
+        postedBody = init?.body ? JSON.parse(init.body) : {}
+        return Promise.resolve({ ok: true, json: async () => ({ names: [] }) })
+      })
+
+      render(<DayPicker {...baseProps} preferences={PREFS} />)
+      await screen.findByText('Roast')
+
+      // getRecommendations options bag (arg #5) carries preferences.
+      const recArgs = getRecommendations.mock.calls.at(-1)
+      expect(recArgs[5]).toEqual(expect.objectContaining({ preferences: PREFS }))
+
+      // The fetch body carries preferences.
+      expect(postedBody).toEqual(expect.objectContaining({ preferences: PREFS }))
+    })
+
+    it('does NOT filter Maybe items through passesPreferences (user shortlist intent wins)', async () => {
+      // A shortlisted "Beef Tacos" — under vegetarian prefs this would fail
+      // passesPreferences, but the Maybe section MUST still render it.
+      const shortlist = [
+        {
+          item_id: 'maybe-beef',
+          name: 'Beef Tacos',
+          proteins: ['Beef'],
+          is_shortlisted: true,
+        },
+      ]
+      // Vault recs returns nothing so we know the Maybe-section render is
+      // not coming from the vault path.
+      getRecommendations.mockReturnValue([])
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ names: [] }),
+      })
+
+      render(<DayPicker {...baseProps} preferences={PREFS} shortlist={shortlist} />)
+
+      // The Maybe header renders and the violator is visible in it.
+      expect(await screen.findByText(/From your Maybe list/i)).toBeInTheDocument()
+      expect(await screen.findByText('Beef Tacos')).toBeInTheDocument()
+    })
   })
 })

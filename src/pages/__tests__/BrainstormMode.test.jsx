@@ -46,6 +46,10 @@ vi.mock('../../lib/recommendations', () => ({
   getRecommendations: vi.fn(),
 }))
 
+vi.mock('../../lib/preferences', () => ({
+  getPreferences: vi.fn(),
+}))
+
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({ children }) => <div>{children}</div>,
   closestCenter: vi.fn(),
@@ -92,6 +96,7 @@ import {
   moveItemToShortlist,
 } from '../../lib/mealPlanWriter'
 import { getRecommendations } from '../../lib/recommendations'
+import { getPreferences } from '../../lib/preferences'
 
 // --- Time control ---------------------------------------------------------
 
@@ -144,6 +149,15 @@ describe('BrainstormMode', () => {
     addShortlistItem.mockResolvedValue({ id: 'shortlist-item-new' })
     scheduleShortlistItem.mockResolvedValue(undefined)
     moveItemToShortlist.mockResolvedValue(undefined)
+    // PRD-002 P0.3: BrainstormMode reads household preferences once per
+    // load. Default to a benign empty preferences object.
+    getPreferences.mockResolvedValue({
+      user_id: 'user-1',
+      dietary_restrictions: [],
+      excluded_ingredients: [],
+      excluded_cuisines: [],
+      max_prep_time_minutes: null,
+    })
     getRecommendations.mockReturnValue([
       { id: 'v1', name: 'Roast',  is_wildcard: false, source_url: null },
       { id: 'v2', name: 'Tacos',  is_wildcard: false, source_url: null },
@@ -395,6 +409,66 @@ describe('BrainstormMode', () => {
     for (const id of ['v1', 'v2', 'v3', 'v4']) {
       expect(optionsArg.excludeIds).toContain(id)
     }
+  })
+
+  // PRD-002 P0.3 — household preferences are loaded once on mount and
+  // forwarded to getRecommendations + the swap-suggestions POST body.
+  it('on mount: getPreferences is called once with userId and the result is passed to getRecommendations', async () => {
+    const prefs = {
+      user_id: 'user-1',
+      dietary_restrictions: ['vegetarian'],
+      excluded_ingredients: ['cilantro'],
+      excluded_cuisines: ['Italian'],
+      max_prep_time_minutes: 45,
+    }
+    getPreferences.mockResolvedValue(prefs)
+
+    let postedBodies = []
+    globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
+      const body = init?.body ? JSON.parse(init.body) : {}
+      postedBodies.push(body)
+      return Promise.resolve({ ok: true, json: async () => ({ names: [] }) })
+    })
+
+    render(<BrainstormMode userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    // Called once per loadData with the userId.
+    expect(getPreferences).toHaveBeenCalledTimes(1)
+    expect(getPreferences.mock.calls[0][0]).toBe('user-1')
+
+    // getRecommendations received the prefs in the options bag.
+    const lastRecArgs = getRecommendations.mock.calls.at(-1)
+    expect(lastRecArgs[5]).toEqual(
+      expect.objectContaining({ preferences: prefs }),
+    )
+
+    // /api/swap-suggestions POST body carried preferences too.
+    expect(postedBodies.length).toBeGreaterThan(0)
+    expect(postedBodies[0]).toEqual(
+      expect.objectContaining({ preferences: prefs }),
+    )
+  })
+
+  it('falls back to no-preferences (and does not crash) when getPreferences errors', async () => {
+    getPreferences.mockRejectedValue(new Error('boom'))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    render(<BrainstormMode userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    // getRecommendations was still called; preferences came through as null.
+    expect(getRecommendations).toHaveBeenCalled()
+    const lastRecArgs = getRecommendations.mock.calls.at(-1)
+    expect(lastRecArgs[5]).toEqual(
+      expect.objectContaining({ preferences: null }),
+    )
+
+    warnSpy.mockRestore()
   })
 
   it('falls back to empty wildcards (and does not crash) when /api/swap-suggestions fails', async () => {

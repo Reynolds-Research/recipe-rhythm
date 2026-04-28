@@ -306,3 +306,117 @@ describe('recommendations — PRD-002 P0.5 / P0.8 scoring', () => {
     expect(result).toEqual([])
   })
 })
+
+// PRD-002 P0.3 — household preferences hard-filter. The recommender drops any
+// vault candidate that fails `passesPreferences` BEFORE scoring, and AI items
+// returned via `wildcards` are post-filtered the same way (belt-and-suspenders
+// on top of the AI prompt the proxy already gave).
+describe('recommendations — PRD-002 P0.3 preference hard filter', () => {
+  beforeEach(() => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('drops vault items that violate dietary_restrictions before scoring', () => {
+    const vault = [
+      { id: 'v1', name: 'Beef Tacos',     cuisine_type: 'Mexican', proteins: ['Beef']    },
+      { id: 'v2', name: 'Chicken Curry',  cuisine_type: 'Indian',  proteins: ['Chicken'] },
+      { id: 'v3', name: 'Tofu Stir Fry',  cuisine_type: 'Chinese', proteins: ['Tofu']    },
+      { id: 'v4', name: 'Lentil Stew',    cuisine_type: 'Indian',  proteins: ['Beans/Lentils'] },
+    ]
+    const result = getRecommendations(vault, [], [], 4, [], {
+      preferences: {
+        dietary_restrictions: ['vegetarian'],
+        excluded_cuisines: [],
+        excluded_ingredients: [],
+        max_prep_time_minutes: null,
+      },
+    })
+
+    const names = result.map(r => r.name)
+    expect(names).not.toContain('Beef Tacos')
+    expect(names).not.toContain('Chicken Curry')
+    expect(names).toContain('Tofu Stir Fry')
+    expect(names).toContain('Lentil Stew')
+  })
+
+  it('drops vault items by excluded_cuisines + excluded_ingredients combined', () => {
+    const vault = [
+      { id: 'v1', name: 'Pizza',     cuisine_type: 'Italian',  proteins: ['Cheese'] },
+      { id: 'v2', name: 'Pad Thai',  cuisine_type: 'Thai',     proteins: ['Shrimp/Seafood'] },
+      { id: 'v3', name: 'Burrito',   cuisine_type: 'Mexican',  proteins: ['Beef'], vegetables: ['Tomato'] },
+      { id: 'v4', name: 'Yakisoba',  cuisine_type: 'Japanese', proteins: ['Pork'] },
+    ]
+    const result = getRecommendations(vault, [], [], 4, [], {
+      preferences: {
+        dietary_restrictions: [],
+        excluded_cuisines: ['Italian'],
+        excluded_ingredients: ['tomato'],
+        max_prep_time_minutes: null,
+      },
+    })
+
+    const names = result.map(r => r.name)
+    expect(names).not.toContain('Pizza')        // excluded cuisine
+    expect(names).not.toContain('Burrito')      // excluded ingredient (tomato)
+    expect(names).toContain('Pad Thai')
+    expect(names).toContain('Yakisoba')
+  })
+
+  it('omitting preferences (or passing null) preserves pre-P0.3 behavior byte-for-byte', () => {
+    const vault = [
+      { id: 'v1', name: 'Vault A', cuisine_type: 'Italian',  proteins: ['Chicken'] },
+      { id: 'v2', name: 'Vault B', cuisine_type: 'Mexican',  proteins: ['Beef']    },
+      { id: 'v3', name: 'Vault C', cuisine_type: 'Japanese', proteins: ['Fish']    },
+    ]
+    const without = getRecommendations(vault, [], [], 3)
+    const withNull = getRecommendations(vault, [], [], 3, [], { preferences: null })
+
+    // Math.random pinned to 0.5 → identical jitter; identical names, order, scores.
+    expect(withNull.map(r => r.name)).toEqual(without.map(r => r.name))
+    expect(withNull.map(r => r._score)).toEqual(without.map(r => r._score))
+  })
+
+  it('drops AI candidates returned by the swap-suggestions response when their name violates preferences', () => {
+    const vault = [
+      { id: 'v1', name: 'Tofu Stir Fry', cuisine_type: 'Chinese', proteins: ['Tofu']          },
+      { id: 'v2', name: 'Lentil Stew',   cuisine_type: 'Indian',  proteins: ['Beans/Lentils'] },
+    ]
+    // Two AI candidates — one would survive (Veggie Burrito), one would not
+    // (Cilantro Lime Rice — name contains the excluded ingredient).
+    const wildcards = [
+      { id: 'ai-1', name: 'Cilantro Lime Rice' },
+      { id: 'ai-2', name: 'Veggie Burrito' },
+    ]
+    const result = getRecommendations(vault, [], wildcards, 2, [], {
+      preferences: {
+        dietary_restrictions: [],
+        excluded_cuisines: [],
+        excluded_ingredients: ['cilantro'],
+        max_prep_time_minutes: null,
+      },
+    })
+
+    const aiNames = result.filter(r => r.source === 'ai').map(r => r.name)
+    expect(aiNames).not.toContain('Cilantro Lime Rice')
+    expect(aiNames).toContain('Veggie Burrito')
+  })
+
+  it('returns [] (no soft fallback) when every vault item violates preferences', () => {
+    const vault = [
+      { id: 'v1', name: 'Beef Tacos',    proteins: ['Beef']    },
+      { id: 'v2', name: 'Chicken Curry', proteins: ['Chicken'] },
+    ]
+    const result = getRecommendations(vault, [], [], 2, [], {
+      preferences: {
+        dietary_restrictions: ['vegetarian'],
+        excluded_cuisines: [],
+        excluded_ingredients: [],
+        max_prep_time_minutes: null,
+      },
+    })
+    expect(result).toEqual([])
+  })
+})
