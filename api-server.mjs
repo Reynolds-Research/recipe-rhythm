@@ -20,6 +20,7 @@ import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
 import 'dotenv/config'
 import { buildAnalyzeRecipePromptBlock } from './src/lib/constants.js'
+import { createClassifyIngredientsHandler } from './api/_lib/classifyHandler.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 const API_PORT = Number(process.env.API_PORT || 3001)
@@ -197,6 +198,12 @@ ${excludeBullets}${preferencesBlock}
     return sendUpstreamError(res, err, 'swap-suggestions')
   }
 })
+
+// PRD-004 Phase A (P0.2): /api/classify-ingredients (Haiku 4.5).
+// Validation + prompt + parse logic lives in api/_lib/classifyHandler.js so
+// this route + the Vercel mirror in api/classify-ingredients.js stay in
+// lockstep. Reuses the module-scoped `anthropic` client.
+app.post('/api/classify-ingredients', createClassifyIngredientsHandler({ anthropic }))
 
 app.listen(API_PORT, () => {
   console.log(`[api-server] listening on :${API_PORT} (CORS origin: ${corsOrigin})`)
