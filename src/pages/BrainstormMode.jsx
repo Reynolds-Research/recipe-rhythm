@@ -7,6 +7,7 @@ import Logo from '../components/Logo'
 import { getRecommendations } from '../lib/recommendations'
 import { buildLastWeekSlots } from '../lib/lastWeekSlots'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
+import { getPreferences } from '../lib/preferences'
 import {
   createServedPlan,
   setItemCooked,
@@ -443,6 +444,13 @@ export default function BrainstormMode({ userId }) {
   // the DayPicker sheet anchored to that date.
   const [pickerDate, setPickerDate] = useState(null)
 
+  // PRD-002 P0.3: household preferences are read once on mount and forwarded
+  // to every getRecommendations() call (hard filter) and to the swap-suggestions
+  // POST body (so the AI prompt also gets them). null means "no filtering" —
+  // both on first paint (before fetch resolves) and on getPreferences error;
+  // either way the picker still opens, just without the hard filter.
+  const [preferences, setPreferences] = useState(null)
+
   // PRD-002 P0.8: track the prior batch so "regenerate" / single-slot picks
   // exclude items already shown. Vault hits go through getRecommendations'
   // excludeIds; AI candidate names from the brainstorm-load are forwarded to
@@ -466,7 +474,7 @@ export default function BrainstormMode({ userId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = [], count = AI_CANDIDATE_COUNT) => {
+  const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = [], count = AI_CANDIDATE_COUNT, prefs = null) => {
     const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
     const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
     // PRD-002 P0.8: excludeNames is forwarded as a string[] so the server can
@@ -480,7 +488,9 @@ export default function BrainstormMode({ userId }) {
         headers: { 'content-type': 'application/json' },
         // PRD-002 P0.9: `count` lets the recommender ask for AI_CANDIDATE_COUNT
         // suggestions instead of the API's default of 1.
-        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesArr, count }),
+        // PRD-002 P0.3: forward `preferences` so the system prompt can ask the
+        // model to honor dietary restrictions / exclusions / max prep time.
+        body: JSON.stringify({ planNames, recentNames, excludeNames: excludeNamesArr, count, preferences: prefs }),
       })
     } catch (e) {
       console.error('[fetchSwapSuggestions] fetch failed:', e)
@@ -513,6 +523,18 @@ export default function BrainstormMode({ userId }) {
     } catch {
       periods = []
     }
+
+    // PRD-002 P0.3: pull household preferences once per load so every
+    // getRecommendations() / fetchSwapSuggestions() call below can hard-filter
+    // against them. On error we proceed with prefs=null (no filtering) — the
+    // picker should never fail to open over a missing preferences row.
+    let prefs = null
+    try {
+      prefs = await getPreferences(userId, supabase)
+    } catch (err) {
+      console.warn('[BrainstormMode] getPreferences failed; continuing without preferences', err)
+    }
+    setPreferences(prefs)
 
     const [mealsRes, vaultRes, planRes] = await Promise.all([
       supabase
@@ -619,7 +641,7 @@ export default function BrainstormMode({ userId }) {
         // Pull fresh AI candidates from /api/swap-suggestions to mix alongside
         // vault hits. fetchSwapSuggestions returns [] on failure, so the
         // recommendation engine silently falls back to 100% vault picks.
-        const wildcardCandidates = await fetchSwapSuggestions(plan, recentMeals, aiExcludeNames)
+        const wildcardCandidates = await fetchSwapSuggestions(plan, recentMeals, aiExcludeNames, AI_CANDIDATE_COUNT, prefs)
         // PRD-002 P0.8: union of current plan ids + last batch ids so the
         // engine never returns a recipe that's already in the plan or that
         // we just suggested in the prior regeneration.
@@ -633,7 +655,8 @@ export default function BrainstormMode({ userId }) {
           wildcardCandidates,
           sortedSeed.length,
           servedMeals,
-          { excludeIds },
+          // PRD-002 P0.3: hard-filter the result against household preferences.
+          { excludeIds, preferences: prefs },
         )
         // PRD-002 P0.8: snapshot what we just returned so the next regeneration
         // can exclude it.
@@ -766,7 +789,8 @@ export default function BrainstormMode({ userId }) {
           [],
           1,
           loadedPlan?.items ?? [],
-          { excludeIds },
+          // PRD-002 P0.3: single-slot picks honor the same hard filter.
+          { excludeIds, preferences },
         )[0]
         const newSlot = {
           scheduled_date: ymd,
@@ -1363,6 +1387,7 @@ export default function BrainstormMode({ userId }) {
         recentMeals={storedRecentMeals}
         plan={plan}
         shortlist={shortlist}
+        preferences={preferences}
       />
 
       {/* PRD-002 P0.6: Schedule-from-Maybe — bottom sheet.

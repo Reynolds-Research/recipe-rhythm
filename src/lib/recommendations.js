@@ -4,6 +4,8 @@
  * Takes recent meals + vault items and returns a ranked suggestion list.
  */
 
+import { passesPreferences } from './preferenceFilter'
+
 const RECENCY_DAYS = 7  // exclude meals eaten within this window
 
 // PRD-002 P0.5 — scoring weights for the family-rating + prep-time signals.
@@ -178,10 +180,15 @@ function scoreVaultItem(
  *   @param {Array}  options.excludeIds   - Vault ids to hard-exclude (treated like recently-eaten).
  *                                          Used by BrainstormMode to suppress current-plan + prior-batch
  *                                          items so "regenerate" / single-slot picks return new candidates.
- *   @param {Object} options.preferences  - Household preferences (forthcoming in Phase 3).
- *                                          Today only `max_prep_time_minutes` is read. If unset, the
- *                                          engine falls back to DEFAULT_MAX_PREP_TIME_MINUTES (90),
- *                                          so prep_time_minutes > 45 takes a -PREP_TIME_PENALTY hit.
+ *   @param {Object} options.preferences  - Household preferences (PRD-002 P0.3).
+ *                                          When provided (non-null), every vault candidate AND every
+ *                                          AI candidate is run through `passesPreferences` BEFORE
+ *                                          scoring; violators are dropped silently. `max_prep_time_minutes`
+ *                                          additionally tunes the soft prep-time scoring penalty (P0.5)
+ *                                          — when unset, the engine falls back to
+ *                                          DEFAULT_MAX_PREP_TIME_MINUTES (90).
+ *                                          Hard filter, no soft fallback in v1: if the filter empties
+ *                                          the result, we return [] rather than ignoring the preferences.
  */
 export function getRecommendations(
   vaultItems,
@@ -191,9 +198,16 @@ export function getRecommendations(
   servedPlanItems = [],
   options = {},
 ) {
-  const { excludeIds = [], preferences = {} } = options
+  const { excludeIds = [], preferences = null } = options
   const excludeSet = new Set(excludeIds)
-  const maxPrepTimeMinutes = preferences.max_prep_time_minutes ?? DEFAULT_MAX_PREP_TIME_MINUTES
+  const maxPrepTimeMinutes = preferences?.max_prep_time_minutes ?? DEFAULT_MAX_PREP_TIME_MINUTES
+
+  // PRD-002 P0.3: hard preference filter runs BEFORE scoring so violators
+  // never even compete for a slot. Skipping when preferences is null keeps
+  // pre-P0.3 behavior byte-for-byte identical.
+  const filteredVault = preferences
+    ? vaultItems.filter(it => passesPreferences(it, preferences))
+    : vaultItems
 
   // Merge served plan items into the meal history so the engine treats
   // recently-planned meals the same as recently-eaten ones for recency/frequency.
@@ -202,7 +216,9 @@ export function getRecommendations(
     .map(m => ({ vault_id: m.vault_id, name: m.name, eaten_on: m.scheduled_date }))
   const allMeals = [...recentMeals, ...syntheticMeals]
 
-  // Build lookup and derived signals
+  // Build lookup and derived signals (use the original vaultItems for the
+  // by-id lookup so served-plan synthetic meals can still resolve to vault
+  // metadata for weekly-attribute calculation, regardless of filter state).
   const vaultById       = new Map(vaultItems.map(v => [v.id, v]))
   const frequencyMap    = buildFrequencyMap(allMeals)
   const weeklyAttrs     = buildWeeklyAttributes(allMeals, vaultById)
@@ -210,7 +226,7 @@ export function getRecommendations(
 
   // Score and sort vault items. PRD-002 P0.9: tag every vault candidate with
   // source:'vault' so the UI can distinguish vault hits from AI suggestions.
-  const scoredVault = vaultItems
+  const scoredVault = filteredVault
     .map(item => ({
       ...item,
       _score: scoreVaultItem(item, recentVaultIds, weeklyAttrs, frequencyMap, excludeSet, maxPrepTimeMinutes),
@@ -234,7 +250,13 @@ export function getRecommendations(
   )
   const dedupedWildcards = wildcards.filter(w => {
     const key = (w?.name || '').trim().toLowerCase()
-    return key && !vaultBatchNamesLower.has(key)
+    if (!key || vaultBatchNamesLower.has(key)) return false
+    // PRD-002 P0.3 belt-and-suspenders: the swap-suggestions prompt was
+    // already given the user's preferences, but post-filter the response
+    // through `passesPreferences` too. AI items typically only carry
+    // {id, name}, so this mostly catches excluded_ingredients in the name.
+    if (preferences && !passesPreferences(w, preferences)) return false
+    return true
   })
 
   // PRD-002 P0.9: assign AI items the median of the vault batch's scores.

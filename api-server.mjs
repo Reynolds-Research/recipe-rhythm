@@ -106,6 +106,39 @@ app.post('/api/analyze-recipe', async (req, res) => {
   }
 })
 
+// PRD-002 P0.3: render the household preferences as a structured prompt block.
+// Returns '' when the field is missing or every sub-list is empty/null, so the
+// upstream prompt is byte-for-byte unchanged for users without preferences.
+// MUST stay in lockstep with api/swap-suggestions.js.
+function buildPreferencesBlock(preferences) {
+  if (!preferences || typeof preferences !== 'object') return ''
+  const dietary = Array.isArray(preferences.dietary_restrictions)
+    ? preferences.dietary_restrictions.filter(s => typeof s === 'string' && s.trim())
+    : []
+  const cuisines = Array.isArray(preferences.excluded_cuisines)
+    ? preferences.excluded_cuisines.filter(s => typeof s === 'string' && s.trim())
+    : []
+  const ingredients = Array.isArray(preferences.excluded_ingredients)
+    ? preferences.excluded_ingredients.filter(s => typeof s === 'string' && s.trim())
+    : []
+  const maxPrep = preferences.max_prep_time_minutes
+  const hasMaxPrep = typeof maxPrep === 'number' && Number.isFinite(maxPrep) && maxPrep > 0
+  if (
+    dietary.length === 0 &&
+    cuisines.length === 0 &&
+    ingredients.length === 0 &&
+    !hasMaxPrep
+  ) {
+    return ''
+  }
+  const fmt = (arr) => (arr.length ? arr.join(', ') : 'none')
+  return `\nUser preferences (do not suggest recipes that violate any of these):
+- Dietary restrictions: ${fmt(dietary)}
+- Excluded cuisines: ${fmt(cuisines)}
+- Excluded ingredients: ${fmt(ingredients)}
+- Maximum prep time: ${hasMaxPrep ? `${maxPrep} minutes` : 'none'}\n`
+}
+
 app.post('/api/swap-suggestions', async (req, res) => {
   if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
@@ -118,6 +151,7 @@ app.post('/api/swap-suggestions', async (req, res) => {
     recentNames = '',
     excludeNames = [],
     count = 1,
+    preferences = null,
   } = req.body || {}
   const requestedCount = Math.max(1, Math.min(5, Number(count) || 1))
 
@@ -131,6 +165,8 @@ app.post('/api/swap-suggestions', async (req, res) => {
     ? `\nDo not suggest any of the following recipes (the user has just seen them):\n${excludeList.map(n => `- ${n}`).join('\n')}\n`
     : ''
 
+  const preferencesBlock = buildPreferencesBlock(preferences)
+
   const exampleArr = Array.from({ length: requestedCount }, (_, i) => `"Recipe ${i + 1}"`).join(', ')
   const noun = requestedCount === 1 ? 'recipe' : 'recipes'
   const arrNoun = requestedCount === 1 ? 'recipe name string' : 'recipe name strings'
@@ -138,7 +174,7 @@ app.post('/api/swap-suggestions', async (req, res) => {
 
 Already in plan: ${planNames || 'none'}
 Recently eaten: ${recentNames || 'none'}
-${excludeBullets}
+${excludeBullets}${preferencesBlock}
 [${exampleArr}]`
 
   try {

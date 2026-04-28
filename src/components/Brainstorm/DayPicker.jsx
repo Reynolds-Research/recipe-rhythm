@@ -39,6 +39,11 @@ import { AI_CANDIDATE_COUNT, PICKER_VAULT_COUNT } from '../../lib/constants'
  *   recentMeals: Array,                 // last 90d meals for recency/freq
  *   plan: Array,                        // currently scheduled items
  *   shortlist: Array,                   // currently shortlisted items
+ *   preferences: Object | null,         // PRD-002 P0.3: hard-filter prefs.
+ *                                       // Forwarded to getRecommendations + the
+ *                                       // /api/swap-suggestions POST body. Maybe
+ *                                       // section is rendered AS-IS — never
+ *                                       // filtered through preferences.
  * }} props
  */
 export default function DayPicker({
@@ -52,6 +57,7 @@ export default function DayPicker({
   recentMeals = [],
   plan = [],
   shortlist = [],
+  preferences = null,
 }) {
   const [excludeNamesInThisSession, setExcludeNamesInThisSession] = useState([])
   const [candidates, setCandidates] = useState({ maybe: [], vault: [], ai: [] })
@@ -91,7 +97,8 @@ export default function DayPicker({
         [], // no AI mixed — picker shows AI in its own section
         PICKER_VAULT_COUNT,
         plan,
-        { excludeIds },
+        // PRD-002 P0.3: hard-filter vault recs against household preferences.
+        { excludeIds, preferences },
       )
 
       let aiRecs = []
@@ -106,6 +113,9 @@ export default function DayPicker({
             recentNames,
             excludeNames: excludeForAi,
             count: AI_CANDIDATE_COUNT,
+            // PRD-002 P0.3: forward preferences to the AI prompt; the
+            // recommender post-filter is belt-and-suspenders on top of this.
+            preferences,
           }),
         })
         if (res.ok) {
@@ -130,7 +140,7 @@ export default function DayPicker({
     // / `plan` / `shortlist` snapshots at call time; we re-run when the sheet
     // opens or when regenerate fires.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [vault, recentMeals, plan, shortlist],
+    [vault, recentMeals, plan, shortlist, preferences],
   )
 
   // Open: reset session excludes and fetch fresh.
@@ -265,7 +275,7 @@ export default function DayPicker({
                 <div className="bg-white border border-cream-100 rounded-2xl px-5 py-6 text-center shadow-sm">
                   <p className="text-sm text-gray-500">
                     No suggestions left for this day. Try regenerating or adding a
-                    recipe to your vault.
+                    recipe to your vault. Or check your preferences in Settings.
                   </p>
                 </div>
               )}

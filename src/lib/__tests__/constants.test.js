@@ -5,6 +5,7 @@ import {
   DAIRY_OPTIONS, VEGETABLE_OPTIONS, FRUIT_OPTIONS,
   PREP_TIME_BUCKETS, bucketForMinutes,
   DIETARY_RESTRICTIONS,
+  PROTEIN_CATEGORIES,
   buildAnalyzeRecipePromptBlock,
 } from '../constants'
 
@@ -87,6 +88,32 @@ describe('PREP_TIME_BUCKETS', () => {
       expect(bucket.label.length).toBeGreaterThan(0)
       expect(Number.isInteger(bucket.storedValue)).toBe(true)
       expect(bucket.storedValue).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe('PROTEIN_CATEGORIES', () => {
+  const VALID_CATEGORIES = new Set([
+    'meat', 'seafood', 'animal_byproduct', 'plant',
+  ])
+
+  it('every value in PROTEIN_OPTIONS has a category entry (drift guard)', () => {
+    // Adding a new protein later must force an explicit category decision —
+    // otherwise the new value would silently slip through the dietary filter.
+    for (const protein of PROTEIN_OPTIONS) {
+      expect(
+        PROTEIN_CATEGORIES,
+        `PROTEIN_OPTIONS value "${protein}" is missing from PROTEIN_CATEGORIES`,
+      ).toHaveProperty(protein)
+    }
+  })
+
+  it('every category value is one of the four valid categories', () => {
+    for (const [protein, category] of Object.entries(PROTEIN_CATEGORIES)) {
+      expect(
+        VALID_CATEGORIES.has(category),
+        `PROTEIN_CATEGORIES["${protein}"] = "${category}" is not a valid category`,
+      ).toBe(true)
     }
   })
 })
