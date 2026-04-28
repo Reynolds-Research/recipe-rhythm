@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import {
   CUISINE_OPTIONS,
@@ -7,6 +7,11 @@ import {
   MAX_PREP_TIME_BUCKETS,
 } from '../../lib/constants'
 import { getPreferences, upsertPreferences } from '../../lib/preferences'
+import { passesPreferences } from '../../lib/preferenceFilter'
+import {
+  getActivePeriodItems,
+  deleteMealPlanItems,
+} from '../../lib/mealPlanItems'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 
 /**
@@ -20,6 +25,9 @@ import ChipPicker from '../../pages/Vault/ChipPicker'
  */
 
 const SAVED_FLASH_MS = 1500
+
+// How many violator names to render inline before truncating with "+ N more".
+const VIOLATOR_NAMES_VISIBLE = 6
 
 // Cuisine list lives in constants as a string[]; the chip picker's items API
 // wants { id, label }. id === label here because the DB column stores the
@@ -38,6 +46,11 @@ export default function Preferences({ userId }) {
   const [savedField, setSavedField] = useState(null)        // field name flashed as "Saved"
   const [errorField, setErrorField] = useState(null)        // field name with active error
   const [ingredientDraft, setIngredientDraft] = useState('')
+  // PRD-002 P0.12: violators banner state. `null` when there's nothing to
+  // show; the shape is { items: [{ id, name }] } when the most recent
+  // upsert revealed active-period meals that violate the new preferences.
+  const [violatorsBanner, setViolatorsBanner] = useState(null)
+  const [removingViolators, setRemovingViolators] = useState(false)
 
   // Track per-field "saved" timeouts so a rapid second save resets the flash.
   const savedTimerRef = useRef(null)
@@ -74,13 +87,52 @@ export default function Preferences({ userId }) {
   const saveField = async (field, nextValue, previousValue) => {
     setPrefs(p => ({ ...p, [field]: nextValue }))
     setErrorField(null)
+    let updated
     try {
-      const updated = await upsertPreferences(userId, { [field]: nextValue }, supabase)
+      updated = await upsertPreferences(userId, { [field]: nextValue }, supabase)
       setPrefs(p => ({ ...p, ...updated }))
       flashSaved(field)
     } catch {
+      // Local state reverted; preferences didn't change in the DB, so we
+      // intentionally do NOT run the violator check here.
       setPrefs(p => ({ ...p, [field]: previousValue }))
       setErrorField(field)
+      return
+    }
+    // PRD-002 P0.12: after every successful upsert, check the active-period
+    // items against the new preferences. The banner replaces (not stacks)
+    // on repeated changes — a clean run with zero violators clears any
+    // stale banner.
+    try {
+      const items = await getActivePeriodItems(userId, supabase)
+      const violators = items.filter(it => !passesPreferences(it, updated))
+      if (violators.length > 0) {
+        setViolatorsBanner({
+          items: violators.map(v => ({ id: v.id, name: v.name })),
+        })
+      } else {
+        setViolatorsBanner(null)
+      }
+    } catch (err) {
+      // Don't fail the upsert flow on a check failure — leave whatever
+      // banner state we already had alone.
+      console.warn('Failed to check active-period items against new preferences:', err)
+    }
+  }
+
+  const dismissViolators = () => setViolatorsBanner(null)
+
+  const removeAllViolators = async () => {
+    if (!violatorsBanner || removingViolators) return
+    const ids = violatorsBanner.items.map(i => i.id)
+    setRemovingViolators(true)
+    try {
+      await deleteMealPlanItems(ids, supabase)
+      setViolatorsBanner(null)
+    } catch (err) {
+      console.warn('Failed to delete violator meal_plan_items:', err)
+    } finally {
+      setRemovingViolators(false)
     }
   }
 
@@ -158,6 +210,15 @@ export default function Preferences({ userId }) {
       </header>
 
       <div className="px-5 space-y-8">
+        {violatorsBanner && (
+          <ViolatorsBanner
+            items={violatorsBanner.items}
+            onKeep={dismissViolators}
+            onRemoveAll={removeAllViolators}
+            removing={removingViolators}
+          />
+        )}
+
         <Section
           field="dietary_restrictions"
           label="Dietary restrictions"
@@ -252,6 +313,50 @@ export default function Preferences({ userId }) {
             ariaLabel="Max prep time"
           />
         </Section>
+      </div>
+    </div>
+  )
+}
+
+function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
+  const count = items.length
+  const visible = items.slice(0, VIOLATOR_NAMES_VISIBLE)
+  const overflow = count - visible.length
+
+  return (
+    <div
+      role="alert"
+      className="px-4 py-3 bg-amber-50 text-amber-900 ring-1 ring-amber-200 rounded-xl"
+    >
+      <p className="text-sm font-medium">
+        {count} {count === 1 ? 'meal' : 'meals'} {count === 1 ? "doesn't" : "don't"} match your current preferences:
+      </p>
+      <p className="text-xs text-amber-800 mt-1">
+        {visible.map(v => v.name).join(', ')}
+        {overflow > 0 && <span className="ml-1 italic">+ {overflow} more</span>}
+      </p>
+      <div className="flex gap-2 mt-3">
+        <button
+          type="button"
+          onClick={onKeep}
+          aria-label="Keep these meals in the active period"
+          className="px-3 py-1.5 text-xs font-medium bg-white text-amber-900 ring-1 ring-amber-200 rounded-full hover:bg-amber-100"
+        >
+          Keep
+        </button>
+        <button
+          type="button"
+          onClick={onRemoveAll}
+          disabled={removing}
+          aria-label="Remove all violating meals from the active period"
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-full hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {removing
+            ? <Loader2 size={12} className="animate-spin" />
+            : <AlertTriangle size={12} />
+          }
+          {removing ? 'Removing…' : 'Remove all'}
+        </button>
       </div>
     </div>
   )
