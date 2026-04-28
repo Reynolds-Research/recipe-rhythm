@@ -5,6 +5,7 @@ import {
   finalizePlan,
   checkPeriodOverlap,
   startNewPeriod,
+  resetCurrentPlan,
 } from '../mealPlanWriter'
 
 // ---------------------------------------------------------------------------
@@ -394,6 +395,62 @@ describe('setItemCooked', () => {
 
     expect(thrown).toBeDefined()
     expect(thrown.code).toBe('toggle_failed')
+    expect(thrown.cause).toBe(dbError)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// resetCurrentPlan
+// ---------------------------------------------------------------------------
+
+describe('resetCurrentPlan', () => {
+  const PLAN_ID = 'plan-reset'
+
+  it('issues a delete on meal_plans filtered by id and finalized_at IS NULL', async () => {
+    const supabase = makeSupabase({
+      'meal_plans.delete': { data: [{ id: PLAN_ID }], error: null },
+    })
+
+    const result = await resetCurrentPlan(supabase, PLAN_ID)
+
+    expect(result).toEqual({ deleted: true })
+    expect(supabase.calls).toHaveLength(1)
+    const call = supabase.calls[0]
+    expect(call.table).toBe('meal_plans')
+    expect(call.op).toBe('delete')
+    expect(call.filter).toEqual({ id: PLAN_ID })
+    expect(call.isFilter).toEqual({ finalized_at: null })
+    expect(call.selectCols).toBe('id')
+  })
+
+  it('returns deleted:false when the plan is already finalized (no row matches)', async () => {
+    // The .is('finalized_at', null) filter excludes finalized rows; the SDK
+    // returns an empty array, which we treat as a soft refusal rather than
+    // an error.
+    const supabase = makeSupabase({
+      'meal_plans.delete': { data: [], error: null },
+    })
+
+    const result = await resetCurrentPlan(supabase, PLAN_ID)
+
+    expect(result).toEqual({ deleted: false })
+  })
+
+  it('throws code=reset_failed and attaches the original error on DB failure', async () => {
+    const dbError = { code: '42501', message: 'permission denied' }
+    const supabase = makeSupabase({
+      'meal_plans.delete': { data: null, error: dbError },
+    })
+
+    let thrown
+    try {
+      await resetCurrentPlan(supabase, PLAN_ID)
+    } catch (err) {
+      thrown = err
+    }
+
+    expect(thrown).toBeDefined()
+    expect(thrown.code).toBe('reset_failed')
     expect(thrown.cause).toBe(dbError)
   })
 })
