@@ -1,5 +1,5 @@
 /**
- * PRD-002 P0.3: hard preference filter for the recommender.
+ * PRD-002 P0.3 + ADR-003: hard preference filter for the recommender.
  *
  * `passesPreferences(item, preferences)` is a PURE predicate — no Supabase
  * calls, no fetch, no React hooks. The recommender (`recommendations.js`)
@@ -16,25 +16,51 @@
  *      ingredient haystack (item.ingredients in either string-blob or array
  *      shape, plus the existing vault tag arrays — proteins, vegetables,
  *      fruits, dairy_components — main_carb, name, and notes).
- *   4. dietary_restrictions   — protein-based only in v1:
- *        vegetarian   → fails when any item protein maps to meat or seafood
- *        vegan        → fails when any item protein maps to meat / seafood / animal_byproduct
- *        pescatarian  → fails when any item protein maps to meat
- *        Any other id (gluten-free, dairy-free, nut-free, kosher, halal, keto,
- *        paleo, low-carb) is stored, surfaced in the settings UI, and a NO-OP
- *        here. Enforcing them needs structured allergen tags on vault rows —
- *        see the future "allergen tags on vault" follow-up referenced in
- *        PRD-002 P0.3 OQ.
- *      Items with no proteins / unknown proteins conservatively PASS — the
- *      user can fix the vault rather than have meals silently disappear.
+ *   4. dietary_restrictions   — vegetarian / vegan / pescatarian, two layers:
+ *      4a. Protein-category check (PRD-002 P0.3): item.proteins mapped via
+ *          PROTEIN_CATEGORIES. Items with no proteins / unknown proteins
+ *          conservatively pass this layer.
+ *      4b. Name-keyword check (ADR-003): item.name scanned against
+ *          MEAT_IMPLIED_NAME_KEYWORDS to catch dish-form-implies-meat cases
+ *          (Smash burger, meatballs, BLT) the protein-category check would
+ *          miss when proteins are absent or the PRD-004 essentiality
+ *          classifier marked the meat as omittable per the substitutable-
+ *          category rule. Bypassed by either:
+ *            - dietary_tags including the positive tag ('Vegetarian'/'Vegan'),
+ *            - the recipe name including a VEGETARIAN_NAME_OVERRIDES token.
+ *      Other ids (gluten-free, dairy-free, nut-free, kosher, halal, keto,
+ *      paleo, low-carb) are stored, surfaced in the settings UI, and remain
+ *      a NO-OP here. Enforcing them needs structured allergen tags on vault
+ *      rows — see the future "allergen tags on vault" follow-up referenced
+ *      in PRD-002 P0.3 OQ.
  */
 
-import { PROTEIN_CATEGORIES } from './constants'
+import {
+  PROTEIN_CATEGORIES,
+  MEAT_IMPLIED_NAME_KEYWORDS,
+  VEGETARIAN_NAME_OVERRIDES,
+} from './constants'
 
 const PROTEIN_FILTERS = {
   vegetarian:  new Set(['meat', 'seafood']),
   vegan:       new Set(['meat', 'seafood', 'animal_byproduct']),
   pescatarian: new Set(['meat']),
+}
+
+// ADR-003: which name-keyword categories block which restriction.
+// Mirrors PROTEIN_FILTERS — pescatarian still allows seafood-implying names.
+const NAME_KEYWORD_FILTERS = {
+  vegetarian:  ['meat', 'seafood'],
+  vegan:       ['meat', 'seafood'],
+  pescatarian: ['meat'],
+}
+
+// ADR-003: positive `dietary_tags` values that bypass the name-keyword
+// check for a given restriction.
+const DIETARY_TAG_OVERRIDES = {
+  vegetarian:  ['vegetarian', 'vegan'],
+  vegan:       ['vegan'],
+  pescatarian: ['vegetarian', 'vegan', 'pescatarian'],
 }
 
 function collectIngredientHaystack(item) {
@@ -77,14 +103,79 @@ function violatesDietary(item, restrictions) {
     .map(p => PROTEIN_CATEGORIES[p])
     .filter(Boolean)
 
-  // Conservative: no recognized protein info → pass. The user can fix the
-  // vault row rather than have a recipe silently vanish.
-  if (categories.length === 0) return false
+  // 4a. Protein-category check. A recognized banned category is a hard
+  // fail — short-circuit before we look at the name layer.
+  if (categories.length > 0) {
+    for (const r of restrictions) {
+      const banned = PROTEIN_FILTERS[r]
+      if (!banned) continue
+      if (categories.some(c => banned.has(c))) return true
+    }
+  }
+
+  // 4b. Name-keyword check (ADR-003). Catches dish-form-implies-meat
+  // recipes the protein layer missed (under-tagged proteins, or future
+  // ingredient-essentiality logic that marked the meat omittable per the
+  // substitutable-category rule for burgers / meatballs / etc.).
+  if (nameImpliesNonVeg(item, restrictions)) return true
+
+  return false
+}
+
+// ADR-003 helper: lowercased recipe name, '' if absent.
+function itemName(item) {
+  return typeof item?.name === 'string' ? item.name.toLowerCase() : ''
+}
+
+// ADR-003: does the recipe carry a positive `dietary_tags` entry that
+// should bypass the name-keyword check for this restriction?
+// `dietary_tags` vocabulary is defined in DIETARY_OPTIONS as
+// title-cased ('Vegetarian', 'Vegan'); we lowercase before comparing.
+function hasPositiveDietaryTag(item, restriction) {
+  const allowed = DIETARY_TAG_OVERRIDES[restriction]
+  if (!allowed) return false
+  const tags = Array.isArray(item?.dietary_tags) ? item.dietary_tags : []
+  for (const t of tags) {
+    if (typeof t !== 'string') continue
+    if (allowed.includes(t.toLowerCase())) return true
+  }
+  return false
+}
+
+// ADR-003: does the recipe name contain a vegetarian-positive token
+// (e.g. "Veggie burger", "Beyond meatballs")? Bypasses the keyword
+// fail for under-tagged recipes whose name is unambiguously veg.
+function nameHasVegetarianOverride(name) {
+  if (!name) return false
+  for (const token of VEGETARIAN_NAME_OVERRIDES) {
+    if (name.includes(token)) return true
+  }
+  return false
+}
+
+// ADR-003: the name-keyword half of `violatesDietary`. Returns true iff
+// SOME requested restriction is broken by an implied-meat dish-name and
+// no override applies for that restriction.
+function nameImpliesNonVeg(item, restrictions) {
+  const name = itemName(item)
+  if (!name) return false
+
+  // Single override scan: if the name itself flags vegetarian intent,
+  // every restriction's name-keyword layer is bypassed (a "Veggie burger"
+  // is a "Veggie burger" regardless of which dietary line is checking).
+  const nameOverride = nameHasVegetarianOverride(name)
 
   for (const r of restrictions) {
-    const banned = PROTEIN_FILTERS[r]
-    if (!banned) continue
-    if (categories.some(c => banned.has(c))) return true
+    const cats = NAME_KEYWORD_FILTERS[r]
+    if (!cats) continue
+    if (nameOverride) continue
+    if (hasPositiveDietaryTag(item, r)) continue
+    for (const cat of cats) {
+      const tokens = MEAT_IMPLIED_NAME_KEYWORDS[cat] || []
+      for (const token of tokens) {
+        if (name.includes(token)) return true
+      }
+    }
   }
   return false
 }
@@ -133,7 +224,7 @@ export function passesPreferences(item, preferences) {
     }
   }
 
-  // 4. dietary_restrictions (protein-based only in v1; see file header)
+  // 4. dietary_restrictions (two-layer: protein category + ADR-003 name keyword)
   const dietary = Array.isArray(preferences.dietary_restrictions)
     ? preferences.dietary_restrictions
     : []

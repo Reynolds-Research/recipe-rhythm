@@ -161,6 +161,157 @@ describe('passesPreferences — dietary_restrictions (pescatarian)', () => {
   })
 })
 
+// ─── ADR-003 ─────────────────────────────────────────────────────────────────
+// Name-keyword layer for vegetarian / vegan / pescatarian. Catches dishes
+// like "Smash burger" or "Meatloaf meatballs" where the protein-category
+// check passes (under-tagged proteins, or PRD-004 substitutable-category
+// rule marked the meat omittable) but the dish form clearly implies meat.
+
+describe('passesPreferences — ADR-003 name-keyword layer (vegetarian)', () => {
+  const prefs = { ...EMPTY_PREFS, dietary_restrictions: ['vegetarian'] }
+
+  it('fails a "Smash burger" recipe with no proteins tagged (the canonical PRD-004 leak)', () => {
+    expect(
+      passesPreferences({ name: 'Smash burger', proteins: [] }, prefs),
+    ).toBe(false)
+  })
+
+  it('fails a "Meatloaf meatballs" recipe with no proteins tagged', () => {
+    expect(
+      passesPreferences({ name: 'Meatloaf meatballs' }, prefs),
+    ).toBe(false)
+  })
+
+  it('fails BLT, carnitas, gyro, and pulled pork by name alone', () => {
+    for (const name of ['BLT sandwich', 'Carnitas tacos', 'Gyro plate', 'Pulled pork sliders']) {
+      expect(passesPreferences({ name }, prefs)).toBe(false)
+    }
+  })
+
+  it('passes "Veggie burger" via positive name override', () => {
+    expect(passesPreferences({ name: 'Veggie burger' }, prefs)).toBe(true)
+  })
+
+  it('passes "Beyond meatballs" via positive name override', () => {
+    expect(passesPreferences({ name: 'Beyond meatballs' }, prefs)).toBe(true)
+  })
+
+  it('passes "Black-bean burger" via positive name override', () => {
+    expect(passesPreferences({ name: 'Black-bean burger' }, prefs)).toBe(true)
+  })
+
+  it('passes a meaty-named recipe when dietary_tags includes Vegetarian', () => {
+    expect(
+      passesPreferences(
+        { name: 'Meatballs', dietary_tags: ['Vegetarian'] },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+
+  it('passes a meaty-named recipe when dietary_tags includes Vegan (vegan ⊃ vegetarian)', () => {
+    expect(
+      passesPreferences(
+        { name: 'Smash burger', dietary_tags: ['Vegan'] },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+
+  it('passes a generic plant-protein recipe with no implied-meat name', () => {
+    expect(
+      passesPreferences({ name: 'Tofu stir fry', proteins: ['Tofu'] }, prefs),
+    ).toBe(true)
+  })
+
+  it('still fails the protein layer first when proteins are tagged meat (no regression)', () => {
+    // Even if the name has a vegetarian override, an explicit meat protein
+    // is still a hard fail. The override only bypasses the NAME layer.
+    expect(
+      passesPreferences(
+        { name: 'Veggie chicken curry', proteins: ['Chicken'] },
+        prefs,
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('passesPreferences — ADR-003 name-keyword layer (vegan)', () => {
+  const prefs = { ...EMPTY_PREFS, dietary_restrictions: ['vegan'] }
+
+  it('fails a "Smash burger" recipe', () => {
+    expect(passesPreferences({ name: 'Smash burger' }, prefs)).toBe(false)
+  })
+
+  it('fails seafood-implying names too (sushi, fish tacos)', () => {
+    expect(passesPreferences({ name: 'Sushi platter' }, prefs)).toBe(false)
+    expect(passesPreferences({ name: 'Fish tacos' }, prefs)).toBe(false)
+  })
+
+  it('Vegetarian dietary_tag does NOT bypass for vegan (eggs/dairy still possible)', () => {
+    // ADR-003: vegan DIETARY_TAG_OVERRIDES only honors 'Vegan', not 'Vegetarian'.
+    // A "Meatballs" tagged Vegetarian could still have eggs/dairy; vegan stays strict.
+    expect(
+      passesPreferences(
+        { name: 'Meatballs', dietary_tags: ['Vegetarian'] },
+        prefs,
+      ),
+    ).toBe(false)
+  })
+
+  it('Vegan dietary_tag bypasses the keyword fail', () => {
+    expect(
+      passesPreferences(
+        { name: 'Meatballs', dietary_tags: ['Vegan'] },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+})
+
+describe('passesPreferences — ADR-003 name-keyword layer (pescatarian)', () => {
+  const prefs = { ...EMPTY_PREFS, dietary_restrictions: ['pescatarian'] }
+
+  it('fails meat-implying dish names', () => {
+    expect(passesPreferences({ name: 'Smash burger' }, prefs)).toBe(false)
+    expect(passesPreferences({ name: 'BLT' }, prefs)).toBe(false)
+  })
+
+  it('passes seafood-implying dish names (pescatarian allows seafood)', () => {
+    expect(passesPreferences({ name: 'Sushi platter' }, prefs)).toBe(true)
+    expect(passesPreferences({ name: 'Shrimp scampi' }, prefs)).toBe(true)
+    expect(passesPreferences({ name: 'Crab cake' }, prefs)).toBe(true)
+  })
+
+  it('Vegetarian dietary_tag bypasses meat-name fail (a labeled-vegetarian dish is fine for pescatarians)', () => {
+    expect(
+      passesPreferences(
+        { name: 'Meatballs', dietary_tags: ['Vegetarian'] },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+})
+
+describe('passesPreferences — ADR-003 name-keyword layer is case-insensitive and substring-matched', () => {
+  const prefs = { ...EMPTY_PREFS, dietary_restrictions: ['vegetarian'] }
+
+  it('matches regardless of case', () => {
+    expect(passesPreferences({ name: 'BURGER NIGHT' }, prefs)).toBe(false)
+    expect(passesPreferences({ name: 'burger night' }, prefs)).toBe(false)
+  })
+
+  it('matches inside multi-word names', () => {
+    expect(passesPreferences({ name: 'Sunday night meatloaf platter' }, prefs)).toBe(false)
+  })
+
+  it('does not match when the keyword is absent (no false positives on neutral names)', () => {
+    expect(passesPreferences({ name: 'Pasta primavera' }, prefs)).toBe(true)
+    expect(passesPreferences({ name: 'Tomato basil soup' }, prefs)).toBe(true)
+    expect(passesPreferences({ name: 'Caprese salad' }, prefs)).toBe(true)
+  })
+})
+
 describe('passesPreferences — non-protein dietary restrictions are NO-OPs in v1', () => {
   it('gluten-free does not filter anything', () => {
     const prefs = { ...EMPTY_PREFS, dietary_restrictions: ['gluten-free'] }

@@ -61,6 +61,73 @@ export const PROTEIN_CATEGORIES = {
   None:            'plant',
 }
 
+/**
+ * ADR-003: dish-name keyword sets used by `passesPreferences` to catch
+ * implied-meat dishes that the protein-category check misses (e.g. a
+ * "Smash burger" whose meat ingredient was marked omittable by the
+ * PRD-004 essentiality classifier under the substitutable-category rule
+ * for burgers/meatballs).
+ *
+ * Two categories, mirroring `PROTEIN_CATEGORIES`:
+ *   - 'meat'    — fails vegetarian, vegan, pescatarian
+ *   - 'seafood' — fails vegetarian, vegan only (pescatarian still passes)
+ *
+ * Tokens are lowercased substrings of the recipe name. Curate carefully:
+ * keep tokens distinctive ("meatball" not "meat") to avoid colliding
+ * with legitimate vegetarian dishes. False positives are caught by:
+ *   1. `dietary_tags` containing the matching tag ('Vegetarian'/'Vegan'),
+ *   2. `VEGETARIAN_NAME_OVERRIDES` matching anywhere in the name.
+ *
+ * Adding a token is a code change with no migration. See ADR-003 for
+ * the full rationale and the alternative options considered.
+ */
+export const MEAT_IMPLIED_NAME_KEYWORDS = {
+  meat: [
+    'meatball', 'meatloaf',
+    'burger', 'cheeseburger', 'hamburger', 'smashburger', 'smash burger',
+    'sausage', 'bratwurst', 'chorizo', 'kielbasa',
+    'hot dog', 'corn dog',
+    'bacon', 'blt', 'blate',
+    'carnitas', 'carne asada', 'al pastor',
+    'pulled pork', 'pulled chicken', 'pulled beef',
+    'chicken parm', 'parmigiana',
+    'steak', 'brisket', 'pastrami', 'prosciutto', 'salami', 'pepperoni', 'ham',
+    'gyro', 'shawarma', 'kebab', 'kabob', 'souvlaki',
+    'wings', 'drumstick', 'rotisserie', 'schnitzel',
+    'osso buco', 'bolognese',
+    'pot roast', 'beef stew', 'chicken pot pie',
+  ],
+  seafood: [
+    'scampi', 'sushi', 'sashimi', 'poke', 'ceviche',
+    'lobster roll', 'crab cake', 'fish taco', 'fish and chips',
+    'tuna melt', 'tuna salad', 'salmon',
+    'shrimp', 'oyster', 'mussel', 'clam chowder',
+  ],
+}
+
+/**
+ * ADR-003: positive vegetarian markers. When one of these appears
+ * anywhere in the recipe name (case-insensitive substring), the
+ * `MEAT_IMPLIED_NAME_KEYWORDS` check is bypassed. Catches dishes whose
+ * names contain a meat-implying token but are explicitly the
+ * vegetarian variant (e.g. "Veggie burger", "Beyond meatballs",
+ * "Black-bean burger", "Tofu bacon BLT").
+ *
+ * Layered on top of the `dietary_tags` override (positive 'Vegetarian'
+ * / 'Vegan' tag also bypasses the keyword check) so under-tagged
+ * recipes still get the right answer when the user named them clearly.
+ */
+export const VEGETARIAN_NAME_OVERRIDES = [
+  'veggie', 'vegan', 'vegetarian',
+  'plant-based', 'plant based',
+  'meatless',
+  'tofu', 'tempeh', 'seitan',
+  'beyond', 'impossible',
+  'black bean', 'black-bean',
+  'jackfruit',
+  'mushroom burger', 'portobello',
+]
+
 export const COOKING_METHOD_OPTIONS = [
   'Grilled', 'Baked', 'Roasted', 'Stir-fried', 'Braised',
   'Soup/Stew', 'Fried', 'Steamed', 'Raw/Salad', 'Pan-seared',
