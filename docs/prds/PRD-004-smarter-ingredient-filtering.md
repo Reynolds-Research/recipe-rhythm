@@ -3,7 +3,7 @@
 **Status:** Draft
 **Date:** 2026-04-27
 **Author:** Matt (El Presidente)
-**Related:** ADR-002 (decision rationale); supersedes the proposed PRD-002 P0.13 line item; depends on PRD-002 P0.3 (current filter)
+**Related:** ADR-002 (decision rationale); ADR-003 (paired dish-name layer for vegetarian / vegan / pescatarian); supersedes the proposed PRD-002 P0.13 line item; depends on PRD-002 P0.3 (current filter)
 
 ---
 
@@ -65,6 +65,14 @@ Full design rationale and alternatives in **ADR-002**.
 - **P1.2: Override frequency analytics.** Internal-only — log which ingredients get overridden most often as a signal for prompt tuning.
 - **P1.3: AI confidence score.** Extend the endpoint to return a confidence (0–1); UI shows low-confidence classifications in muted styling, prompting user review.
 - **P1.4: Periodic re-classification.** Quarterly cron that re-runs classification on `source: 'ai'` ingredients (skips user overrides). Captures AI improvements over time.
+
+## Adjacent Work — ADR-003 (Implied-Meat Dish-Name Filter)
+
+The PRD-004 essentiality classifier marks individual ingredients as `essential` or `omittable`. For substitutable-category dishes (meatballs, burgers, meatloaf), the prompt deliberately marks the meat ingredient as omittable — "any meat for meatballs/burgers" — because the dish form is what defines the recipe, not the specific protein.
+
+This is correct for excluded-ingredient filtering (a beef-excluder shouldn't hide turkey meatballs). It is **not** sufficient for dietary-restriction filtering: a vegetarian filter consulting only essentiality would let "Smash burger" through. **ADR-003** addresses this gap with a dish-name keyword layer that runs alongside the existing protein-category check in `passesPreferences`. App-layer only; no schema change. See [ADR-003](../adr/ADR-003-implied-meat-dish-name-filter.md) for the full rationale and trade-offs (notably the rejected per-recipe AI dietary classifier).
+
+ADR-003 is independent of PRD-004's phase plan — it can ship before, during, or after Phase C without coupling. Reflected here so future work on dietary tags or essentiality stays aware of the two-signal split.
 
 ## Out of Scope (v1)
 
