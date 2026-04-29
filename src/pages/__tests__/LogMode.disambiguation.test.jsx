@@ -24,6 +24,15 @@ vi.mock('../../lib/analyzeRecipe', () => ({
   analyzeRecipe: vi.fn().mockResolvedValue({}),
 }))
 
+// Spell-check / Title-case normalization is mocked to a passthrough so the
+// disambiguation flow (vault match sheet) is exercised without an
+// intervening spell-check confirm step. Coverage for the normalization
+// itself lives in src/lib/__tests__/mealNameNormalize.test.js.
+vi.mock('../../lib/mealNameNormalize', () => ({
+  normalizeMealName: vi.fn((n) => Promise.resolve({ corrected: n, hasChanges: false })),
+  toTitleCase: vi.fn((n) => n),
+}))
+
 // useSpeech: the real hook touches window.SpeechRecognition. Stub it so the
 // component renders cleanly under jsdom and tests can drive the textarea
 // directly.

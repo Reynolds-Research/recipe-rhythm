@@ -4,9 +4,11 @@ import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import { matchVaultByName } from '../lib/vaultMatch'
+import { normalizeMealName, toTitleCase } from '../lib/mealNameNormalize'
 import { formatLocalDate } from '../lib/dateUtils'
 import Logo from '../components/Logo'
 import VaultMatchSheet from '../components/VaultMatchSheet'
+import MealNameConfirmSheet from '../components/MealNameConfirmSheet'
 import { useHaptics } from '../hooks/useHaptics'
 
 /**
@@ -29,6 +31,11 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
   const [sheetOpen, setSheetOpen]           = useState(false)
   const [pendingMatches, setPendingMatches] = useState([])
   const [pendingSave, setPendingSave]       = useState(null)
+
+  // Spell-check confirmation state. When the normalize-meal-name API
+  // returns a corrected name that differs from the user's input we hold
+  // the resolved note here and prompt the user before continuing the save.
+  const [nameConfirm, setNameConfirm] = useState(null) // { original, corrected, note }
 
   // When the speech hook gives us a transcript, drop it into the editable box
   useEffect(() => {
@@ -74,17 +81,13 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     onSave?.()
   }
 
-  const handleSave = async () => {
-    const finalName = editableText.trim()
-    if (!finalName) return
-    trigger('success')
-    setSaving(true)
-
-    const finalNote = note.trim()
+  // Continue the save flow with a fully-normalized name (already spell-checked
+  // and Title-cased). Looks up vault matches and either inserts directly or
+  // hands off to the disambiguation sheet.
+  const continueSave = async (finalName, finalNote) => {
     const { matches } = await matchVaultByName(supabase, userId, finalName)
 
     if (matches.length > 1) {
-      // Hand off to the disambiguation sheet — it'll call back with the chosen id.
       setPendingSave({ name: finalName, note: finalNote })
       setPendingMatches(matches)
       setSheetOpen(true)
@@ -94,6 +97,45 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
     const resolvedVaultId = matches.length === 1 ? matches[0].id : null
     await finalizeSave(finalName, finalNote, resolvedVaultId)
+  }
+
+  const handleSave = async () => {
+    const rawName = editableText.trim()
+    if (!rawName) return
+    trigger('success')
+    setSaving(true)
+
+    const finalNote = note.trim()
+    const { corrected, hasChanges } = await normalizeMealName(rawName)
+
+    if (hasChanges) {
+      // Pause for user confirmation — the confirm sheet's callbacks will
+      // resume the save with their chosen name.
+      setNameConfirm({ original: rawName, corrected, note: finalNote })
+      setSaving(false)
+      return
+    }
+
+    // No spelling/casing changes — corrected is already Title-cased.
+    await continueSave(corrected || toTitleCase(rawName), finalNote)
+  }
+
+  const handleNameConfirmAccept = async () => {
+    if (!nameConfirm) return
+    const { corrected, note: pendingNote } = nameConfirm
+    setNameConfirm(null)
+    setSaving(true)
+    await continueSave(corrected, pendingNote)
+  }
+
+  const handleNameConfirmReject = async () => {
+    if (!nameConfirm) return
+    // User kept their version — still apply local Title Case so casing is
+    // standardized even when they reject the spell-check suggestion.
+    const { original, note: pendingNote } = nameConfirm
+    setNameConfirm(null)
+    setSaving(true)
+    await continueSave(toTitleCase(original), pendingNote)
   }
 
   const handleSheetSelect = async (vaultId) => {
@@ -318,6 +360,15 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
         mealName={pendingSave?.name ?? ''}
         onSelect={handleSheetSelect}
         onClose={handleSheetClose}
+      />
+
+      <MealNameConfirmSheet
+        isOpen={!!nameConfirm}
+        original={nameConfirm?.original || ''}
+        corrected={nameConfirm?.corrected || ''}
+        onAccept={handleNameConfirmAccept}
+        onReject={handleNameConfirmReject}
+        onClose={handleNameConfirmReject}
       />
     </div>
   )

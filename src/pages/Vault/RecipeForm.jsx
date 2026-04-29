@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, X, Camera, Image as ImageIcon } from 'lucide-react'
 import { analyzeRecipe } from '../../lib/analyzeRecipe'
+import { normalizeMealName, toTitleCase } from '../../lib/mealNameNormalize'
 import { useHaptics } from '../../hooks/useHaptics'
 import ChipPicker from './ChipPicker'
+import MealNameConfirmSheet from '../../components/MealNameConfirmSheet'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
   COOKING_METHOD_OPTIONS, CARB_OPTIONS, DIETARY_OPTIONS,
@@ -67,6 +69,12 @@ export default function RecipeForm({
   const [suggesting, setSuggesting] = useState(false)
   const [aiApplied, setAiApplied]   = useState(false)
   const [aiError, setAiError]       = useState(false)
+
+  // Spell-check confirmation state. Set when the normalize-meal-name API
+  // returns a corrected name that differs from the user's input — the
+  // confirm sheet asks the user which to use before persisting.
+  const [nameConfirm, setNameConfirm] = useState(null) // { original, corrected }
+  const [normalizing, setNormalizing] = useState(false)
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0]
@@ -135,10 +143,10 @@ export default function RecipeForm({
     setImagePreview(null)
   }
 
-  const handleSubmit = async () => {
-    if (!name.trim()) return
+  // Persist the form using the supplied final name (already normalized).
+  const persist = async (finalName) => {
     const result = await onSubmit({
-      name,
+      name: finalName,
       cuisineType,
       flavorProfile,
       notes,
@@ -154,6 +162,41 @@ export default function RecipeForm({
       imageFile,
     })
     if (result?.ok) resetForm()
+  }
+
+  const handleSubmit = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    if (normalizing) return
+
+    setNormalizing(true)
+    const { corrected, hasChanges } = await normalizeMealName(trimmed)
+    setNormalizing(false)
+
+    if (hasChanges) {
+      // Open the confirm sheet — persist happens in onAccept / onReject.
+      setNameConfirm({ original: trimmed, corrected })
+      return
+    }
+
+    // No spelling/casing changes — corrected is already title-cased.
+    await persist(corrected || toTitleCase(trimmed))
+  }
+
+  const handleConfirmAccept = async () => {
+    if (!nameConfirm) return
+    const finalName = nameConfirm.corrected
+    setNameConfirm(null)
+    await persist(finalName)
+  }
+
+  const handleConfirmReject = async () => {
+    if (!nameConfirm) return
+    // User kept their version — still apply local title-case so casing is
+    // standardized even when they reject the spell-check suggestion.
+    const finalName = toTitleCase(nameConfirm.original)
+    setNameConfirm(null)
+    await persist(finalName)
   }
 
   return (
@@ -315,11 +358,20 @@ export default function RecipeForm({
 
       <button
         onClick={handleSubmit}
-        disabled={!name.trim() || saving}
+        disabled={!name.trim() || saving || normalizing}
         className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {saving ? 'Saving…' : 'Save to vault'}
+        {saving ? 'Saving…' : normalizing ? 'Checking spelling…' : 'Save to vault'}
       </button>
+
+      <MealNameConfirmSheet
+        isOpen={!!nameConfirm}
+        original={nameConfirm?.original || ''}
+        corrected={nameConfirm?.corrected || ''}
+        onAccept={handleConfirmAccept}
+        onReject={handleConfirmReject}
+        onClose={handleConfirmReject}
+      />
     </div>
   )
 }

@@ -20,6 +20,16 @@ vi.mock('../../../lib/analyzeRecipe', () => ({
   analyzeRecipe: vi.fn().mockResolvedValue(null),
 }))
 
+// Spell-check / Title-case normalization is mocked to a passthrough so this
+// file's prep-time assertions stay focused on the chip behavior. Dedicated
+// coverage for the normalization flow lives in src/lib/__tests__/
+// mealNameNormalize.test.js and the RecipeForm normalization integration
+// test below.
+vi.mock('../../../lib/mealNameNormalize', () => ({
+  normalizeMealName: vi.fn((n) => Promise.resolve({ corrected: n, hasChanges: false })),
+  toTitleCase: vi.fn((n) => n),
+}))
+
 describe('RecipeForm — prep-time chip (PRD-002 P0.4)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
