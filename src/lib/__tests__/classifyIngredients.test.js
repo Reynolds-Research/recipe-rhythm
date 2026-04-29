@@ -57,6 +57,14 @@ describe('classifyIngredients', () => {
     expect(typeof call.system).toBe('string')
     expect(call.system).toMatch(/essential/i)
     expect(call.system).toMatch(/omittable/i)
+    // PRD-004 Phase B: prompt must instruct the model to preserve input
+    // names verbatim (no more splitting "onion/garlic" → "onion"+"garlic").
+    expect(call.system).toMatch(/exactly|verbatim/i)
+    // PRD-004 Phase B: "with X" in recipe name should be treated as
+    // descriptive, not contractual.
+    expect(call.system).toMatch(/with X|substitut/i)
+    // PRD-004 Phase B: chip-picker placeholder "none" should be skipped.
+    expect(call.system).toMatch(/none/i)
     expect(call.messages).toHaveLength(1)
     expect(call.messages[0].role).toBe('user')
 

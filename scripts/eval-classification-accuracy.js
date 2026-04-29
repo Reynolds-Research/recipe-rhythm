@@ -26,6 +26,12 @@ import { classifyIngredients } from '../src/lib/classifyIngredients.js'
 const DEFAULT_TRUTH = 'tests/fixtures/ingredient-classification-truth.json'
 const DEFAULT_REPORT = 'eval-report.json'
 const ESSENTIAL_PRECISION_THRESHOLD = 0.85
+// If too many ingredients can't be matched between truth and AI output
+// (because the AI normalized names differently), the precision metric is
+// computed on a small sample and stops being meaningful. Gate match-rate
+// alongside precision so silent name-canonicalization regressions can't
+// hide behind a passing precision number.
+const MATCH_RATE_THRESHOLD = 0.80
 
 export function parseArgs(argv) {
   const out = { truthPath: DEFAULT_TRUTH, reportPath: DEFAULT_REPORT }
@@ -138,9 +144,13 @@ export function computeMetrics(records) {
   const precisionOmittable = div(matrix.aiO_truthO, matrix.aiO_truthO + matrix.aiO_truthE)
   const recallOmittable    = div(matrix.aiO_truthO, matrix.aiO_truthO + matrix.aiE_truthO)
   const accuracy           = div(matrix.aiE_truthE + matrix.aiO_truthO, matched)
+  const matchRate          = div(matched, records.length)
 
-  const passes =
+  const precisionPasses =
     precisionEssential != null && precisionEssential >= ESSENTIAL_PRECISION_THRESHOLD
+  const matchRatePasses =
+    matchRate != null && matchRate >= MATCH_RATE_THRESHOLD
+  const passes = precisionPasses && matchRatePasses
 
   return {
     total: records.length,
@@ -152,7 +162,12 @@ export function computeMetrics(records) {
     precisionOmittable,
     recallOmittable,
     accuracy,
+    matchRate,
+    precisionThreshold: ESSENTIAL_PRECISION_THRESHOLD,
+    matchRateThreshold: MATCH_RATE_THRESHOLD,
     threshold: ESSENTIAL_PRECISION_THRESHOLD,
+    precisionPasses,
+    matchRatePasses,
     passes,
   }
 }
@@ -162,11 +177,18 @@ const fmtPct = (v) => (v == null ? 'n/a' : `${(v * 100).toFixed(1)}%`)
 export function renderReport({ metrics, records }) {
   const lines = []
   const verdict = metrics.passes ? 'PASS' : 'FAIL'
+  const precisionVerdict = metrics.precisionPasses ? 'pass' : 'FAIL'
+  const matchVerdict = metrics.matchRatePasses ? 'pass' : 'FAIL'
   lines.push('')
   lines.push('=== Ingredient Classification Eval ===')
+  lines.push(`Overall: ${verdict}`)
   lines.push(
-    `Precision on 'essential': ${fmtPct(metrics.precisionEssential)} ` +
-    `(threshold ${fmtPct(metrics.threshold)}) — ${verdict}`,
+    `  Precision on 'essential': ${fmtPct(metrics.precisionEssential)} ` +
+    `(threshold ${fmtPct(metrics.precisionThreshold)}) — ${precisionVerdict}`,
+  )
+  lines.push(
+    `  Match rate (truth ↔ AI):  ${fmtPct(metrics.matchRate)} ` +
+    `(threshold ${fmtPct(metrics.matchRateThreshold)}) — ${matchVerdict}`,
   )
   lines.push('')
   lines.push('Confusion matrix (rows = AI, cols = truth):')

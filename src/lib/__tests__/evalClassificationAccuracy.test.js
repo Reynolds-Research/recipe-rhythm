@@ -204,4 +204,39 @@ describe('computeMetrics', () => {
     expect(m.unmatched).toBe(2)
     expect(m.matrix).toEqual({ aiE_truthE: 1, aiE_truthO: 0, aiO_truthE: 0, aiO_truthO: 0 })
   })
+
+  it('reports matchRate alongside precision and gates on both', () => {
+    // 10 records: 1 perfectly-matched, 9 unmatched.
+    // matchRate = 1/10 = 10%, well below the 80% threshold.
+    // precision_E = 1/1 = 100%, above the 85% precision threshold.
+    // → precisionPasses true, matchRatePasses false, overall passes false.
+    const records = [
+      rec('essential', 'essential'),
+      ...Array.from({ length: 9 }, () => rec('essential', null)),
+    ]
+    const m = computeMetrics(records)
+    expect(m.matchRate).toBeCloseTo(0.1, 5)
+    expect(m.precisionEssential).toBe(1)
+    expect(m.precisionPasses).toBe(true)
+    expect(m.matchRatePasses).toBe(false)
+    expect(m.passes).toBe(false)
+  })
+
+  it('overall passes only when both precision and matchRate clear their thresholds', () => {
+    // 5 records: 4 matched-and-correct, 1 unmatched.
+    // matchRate = 4/5 = 80% (exactly at threshold).
+    // precision_E = 2/2 = 100% (above 85%).
+    const records = [
+      rec('essential', 'essential'),
+      rec('essential', 'essential'),
+      rec('omittable', 'omittable'),
+      rec('omittable', 'omittable'),
+      rec(null, 'essential'), // unmatched
+    ]
+    const m = computeMetrics(records)
+    expect(m.matchRate).toBeCloseTo(0.8, 5)
+    expect(m.matchRatePasses).toBe(true)
+    expect(m.precisionPasses).toBe(true)
+    expect(m.passes).toBe(true)
+  })
 })
