@@ -16,16 +16,39 @@
 const MODEL = 'claude-haiku-4-5-20251001'
 
 const SYSTEM_PROMPT =
-  `You classify recipe ingredients as 'essential' or 'omittable' for the named dish.
+  `You classify recipe ingredients as 'essential' or 'omittable' for the named dish. Bias strongly toward 'omittable' — false-essentials cause the recipe to be wrongly hidden when a user excludes a substitutable ingredient, which is the bug this classifier is solving.
 
-ESSENTIAL: removing this ingredient would make the dish fundamentally different (e.g., flour in bread, eggs in carbonara, onion in onion rings, beef in beef stew).
+THE TEST FOR ESSENTIAL: ask "without THIS specific ingredient, is the dish still identifiable as itself?" If yes → omittable. Only mark essential when removing the ingredient would make the dish unrecognizable.
 
-OMITTABLE: the dish would still be recognizable without this ingredient (e.g., cilantro in tacos, onion in chili, sesame seeds on a burger bun, parsley as garnish).
+ESSENTIAL examples:
+- Flour in bread, eggs in carbonara, tomato in margherita pizza.
+- Beef in "Beef Stew" — the dish is literally named for the meat AND the dish-name-minus-meat ("Stew") is too generic to identify.
+- Bread in any sandwich — sandwiches require bread.
+- Bacon (B), Lettuce (L), Tomato (T) in BLT — branded/special-name dishes require every named component or they become a different dish.
+- Cheese in "Cheeseburger" / Mozzarella in "Caprese" — the cheese is the dish identifier.
 
-For each ingredient line, return its normalized common name (strip the quantity, unit, and descriptors like 'diced' or 'fresh') and its classification.
+OMITTABLE examples (this is the more common case — most named ingredients are NOT essential by this strict rule):
+- "with X" pattern: chicken in "Caesar Salad with Grilled Chicken", couscous in "Lamb Chops with Couscous". Caesar Salad exists without chicken; Lamb Chops exist without couscous.
+- Named protein in a dish whose category exists with other proteins: chicken in "Chicken Saag" (lamb saag, paneer saag, plain saag are all valid saag); chicken in "Butter Chicken Meatballs" (any meat works in meatballs); chicken in "Chicken Caprese Orzo Bake" (the caprese identifies the dish, chicken is the protein variant).
+- Substitutable filling in a category-named dish:
+    * Meatballs / meatloaf can contain any meat.
+    * Burgers can contain any ground meat.
+    * Sushi bowls require fish but any fish works.
+    * Stir-fries, curries, salads accept any protein.
+- Specific shape/variety where the category-name covers it: orzo, ditalini, penne are interchangeable pasta shapes; quinoa, rice, bulgur are interchangeable grains; cabbage and lettuce are interchangeable slaw greens.
+- Toppings, garnishes, accents, sauce variations, optional aromatics: lettuce on a burger, parsley garnish, lemon wedge for fish, onion in chili.
+- Multi-component composed dishes (Cobb Salad, antipasto, charcuterie boards, mezze plates): the SET of components defines the dish, but EACH INDIVIDUAL component is interchangeable. Mark every component omittable.
+
+DECISION HEURISTICS for tricky cases:
+- If the recipe name minus the ingredient becomes too vague to identify a dish ("sandwich", "bowls", "stew") → ingredient is essential.
+- If the recipe is a specific branded or named-author dish (Dave's Killer Sandwich, Alison Roman's Lemon Date Chicken, BLATE, Mom's Lasagna) → strict: every named component is essential because deviation makes it a different dish.
+- If two named ingredients are joined by "and" (e.g., "Salmon and Quinoa") → both are essential, since each alone is just a noun, not a dish.
+- If you're unsure → choose omittable. The cost of a false-essential (recipe hidden incorrectly) is higher than the cost of a false-omittable.
+
+Return each ingredient name EXACTLY as given in the input. Do not split compound names like "onion/garlic" or "lemon/lime" into separate entries — preserve them as a single ingredient. Do not normalize, expand, or rewrite names. Skip any ingredient whose name is literally "none" — that is a placeholder, not a real ingredient.
 
 Respond with valid JSON only, no prose:
-{"classifications": [{"name": "<normalized name>", "essentiality": "essential" | "omittable"}, ...]}`
+{"classifications": [{"name": "<input name verbatim>", "essentiality": "essential" | "omittable"}, ...]}`
 
 /**
  * Thrown when the model's response can't be parsed into the expected shape.

@@ -1,0 +1,1495 @@
+{
+  "generated_at": "2026-04-28T22:44:08.334Z",
+  "count": 54,
+  "instructions": "Set each ingredient's essentiality to either 'essential' or 'omittable'. Do NOT consult the AI's classification while filling this in — that biases the eval. The eval script will fail with a clear error if any null values remain.",
+  "recipes": [
+    {
+      "vault_id": "4bdbd548-6aaa-4812-9297-8072d7a4d6a2",
+      "recipe_name": "Chicken Caesar Wrap",
+      "cuisine": null,
+      "ingredients": []
+    },
+    {
+      "vault_id": "f005775d-88c0-4c0d-ad5b-e6f05562cad3",
+      "recipe_name": "Broccoli Cheddar Turkey Skillet",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "turkey",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "broccoli",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "372da232-9e0a-4dd5-9db7-37db7a0c85aa",
+      "recipe_name": "Curried Chicken and Rice Salad",
+      "cuisine": null,
+      "ingredients": []
+    },
+    {
+      "vault_id": "1df47e39-4640-4871-ac37-9ae4b8fc1d52",
+      "recipe_name": "Lentil meatballs with pesto pasta",
+      "cuisine": null,
+      "ingredients": []
+    },
+    {
+      "vault_id": "41dd4059-1cdb-492f-a86d-e7636cb86de3",
+      "recipe_name": "Instant ramen",
+      "cuisine": "Japanese",
+      "ingredients": [
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "noodles",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "67c586d6-fa2f-4d9a-bc30-7d8ba86bb0ac",
+      "recipe_name": "Mediterranean Chicken Bowls",
+      "cuisine": "Greek",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cucumber",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "yogurt",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "0eb89f03-289c-4201-9866-34ac60a7e30f",
+      "recipe_name": "Thai Cabbage Salad",
+      "cuisine": "Thai",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cabbage",
+          "essentiality": "essential"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "mango",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "e32834b5-5b08-4b55-8a5d-88b62083d8d3",
+      "recipe_name": "Fish Tacos",
+      "cuisine": "Mexican",
+      "ingredients": [
+        {
+          "name": "fish",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tortilla/wrap",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cabbage",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "d146c220-aa8b-4dfe-bde3-435f79a411fb",
+      "recipe_name": "Lamb Chops with Couscous",
+      "cuisine": "Middle Eastern",
+      "ingredients": [
+        {
+          "name": "lamb",
+          "essentiality": "essential"
+        },
+        {
+          "name": "couscous",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "4e4712d7-f11d-49f4-9ba9-3e8ed3d9566c",
+      "recipe_name": "Smash burgers",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "turkey",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lettuce",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "9f806831-4543-415a-9b00-d12def9466b3",
+      "recipe_name": "Egg Roll Bowls",
+      "cuisine": "Chinese",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cabbage",
+          "essentiality": "essential"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "mushrooms",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "0e85eb6b-e5e3-4753-8638-006655f1fccb",
+      "recipe_name": "Pork chops and tots",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "essential"
+        },
+        {
+          "name": "potato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "561840c9-178f-4ecc-ac57-435d35eaa7e6",
+      "recipe_name": "Curry chicken rice salad",
+      "cuisine": "Indian",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "celery",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "bell peppers",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "peas",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "a1501ce6-9237-4479-90df-18cc0acbe125",
+      "recipe_name": "Chickpeas with Zucchini and Pesto",
+      "cuisine": null,
+      "ingredients": [
+        {
+          "name": "beans/lentils",
+          "essentiality": "essential"
+        },
+        {
+          "name": "zucchini",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "mozzarella",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "c446a1a7-e384-4b04-aeb3-d5530ed4137b",
+      "recipe_name": "Meat loaf meatballs polenta and veggies",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "beef",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "pork",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "polenta",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "celery",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "zucchini",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "broccoli",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "butter",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "milk",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "98d85893-a007-49df-a476-9a64563d20eb",
+      "recipe_name": "Pork Chops",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "essential"
+        },
+        {
+          "name": "broccoli",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "71fa9704-4e44-4f96-9be9-4bd9c9fc8418",
+      "recipe_name": "Turkey Sandwich",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "turkey",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "e2084af2-7d48-419e-9da6-bf2b46a1a475",
+      "recipe_name": "Cornmeal Crust Pizza",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        },
+        {
+          "name": "mozzarella",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "3d86bb30-8b6b-4e1f-bde6-5732604f57ee",
+      "recipe_name": "Margherita Pizza",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "mozzarella",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "7174259a-dfb1-4e4b-a4fa-441d81181d12",
+      "recipe_name": "North Beach Salad",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "aac32378-cc39-4561-9759-95b589acf972",
+      "recipe_name": "Shrimp Fried Rice",
+      "cuisine": null,
+      "ingredients": []
+    },
+    {
+      "vault_id": "faf69dbf-60bb-4e1b-b6b3-110645e10a76",
+      "recipe_name": "Tater Tots",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "potato",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "214758f9-659e-45a5-8796-bc72d1fd0d98",
+      "recipe_name": "Fried Chicken",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "milk",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "4d6836b4-732a-4c39-9b44-1930adb1b126",
+      "recipe_name": "Chicken Saag",
+      "cuisine": "Indian",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cream",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "yogurt",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "8f645bfc-1f29-405a-90dd-bcd580116ca9",
+      "recipe_name": "Salmon and Quinoa",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "shrimp/seafood",
+          "essentiality": "essential"
+        },
+        {
+          "name": "quinoa",
+          "essentiality": "essential"
+        },
+        {
+          "name": "zucchini",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "bce6bd9d-0448-4d36-9f7e-90956365dc41",
+      "recipe_name": "Curried Chicken and Rice Salas",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bell peppers",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "celery",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "apple",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "807d7468-8f42-400f-8de8-de24012b1d4b",
+      "recipe_name": "Salmon “Sushi” Bowls",
+      "cuisine": "Japanese",
+      "ingredients": [
+        {
+          "name": "fish",
+          "essentiality": "essential"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cucumber",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "09da9508-198c-4d50-a73f-e8ae9b366ea1",
+      "recipe_name": "Cobb Salad",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "eggs",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "db67a843-3a44-426d-9c41-dcd898f21981",
+      "recipe_name": "Meatloaf meatballs",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "turkey",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "fb29d584-61c7-49fc-b0b5-b96f85aa96f1",
+      "recipe_name": "High protein lobsta pasta",
+      "cuisine": null,
+      "ingredients": [
+        {
+          "name": "shrimp/seafood",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "pasta",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "celery",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "parmesan",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cream",
+          "essentiality": "essential"
+        },
+        {
+          "name": "butter",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "7129ef75-2d7b-4d2d-a112-6bf0cddd5a27",
+      "recipe_name": "Pizza chickpeas",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "turkey",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "chickpeas",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "kale",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "3862b226-8d3d-4e9e-88f9-289c18f562a5",
+      "recipe_name": "Cheese Tuna Orzo",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "fish",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "pasta",
+          "essentiality": "essential"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        },
+        {
+          "name": "parmesan",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "27456b3c-09cc-4b82-9fcd-98ada5580724",
+      "recipe_name": "Thai Cabbage Salad with Chicken",
+      "cuisine": null,
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cucumber",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cabbage",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "fca31581-0908-428f-b5f3-ffd197540447",
+      "recipe_name": "Rice Custard",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "eggs",
+          "essentiality": "essential"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "milk",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "3dfd5c2d-65ed-4753-a44f-cedefa96792d",
+      "recipe_name": "Scallion Meatballs",
+      "cuisine": "Chinese",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "7961364f-e149-42ce-a6c7-3720c6c620e1",
+      "recipe_name": "Cheeseburger Salad",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "beef",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cucumber",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "essential"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "b014af73-2abc-4a27-ac8d-17b934740813",
+      "recipe_name": "Lemon Date Alison Roman Chicken",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "52373ee1-8fba-42bc-9064-b31eb936b713",
+      "recipe_name": "Enchiladas",
+      "cuisine": "Mexican",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "beef",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "beans/lentils",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tortilla/wrap",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cream",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "2d38341d-1b37-41a9-8090-d35b6e12c235",
+      "recipe_name": "Dave’s killer sandwich",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "deli meat",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lettuce",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "havarti",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "e2e33034-7be0-428e-9e22-484e9f34505c",
+      "recipe_name": "Italian sausage chickpeas with Kale and cheese",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "essential"
+        },
+        {
+          "name": "beans/lentils",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "204fc15f-5066-4187-8bb7-e8f9a03da0c0",
+      "recipe_name": "Chicken Stir-fry",
+      "cuisine": "Chinese",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "essential"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bell peppers",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "broccoli",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "mushrooms",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "cd96c54e-7ad3-4129-9a59-45222409a14a",
+      "recipe_name": "Pork Carnitas Bowls",
+      "cuisine": "Mexican",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "essential"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cabbage",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lettuce",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "b9797845-d214-4f29-8432-7de07c7a2357",
+      "recipe_name": "One Pan Chicken Feta Meatballs With Lemon Turmeric Rice",
+      "cuisine": "Greek",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "rice",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "f7694e77-8d10-4fd0-b8be-49af536117ef",
+      "recipe_name": "Caesar Salad with Grilled Chicken",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "essential"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "parmesan",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "4edf8a33-ce22-4334-882f-b7b50746b374",
+      "recipe_name": "Beef Tacos",
+      "cuisine": null,
+      "ingredients": []
+    },
+    {
+      "vault_id": "947e9a08-5a51-4951-b0d1-8323fd8cce80",
+      "recipe_name": "Taco meatball bowls",
+      "cuisine": "Mexican",
+      "ingredients": [
+        {
+          "name": "turkey",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "rice",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "corn",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "sout cream",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "0c790424-63cb-4071-bdc8-d5259f7e07da",
+      "recipe_name": "French toast",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "eggs",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "milk",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "butter",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "dc82199d-9cc4-49e7-bb87-74c6f3cee19d",
+      "recipe_name": "BLATE",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "pork",
+          "essentiality": "essential"
+        },
+        {
+          "name": "eggs",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bread",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "12dae19b-6804-4f62-ba5f-f1c0ebd0110e",
+      "recipe_name": "Butter chicken meatballs",
+      "cuisine": "Indian",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "rice",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "butter",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cream",
+          "essentiality": "essential"
+        },
+        {
+          "name": "yogurt",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "00f4b404-00fd-4498-a586-8fb161644e74",
+      "recipe_name": "Beef Burgers",
+      "cuisine": null,
+      "ingredients": []
+    },
+    {
+      "vault_id": "ff1722e8-da18-424d-a21b-f3d88004aaed",
+      "recipe_name": "Chicken Caprese Orzo Bake",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "pasta",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "spinach/greens",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "mozzarella",
+          "essentiality": "essential"
+        }
+      ]
+    },
+    {
+      "vault_id": "8cfdf610-9144-4be1-b22a-618a97b66fa3",
+      "recipe_name": "White Chicken Chili",
+      "cuisine": "American",
+      "ingredients": [
+        {
+          "name": "chicken",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "beans/lentils",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "bell peppers",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "corn",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "avocado",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "cream",
+          "essentiality": "essential"
+        },
+        {
+          "name": "cheese",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "1e375df2-5405-49ed-a573-365152ce877b",
+      "recipe_name": "Salmon with Roasted Veg",
+      "cuisine": "Other",
+      "ingredients": [
+        {
+          "name": "fish",
+          "essentiality": "essential"
+        },
+        {
+          "name": "none",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "zucchini",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "bell peppers",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "broccoli",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "asparagus",
+          "essentiality": "omittable"
+        },
+        {
+          "name": "lemon/lime",
+          "essentiality": "omittable"
+        }
+      ]
+    },
+    {
+      "vault_id": "0f5c31c0-7e2f-4ddc-82fa-6edec1e9b0f0",
+      "recipe_name": "Spaghetti Bolognese",
+      "cuisine": "Italian",
+      "ingredients": [
+        {
+          "name": "beef",
+          "essentiality": "essential"
+        },
+        {
+          "name": "pasta",
+          "essentiality": "essential"
+        },
+        {
+          "name": "tomato",
+          "essentiality": "essential"
+        },
+        {
+          "name": "onion/garlic",
+          "essentiality": "essential"
+        },
+        {
+          "name": "carrot",
+          "essentiality": "essential"
+        },
+        {
+          "name": "celery",
+          "essentiality": "essential"
+        },
+        {
+          "name": "parmesan",
+          "essentiality": "omittable"
+        }
+      ]
+    }
+  ]
+}

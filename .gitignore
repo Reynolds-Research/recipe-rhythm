@@ -27,3 +27,6 @@ coverage/
 .claude/worktrees/
 # Local-only test credentials — NEVER commit
 .claude/test-credentials.md
+
+# PRD-004 eval output — regenerated on every run, contains full truth labels + AI classifications
+eval-report.json
