@@ -20,8 +20,10 @@
     @apply max-w-md mx-auto min-h-screen bg-cream-50 flex flex-col pb-16 pt-[env(safe-area-inset-top)];
   }
 
+  /* Primary button — full-width, white on brand-600. brand-600 (4.41:1) clears
+     WCAG AA at the existing text-base font-semibold size; brand-500 (3.47:1) did not. */
   .btn-primary {
-    @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
+    @apply w-full py-3.5 rounded-2xl bg-brand-600 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
   }
 
   /* Secondary button — white bg, brand-700 outline + text. Pair with .btn-primary
