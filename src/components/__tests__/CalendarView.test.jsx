@@ -44,7 +44,10 @@ describe('CalendarView', () => {
     expect(to).toBe('2026-05-31')
   })
 
-  it('shows the meal preview on a scheduled date and applies active-period shading', async () => {
+  it('marks a scheduled date with the has-items dot and applies active-period shading', async () => {
+    // PRD-005 Phase 6 / P0.9: cells now render just the date number + a small
+    // status dot. The full meal name lives in the popover only — see the
+    // tap-to-expand test below for that assertion.
     mockRange([
       {
         item_id: 'mpi-1',
@@ -60,12 +63,11 @@ describe('CalendarView', () => {
     render(<CalendarView userId="user-1" initialMonth={APRIL_2026} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('calendar-preview-2026-04-12')).toBeInTheDocument()
+      expect(screen.getByTestId('calendar-dot-2026-04-12')).toBeInTheDocument()
     })
     const cell = screen.getByTestId('calendar-cell-2026-04-12')
     expect(cell).toHaveAttribute('data-period-state', 'active')
     expect(cell).toHaveAttribute('data-has-items', 'true')
-    expect(screen.getByTestId('calendar-preview-2026-04-12').textContent).toMatch(/Pancakes/)
   })
 
   it('applies finalized-period shading to dates inside a finalized period', async () => {
@@ -159,7 +161,7 @@ describe('CalendarView', () => {
     render(<CalendarView userId="user-1" initialMonth={APRIL_2026} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('calendar-preview-2026-04-12')).toBeInTheDocument()
+      expect(screen.getByTestId('calendar-dot-2026-04-12')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByTestId('calendar-cell-2026-04-12'))
