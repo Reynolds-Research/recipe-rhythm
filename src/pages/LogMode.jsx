@@ -213,11 +213,11 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
       {/* Header */}
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">{timeAwareString}</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-28">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6 pb-28">
 
         {/* Recents shelf */}
         {recentMeals.length > 0 && (() => {
@@ -231,13 +231,13 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
           return (
             <div>
-              <p className="text-xs font-medium text-gray-400 tracking-widest mb-2">RECENT</p>
+              <p className="section-heading mb-2">Recent</p>
               <div className="flex flex-wrap gap-2 pb-1">
                 {uniqueMeals.map((meal) => (
                   <button
                     key={meal.id}
                     onClick={() => setEditableText(meal.name)}
-                    className="bg-white border border-cream-200 rounded-full px-4 py-1.5 text-sm text-gray-600 whitespace-normal text-left leading-tight active:bg-brand-50 active:border-brand-200 transition-all font-medium max-w-full"
+                    className="chip whitespace-normal text-left leading-tight active:bg-brand-50 active:border-brand-200 max-w-full"
                   >
                     {meal.name}
                   </button>
@@ -271,20 +271,20 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
         {/* Error message */}
         {error && (
-          <p className="text-xs text-red-500 text-center">{error}</p>
+          <p className="text-xs text-red-600 text-center">{error}</p>
         )}
 
         {/* Save confirmation + vault prompt */}
         {saved && (
           <div className="space-y-2" role="status" aria-live="polite">
-            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-2xl py-3 px-4">
+            <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-2xl py-3 px-4 min-h-[44px]">
               <div className="flex items-center gap-2">
-                <Check size={16} className="text-green-600" />
+                <Check size={16} className="text-green-700" />
                 <span className="text-sm font-medium text-green-700">Logged!</span>
               </div>
-              <button 
-                onClick={() => setSaved(false)} 
-                className="text-green-600/60 hover:text-green-800 transition-colors"
+              <button
+                onClick={() => setSaved(false)}
+                className="w-11 h-11 -mr-2 flex items-center justify-center text-green-700 hover:text-green-800 transition-colors"
                 aria-label="Dismiss message"
               >
                 <X size={16} />
@@ -293,9 +293,9 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
             {savedMealName && (
               <button
                 onClick={handleSaveToVault}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-brand-200 bg-brand-50 text-sm font-medium text-brand-600 transition-colors hover:bg-brand-100"
+                className="btn-secondary inline-flex items-center justify-center gap-2"
               >
-                <BookOpen size={14} />
+                <BookOpen size={16} />
                 Save "{savedMealName}" to Cookbook
               </button>
             )}
@@ -306,14 +306,15 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
       {/* Mic button + Save — pinned to bottom */}
       <div className="relative px-5 py-4 border-t border-gray-100 space-y-3">
 
-        {/* Feedback Link */}
+        {/* Feedback Link — mailto for "Submit feedback or report a bug." Kept
+            (PRD-005 Phase 5 OQ): real handler + aria-label, not decorative. */}
         <a
           href="mailto:mreynolds08@gmail.com?subject=Recipe%20Rhythm%20Feedback"
-          className="absolute top-8 left-5 text-gray-300 hover:text-gray-500 transition-colors p-2 -ml-2"
+          className="absolute top-3 left-3 w-11 h-11 flex items-center justify-center text-gray-700 hover:text-gray-900 transition-colors"
           title="Submit feedback or report a bug"
           aria-label="Submit feedback or report a bug"
         >
-          <MessageSquare size={18} />
+          <MessageSquare size={20} />
         </a>
 
         {/* Mic button */}
@@ -340,7 +341,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
           </div>
         </div>
 
-        <p className="text-xs text-gray-400 text-center">
+        <p className="helper-text text-center">
           {isListening ? 'Tap to stop' : 'Tap to start'}
         </p>
 
