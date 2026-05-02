@@ -204,7 +204,7 @@ export default function CalendarView({ userId, initialMonth }) {
     <div className="mobile-screen pb-28">
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
+        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">
           Calendar
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -216,25 +216,25 @@ export default function CalendarView({ userId, initialMonth }) {
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={prevMonth}
-            className="p-2 text-gray-500 hover:text-brand-600 transition-colors"
+            className="btn-icon"
             aria-label="Previous month"
             data-testid="calendar-prev"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={20} />
           </button>
           <span
-            className="text-sm font-semibold text-gray-800"
+            className="text-base font-semibold text-gray-900"
             data-testid="calendar-month-label"
           >
             {monthLabel(year, monthIdx)}
           </span>
           <button
             onClick={nextMonth}
-            className="p-2 text-gray-500 hover:text-brand-600 transition-colors"
+            className="btn-icon"
             aria-label="Next month"
             data-testid="calendar-next"
           >
-            <ChevronRight size={18} />
+            <ChevronRight size={20} />
           </button>
         </div>
 
@@ -242,7 +242,7 @@ export default function CalendarView({ userId, initialMonth }) {
           {WEEKDAY_LETTERS.map((l, i) => (
             <div
               key={i}
-              className="text-[11px] font-bold text-gray-400 text-center uppercase tracking-wider"
+              className="text-sm font-bold text-gray-700 text-center uppercase tracking-wider"
             >
               {l}
             </div>
@@ -265,23 +265,18 @@ export default function CalendarView({ userId, initialMonth }) {
             //   finalized → warm cream (period is locked)
             //   active    → brand-100 tint (period is live / in-progress)
             //   no period → neutral white
-            //   today     → ring-brand-400
+            //   today     → ring-brand-700
             const base =
-              'relative aspect-square rounded-lg border text-left px-1.5 py-1 flex flex-col justify-between transition-colors'
+              'relative aspect-square rounded-lg border flex items-center justify-center transition-colors'
             let tint = 'bg-white border-cream-100'
             if (periodState === 'finalized') {
               tint = 'bg-cream-200/60 border-cream-200'
             } else if (periodState === 'active') {
               tint = 'bg-brand-100/70 border-brand-200'
             }
-            const ring = isToday ? 'ring-1 ring-brand-400' : ''
+            const ring = isToday ? 'ring-2 ring-brand-700' : ''
             const muted = !cell.inMonth ? 'opacity-40' : ''
             const clickable = hasItems ? 'cursor-pointer hover:brightness-95' : 'cursor-default'
-
-            // The meal preview line: first item's name, ~10 chars. Cooked items
-            // get strikethrough + muted color.
-            const preview = hasItems ? items[0] : null
-            const previewText = preview ? preview.name : ''
 
             return (
               <button
@@ -295,26 +290,22 @@ export default function CalendarView({ userId, initialMonth }) {
                 data-in-month={cell.inMonth ? 'true' : 'false'}
                 aria-label={`${cell.iso}${hasItems ? ` — ${items.length} scheduled` : ''}`}
               >
-                <span
-                  className={`absolute top-1 right-1 text-[8px] font-bold flex items-center justify-center ${
-                    isToday ? 'w-4 h-4 bg-brand-500 text-white rounded-full' : 'w-4 h-4 text-gray-500'
-                  }`}
-                >
-                  {cell.dayNum}
-                </span>
-                {preview && (
+                <span className="flex flex-col items-center gap-0.5">
                   <span
-                    className={`text-[11px] font-medium leading-tight line-clamp-2 mt-3 text-left w-full ${
-                      preview.cooked
-                        ? 'line-through text-gray-400'
-                        : 'text-gray-800'
+                    className={`text-sm font-semibold flex items-center justify-center ${
+                      isToday ? 'w-7 h-7 bg-brand-700 text-white rounded-full' : 'text-gray-900'
                     }`}
-                    data-testid={`calendar-preview-${cell.iso}`}
-                    title={previewText}
                   >
-                    {previewText}
+                    {cell.dayNum}
                   </span>
-                )}
+                  {hasItems && (
+                    <span
+                      className="block w-1.5 h-1.5 rounded-full bg-brand-700"
+                      data-testid={`calendar-dot-${cell.iso}`}
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
               </button>
             )
           })}
@@ -340,14 +331,13 @@ function Legend() {
       className="bg-white border border-cream-100 rounded-2xl px-4 py-3 shadow-sm"
       data-testid="calendar-legend"
     >
-      <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-2 uppercase">
-        Legend
-      </p>
-      <div className="grid grid-cols-2 gap-y-2 text-[11px] text-gray-700">
+      <p className="section-heading mb-2">Legend</p>
+      <p className="helper-text mb-3">Tap any day for details.</p>
+      <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
         <LegendSwatch cls="bg-brand-100/70 border-brand-200" label="Active period" />
         <LegendSwatch cls="bg-cream-200/60 border-cream-200" label="Finalized" />
         <LegendSwatch cls="bg-white border-cream-100" label="Gap day" />
-        <LegendSwatch cls="bg-white border-brand-400 ring-2 ring-brand-400" label="Today" />
+        <LegendSwatch cls="bg-white border-brand-700 ring-2 ring-brand-700" label="Today" />
       </div>
     </div>
   )
@@ -381,14 +371,14 @@ function DayPopover({ iso, items, onClose }) {
       >
         <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="text-[11px] font-bold text-brand-500 tracking-widest uppercase">
+            <p className="section-heading text-brand-700">
               {formatShortDate(iso)}
             </p>
             {periodStart && periodEnd && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-sm text-gray-700 mt-1">
                 Period: {formatShortDate(periodStart)} – {formatShortDate(periodEnd)}
                 {finalized && (
-                  <span className="ml-2 text-brand-600 font-semibold">
+                  <span className="ml-2 text-brand-700 font-semibold">
                     · Finalized
                   </span>
                 )}
@@ -397,7 +387,7 @@ function DayPopover({ iso, items, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700 p-1"
+            className="btn-icon"
             aria-label="Close"
             data-testid="calendar-popover-close"
           >
@@ -410,16 +400,16 @@ function DayPopover({ iso, items, onClose }) {
           data-testid="calendar-popover-items"
         >
           {items.map((item) => (
-            <div key={item.item_id} className="flex items-center gap-3 py-2.5">
+            <div key={item.item_id} className="flex items-center gap-3 py-3">
               <span
-                className={`text-sm flex-1 font-medium leading-snug ${
-                  item.cooked ? 'line-through text-gray-400' : 'text-gray-900'
+                className={`text-base flex-1 font-medium leading-snug ${
+                  item.cooked ? 'line-through text-gray-500' : 'text-gray-900'
                 }`}
               >
                 {item.name}
               </span>
               {item.cooked && (
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-tighter">
+                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">
                   Cooked
                 </span>
               )}
