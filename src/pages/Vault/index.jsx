@@ -129,16 +129,20 @@ export default function Vault({ userId }) {
     <div className="mobile-screen pb-28">
 
       {/* Header */}
-      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center relative">
-        <div className="absolute top-1/2 -translate-y-1/2 right-5">
+      <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5">
+        <div className="flex items-end justify-between gap-3">
+          <div className="w-11 shrink-0" aria-hidden="true" />
+          <div className="flex-1 flex flex-col items-center text-center">
+            <Logo className="w-8 h-8 mb-2" />
+            <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
+            <p className="text-lg text-gray-900 mt-1 font-serif italic">
+              {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
+            </p>
+          </div>
           <button
             onClick={() => { trigger('light'); setShowForm(prev => !prev) }}
             aria-label={showForm ? 'Close add recipe form' : 'Add a new recipe'}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95
-              ${showForm
-                ? 'bg-white border border-brand-200 text-brand-500 hover:bg-brand-50'
-                : 'bg-brand-500 text-white hover:bg-brand-600 shadow-brand-100'
-              }`}
+            className={showForm ? 'btn-icon shrink-0' : 'btn-icon-brand shrink-0'}
           >
             {showForm
               ? <X size={20} strokeWidth={2.5} />
@@ -146,11 +150,6 @@ export default function Vault({ userId }) {
             }
           </button>
         </div>
-        <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
-        <p className="text-lg text-gray-900 mt-1 font-serif italic">
-          {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
-        </p>
       </div>
 
       {vaultError && (
