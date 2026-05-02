@@ -33,7 +33,7 @@ const labelForMinutes = (minutes) => {
 function FieldSection({ label, children }) {
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="section-heading">{label}</p>
       {children}
     </div>
   )
@@ -45,10 +45,10 @@ function ComponentRow({ label, values }) {
   if (filtered.length === 0) return null
   return (
     <div className="flex gap-2 items-start">
-      <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider pt-0.5 w-12 shrink-0">{label}</span>
+      <span className="text-xs font-bold text-gray-700 uppercase tracking-wider pt-1 w-12 shrink-0">{label}</span>
       <div className="flex flex-wrap gap-1">
         {filtered.map(v => (
-          <span key={v} className="px-2 py-0.5 bg-cream-100 text-gray-600 text-xs rounded-full">{v}</span>
+          <span key={v} className="px-2 py-1 bg-cream-100 text-gray-700 text-xs rounded-full">{v}</span>
         ))}
       </div>
     </div>
@@ -90,8 +90,8 @@ function StarRating({ value, onChange, size = 18, label = 'Family rating' }) {
             aria-label={`${n} star${n === 1 ? '' : 's'}`}
             aria-checked={value === n}
             role="radio"
-            className={`p-0.5 rounded transition-colors ${
-              filled ? 'text-amber-400' : 'text-gray-300 hover:text-amber-300'
+            className={`p-1 rounded transition-colors ${
+              filled ? 'text-amber-500' : 'text-gray-500 hover:text-amber-400'
             }`}
           >
             <Star
@@ -137,7 +137,7 @@ export default function RecipeCard({
         aria-expanded={expanded}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-base font-medium text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">
+          <p className="text-base font-medium text-gray-900 truncate leading-tight group-hover:text-brand-700 transition-colors">
             {recipe.name}
           </p>
           <div className="flex flex-wrap items-center gap-x-1.5 mt-1">
@@ -146,7 +146,7 @@ export default function RecipeCard({
               recipe.cooking_method,
               ...(recipe.proteins || []).filter(p => p !== 'None').slice(0, 2),
             ].filter(Boolean).map((item, i) => (
-              <span key={item} className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+              <span key={item} className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                 {i > 0 && '· '}{item}
               </span>
             ))}
@@ -154,18 +154,18 @@ export default function RecipeCard({
               <span
                 role="status"
                 aria-label="AI suggestion"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800 ring-1 ring-amber-200"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-800 ring-1 ring-amber-200"
               >
                 <Sparkles className="w-3 h-3" /> New
               </span>
             )}
             {recipe.auto_completed && (
-              <span className="text-[11px] font-bold text-amber-500/80 border border-amber-200 bg-amber-50 rounded-full px-1.5 py-0.5 uppercase tracking-wide leading-none">
+              <span className="text-xs font-bold text-amber-700 border border-amber-200 bg-amber-50 rounded-full px-2 py-1 uppercase tracking-wide leading-none">
                 AI-filled
               </span>
             )}
             {recipe.prep_time_minutes != null && (
-              <span className="text-[11px] text-gray-500 font-medium">
+              <span className="text-xs text-gray-700 font-medium">
                 · {recipe.prep_time_minutes} min
               </span>
             )}
@@ -179,7 +179,7 @@ export default function RecipeCard({
             />
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 text-gray-300 group-hover:text-brand-400 transition-colors">
+        <div className="flex items-center gap-2 flex-shrink-0 text-gray-500 group-hover:text-brand-700 transition-colors">
           {expanded
             ? <ChevronUp size={20} strokeWidth={2.5} />
             : <ChevronDown size={20} strokeWidth={2.5} />
@@ -267,7 +267,7 @@ export default function RecipeCard({
                 </button>
                 <button
                   onClick={onCancelEdit}
-                  className="px-4 py-2 rounded-2xl border border-gray-200 text-sm text-gray-500"
+                  className="btn-secondary flex-1"
                 >
                   Cancel
                 </button>
@@ -286,7 +286,7 @@ export default function RecipeCard({
 
               {recipe.notes && (
                 <div className="bg-cream-50 rounded-xl p-3 border border-cream-100">
-                  <p className="text-xs text-gray-600 leading-relaxed font-serif italic">{recipe.notes}</p>
+                  <p className="helper-text font-serif italic">{recipe.notes}</p>
                 </div>
               )}
               {recipe.recipe_url && (
@@ -294,9 +294,9 @@ export default function RecipeCard({
                   href={recipe.recipe_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-700 transition-colors truncate"
+                  className="flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-800 transition-colors truncate"
                 >
-                  <ExternalLink size={11} className="shrink-0" />
+                  <ExternalLink size={14} className="shrink-0" />
                   <span className="truncate">{recipe.recipe_url.replace(/^https?:\/\//, '')}</span>
                 </a>
               )}
@@ -310,15 +310,15 @@ export default function RecipeCard({
               <div className="flex items-center gap-2 pt-2 border-t border-cream-100 mt-2">
                 <button
                   onClick={() => onStartEdit(recipe)}
-                  className="py-2 px-3 text-[11px] font-bold text-brand-600 bg-brand-50 rounded-lg uppercase tracking-widest hover:bg-brand-100 transition-colors flex-1 text-center"
+                  className="py-3 px-3 text-sm font-bold text-brand-700 bg-brand-50 rounded-lg uppercase tracking-wide hover:bg-brand-100 transition-colors flex-1 text-center"
                 >
                   Edit components
                 </button>
                 <button
                   onClick={() => onDelete(recipe.id)}
-                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-bold text-red-600 bg-red-50 uppercase tracking-widest hover:bg-red-100 transition-colors flex-1"
+                  className="flex items-center justify-center gap-1.5 py-3 px-3 rounded-lg text-sm font-bold text-red-700 bg-red-50 uppercase tracking-wide hover:bg-red-100 transition-colors flex-1"
                 >
-                  <Trash2 size={12} strokeWidth={2.5} />
+                  <Trash2 size={16} strokeWidth={2.5} />
                   Remove
                 </button>
               </div>
