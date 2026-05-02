@@ -9,20 +9,79 @@
   }
 }
 
+/*
+ * Design system primitives — see docs/architecture.md "Design system rules"
+ * and PRD-005 §7 for the spacing, typography, contrast, and touch-target
+ * rules every primitive below conforms to.
+ */
 @layer components {
+  /* Page shell — max-w-md mobile column, safe-area top, bottom-nav clearance. */
   .mobile-screen {
     @apply max-w-md mx-auto min-h-screen bg-cream-50 flex flex-col pb-16 pt-[env(safe-area-inset-top)];
   }
+
+  /* Primary button — full-width, white on brand-600. brand-600 (4.41:1) clears
+     WCAG AA at the existing text-base font-semibold size; brand-500 (3.47:1) did not. */
   .btn-primary {
-    @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
+    @apply w-full py-3.5 rounded-2xl bg-brand-600 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
   }
-  .btn-ghost {
-    @apply px-4 py-2 rounded-xl text-sm text-gray-500 hover:bg-cream-100 transition-colors;
+
+  /* Secondary button — white bg, brand-700 outline + text. Pair with .btn-primary
+     for cancel/secondary actions. */
+  .btn-secondary {
+    @apply w-full py-3.5 rounded-2xl bg-white text-brand-700 font-semibold text-base border-2 border-brand-700 active:scale-95 transition-all hover:bg-brand-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed;
   }
+
+  /* Icon-only button — 44x44 round, neutral or brand variants. Use for top-bar
+     actions like Sign Out, the Vault add (+), modal close X, etc. Always meets
+     the 44px touch target rule. */
+  .btn-icon {
+    @apply w-11 h-11 rounded-full flex items-center justify-center bg-white border border-cream-200 text-gray-700 shadow-sm active:scale-95 transition-all hover:bg-cream-50;
+  }
+  .btn-icon-brand {
+    @apply w-11 h-11 rounded-full flex items-center justify-center bg-brand-600 text-white shadow-md active:scale-95 transition-all hover:bg-brand-700;
+  }
+
+  /* Inline text-action button — for "+ ADD ANOTHER MEAL" and similar. Uses brand-700
+     for AA contrast; min-height 44px to meet the touch target rule. */
+  .btn-text {
+    @apply inline-flex items-center gap-1.5 text-brand-700 font-semibold text-sm tracking-wide uppercase py-3 active:opacity-70 transition-opacity;
+  }
+
+  /* Text input — standard form field. */
   .input-base {
     @apply w-full rounded-xl border border-cream-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all;
   }
+
+  /* Content card. */
   .card {
     @apply bg-white rounded-2xl border border-cream-100 p-5 shadow-sm;
+  }
+
+  /* Chip — selectable pill. 44px hit area via vertical padding. Default unselected
+     appearance; selected state is composed by the caller (add .chip-selected). */
+  .chip {
+    @apply inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full bg-white border border-cream-200 text-sm text-gray-700 font-medium transition-all active:scale-95;
+  }
+  .chip-selected {
+    @apply bg-brand-600 text-white border-brand-600;
+  }
+
+  /* Section heading — uppercase tracking + correct contrast. Use instead of
+     ad-hoc text-[11px] font-bold text-gray-400 patterns. */
+  .section-heading {
+    @apply text-sm font-bold text-gray-700 tracking-widest uppercase;
+  }
+
+  /* Body text — 16px gray-700 default. Use anywhere body copy renders, replacing
+     the prevalent text-xs / text-sm gray-400 anti-pattern. */
+  .body-text {
+    @apply text-base text-gray-700 leading-6;
+  }
+
+  /* Helper / supporting text — 14px gray-700, optional italic for tone. Use under
+     form fields, in empty states, etc. */
+  .helper-text {
+    @apply text-sm text-gray-700 leading-5;
   }
 }
