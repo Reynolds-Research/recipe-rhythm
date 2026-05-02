@@ -73,7 +73,7 @@ export default function ChipPicker({
 
   return (
     <div
-      className="flex flex-wrap gap-1.5 items-center"
+      className="flex flex-wrap gap-2 items-center"
       role="group"
       aria-label={ariaLabel || undefined}
     >
@@ -85,11 +85,7 @@ export default function ChipPicker({
             type="button"
             onClick={() => toggle(key)}
             aria-pressed={multi ? active : undefined}
-            className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
-              active
-                ? 'bg-brand-500 text-white border-brand-500'
-                : 'bg-white text-gray-500 border-cream-200 hover:border-brand-300 hover:text-brand-600'
-            }`}
+            className={active ? 'chip chip-selected' : 'chip hover:border-brand-300 hover:text-brand-700'}
           >
             {label}
           </button>
@@ -108,22 +104,22 @@ export default function ChipPicker({
               if (e.key === 'Escape') { setShowAdd(false); setDraft('') }
             }}
             placeholder="Type & press Enter"
-            className="w-32 px-2.5 py-1 text-xs border border-brand-300 rounded-full outline-none focus:ring-1 focus:ring-brand-400 bg-white"
+            className="w-32 px-3 py-2 text-sm border border-brand-300 rounded-full outline-none focus:ring-1 focus:ring-brand-400 bg-white"
           />
           <button
             type="button"
             onClick={() => { setShowAdd(false); setDraft('') }}
             aria-label="Cancel custom tag"
-            className="text-gray-300 hover:text-gray-500 transition-colors"
+            className="text-gray-700 hover:text-gray-900 transition-colors"
           >
-            <X size={12} />
+            <X size={16} />
           </button>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => { trigger('light'); setShowAdd(true) }}
-          className="px-2.5 py-1 rounded-full text-xs text-gray-400 border border-dashed border-gray-200 hover:border-brand-300 hover:text-brand-500 transition-all"
+          className="chip border-dashed text-gray-700 hover:border-brand-300 hover:text-brand-700"
         >
           + custom
         </button>

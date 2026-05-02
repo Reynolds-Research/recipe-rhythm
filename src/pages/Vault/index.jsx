@@ -120,7 +120,7 @@ export default function Vault({ userId }) {
   if (loading) {
     return (
       <div className="mobile-screen items-center justify-center pb-28">
-        <p className="text-sm text-gray-400">Loading vault…</p>
+        <p className="helper-text">Loading vault…</p>
       </div>
     )
   }
@@ -134,7 +134,7 @@ export default function Vault({ userId }) {
           <div className="w-11 shrink-0" aria-hidden="true" />
           <div className="flex-1 flex flex-col items-center text-center">
             <Logo className="w-8 h-8 mb-2" />
-            <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
+            <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
             <p className="text-lg text-gray-900 mt-1 font-serif italic">
               {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
             </p>
@@ -174,8 +174,8 @@ export default function Vault({ userId }) {
         {/* Empty state */}
         {recipes.length === 0 && !showForm && (
           <div className="text-center py-16 space-y-2">
-            <p className="text-gray-400 text-sm">Your vault is empty</p>
-            <p className="text-gray-300 text-xs">Tap + to add your first recipe</p>
+            <p className="body-text">Your vault is empty</p>
+            <p className="helper-text">Tap + to add your first recipe</p>
           </div>
         )}
 
@@ -208,21 +208,21 @@ export default function Vault({ userId }) {
           return (
             <div className="pt-2 min-w-0">
               <div className="flex items-center gap-2 mb-3">
-                <p className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">Need a head start?</p>
+                <p className="section-heading">Need a head start?</p>
                 <div className="flex-1 h-px bg-cream-200" />
               </div>
-              <p className="text-xs text-gray-400 mb-3">Tap any meal to add it to your vault with AI-filled details.</p>
+              <p className="helper-text mb-3">Tap any meal to add it to your vault with AI-filled details.</p>
               <div className="flex flex-wrap gap-2">
                 {available.map(name => (
                   <button
                     key={name}
                     onClick={() => handleAddSuggestion(name)}
                     disabled={!!addingSuggestion}
-                    className="flex items-center gap-1.5 bg-white border border-cream-200 rounded-full px-3.5 py-1.5 text-sm text-gray-600 font-medium transition-all active:bg-brand-50 active:border-brand-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {addingSuggestion === name
-                      ? <Loader2 size={11} className="animate-spin text-brand-400" />
-                      : <BookmarkPlus size={11} className="text-gray-400" />
+                      ? <Loader2 size={14} className="animate-spin text-brand-700" />
+                      : <BookmarkPlus size={14} className="text-gray-700" />
                     }
                     {name}
                   </button>

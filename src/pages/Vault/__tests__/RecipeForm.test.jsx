@@ -156,17 +156,17 @@ describe('RecipeCard — prep-time chip pre-selects from saved integer (PRD-002 
       />
     )
 
-    // The active chip carries the brand-500 background class. Anchor on
-    // both the "30–60 min" label and the active styling to confirm pre-
-    // selection.
+    // The active chip carries the chip-selected class (PRD-005 design system).
+    // Anchor on both the "30–60 min" label and the active styling to confirm
+    // pre-selection.
     const activeChip = screen.getByRole('button', { name: '30–60 min' })
     expect(activeChip).toBeInTheDocument()
-    expect(activeChip.className).toMatch(/bg-brand-500/)
+    expect(activeChip.className).toMatch(/chip-selected/)
 
     // The other prep-time chips must not be active.
     for (const otherLabel of ['< 15 min', '15–30 min', '60+ min']) {
       const chip = screen.getByRole('button', { name: otherLabel })
-      expect(chip.className).not.toMatch(/bg-brand-500/)
+      expect(chip.className).not.toMatch(/chip-selected/)
     }
   })
 })
