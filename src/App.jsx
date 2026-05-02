@@ -56,11 +56,11 @@ export default function App() {
     <div className="max-w-md mx-auto relative">
       <button
         onClick={() => supabase.auth.signOut()}
-        className="absolute top-[max(20px,env(safe-area-inset-top))] right-[max(20px,env(safe-area-inset-right))] z-50 text-gray-400 hover:text-red-400 transition-colors bg-white/50 backdrop-blur-sm p-3 rounded-full border border-cream-100 shadow-sm"
+        className="btn-icon absolute top-[max(20px,env(safe-area-inset-top))] right-[max(20px,env(safe-area-inset-right))] z-50"
         title="Sign Out"
         aria-label="Sign out"
       >
-        <LogOut size={16} />
+        <LogOut size={18} />
       </button>
 
       <main>
@@ -94,8 +94,8 @@ export default function App() {
           <button
             key={id}
             onClick={() => setPage(id)}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 text-[11px] font-medium tracking-wide uppercase transition-all
-              ${page === id ? 'text-brand-500 scale-110' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium tracking-wide uppercase transition-all
+              ${page === id ? 'text-brand-700 scale-110' : 'text-gray-700 hover:text-gray-900'}`}
           >
             <Icon size={20} strokeWidth={page === id ? 2.5 : 2} />
             {label}
