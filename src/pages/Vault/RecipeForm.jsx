@@ -33,7 +33,7 @@ const labelForMinutes = (minutes) => {
 function FieldSection({ label, children }) {
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+      <p className="section-heading">{label}</p>
       {children}
     </div>
   )
@@ -203,22 +203,22 @@ export default function RecipeForm({
     <div className="card space-y-5 border-brand-100 bg-brand-50/30 backdrop-blur-sm">
 
       {/* Form header with AI status */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-brand-600 tracking-wider uppercase">Add a new recipe</p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="section-heading text-brand-700">Add a new recipe</p>
         {suggesting && (
-          <div className="flex items-center gap-1.5 text-[11px] text-brand-400 font-medium">
-            <Loader2 size={10} className="animate-spin" />
+          <div className="flex items-center gap-1.5 text-xs text-brand-700 font-medium">
+            <Loader2 size={12} className="animate-spin" />
             Analyzing…
           </div>
         )}
         {aiApplied && !suggesting && (
-          <div className="flex items-center gap-1 text-[11px] text-brand-500 font-medium">
-            <Sparkles size={10} />
+          <div className="flex items-center gap-1 text-xs text-brand-700 font-medium">
+            <Sparkles size={12} />
             AI filled — tweak as needed
           </div>
         )}
         {aiError && !suggesting && (
-          <p className="text-[11px] text-red-400 font-medium">Couldn't analyze. Fill manually.</p>
+          <p className="text-xs text-red-600 font-medium">Couldn't analyze. Fill manually.</p>
         )}
       </div>
 
@@ -274,7 +274,8 @@ export default function RecipeForm({
                 setImageFile(null)
                 setImagePreview(null)
               }}
-              className="absolute -top-2 -right-2 bg-white text-gray-400 rounded-full p-1 shadow-sm border border-cream-100 hover:text-red-500 transition-colors"
+              aria-label="Remove image"
+              className="absolute -top-2 -right-2 bg-white text-gray-700 rounded-full p-1 shadow-sm border border-cream-100 hover:text-red-600 transition-colors"
             >
               <X size={16} />
             </button>
@@ -285,7 +286,7 @@ export default function RecipeForm({
           type="button"
           onClick={handleManualSuggest}
           disabled={suggesting || (!name.trim() && !recipeUrl.trim() && !imageFile)}
-          className="w-full py-2.5 rounded-xl border border-brand-200 bg-brand-50/50 text-brand-600 text-sm font-medium flex items-center justify-center gap-2 hover:bg-brand-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="btn-secondary inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {suggesting ? (
             <><Loader2 size={16} className="animate-spin" /> Analyzing…</>
