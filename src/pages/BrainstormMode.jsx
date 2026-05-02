@@ -187,28 +187,33 @@ function SortableMealItem({ slot, isServed, onToggleCooked, onMoveToMaybe }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-4 py-3 bg-white ${
+      className={`flex items-center gap-3 py-3 bg-white ${
         isDragging ? 'opacity-50 shadow-lg relative rounded-xl border-brand-200' : ''
       }`}
     >
       <div
         {...(isServed ? {} : { ...attributes, ...listeners })}
-        className={isServed ? 'text-gray-200 p-2.5 cursor-not-allowed -ml-1.5' : 'cursor-grab active:cursor-grabbing text-gray-300 hover:text-brand-400 p-2.5 -ml-1.5'}
+        aria-label={isServed ? undefined : `Drag to reorder ${slot.name}`}
+        className={
+          isServed
+            ? 'w-11 h-11 -ml-2 flex items-center justify-center text-gray-500 cursor-not-allowed flex-shrink-0'
+            : 'w-11 h-11 -ml-2 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-500 hover:text-brand-700 flex-shrink-0'
+        }
       >
-        <GripVertical size={18} strokeWidth={2} />
+        <GripVertical size={20} strokeWidth={2} />
       </div>
       <span
-        className={`text-sm flex-1 min-w-0 font-medium leading-snug flex flex-col items-start gap-1 ${
+        className={`flex-1 min-w-0 font-medium leading-snug flex flex-col items-start gap-1 text-base ${
           showCookedToggle && slot.cooked
-            ? 'line-through text-gray-400'
+            ? 'line-through text-gray-500'
             : 'text-gray-900'
         }`}
       >
-        <span className="truncate w-full block">{slot.name}</span>
+        <span className="line-clamp-2 w-full break-words">{slot.name}</span>
         {slot.is_wildcard && (
-          <div className="flex items-center gap-1.5">
-            <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
-              <Sparkles size={8} />
+          <div className="flex items-center gap-2">
+            <span className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
+              <Sparkles size={10} />
               New
             </span>
             {slot.source_url && (
@@ -216,11 +221,11 @@ function SortableMealItem({ slot, isServed, onToggleCooked, onMoveToMaybe }) {
                 href={slot.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-400 hover:text-brand-600 transition-colors"
+                className="text-brand-700 hover:text-brand-800 transition-colors"
                 title="View Recipe"
                 aria-label={`View recipe for ${slot.name}`}
               >
-                <ExternalLink size={12} />
+                <ExternalLink size={14} />
               </a>
             )}
           </div>
@@ -231,14 +236,14 @@ function SortableMealItem({ slot, isServed, onToggleCooked, onMoveToMaybe }) {
           onClick={() => onMoveToMaybe(slot.item_id)}
           aria-label="Move to Maybe"
           title="Move to Maybe"
-          className="flex-shrink-0 p-2 -mr-1 text-brand-400 hover:text-brand-600 transition-colors"
+          className="flex-shrink-0 w-11 h-11 -mr-2 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
         >
-          <BookmarkPlus size={16} strokeWidth={2} />
+          <BookmarkPlus size={18} strokeWidth={2} />
         </button>
       )}
       {showCookedToggle && (
         <label className="flex-shrink-0 flex items-center gap-2 cursor-pointer">
-          <span className="text-[11px] font-bold text-brand-600 uppercase tracking-wide">
+          <span className="text-sm font-bold text-brand-700 uppercase tracking-wide">
             Cooked
           </span>
           <input
@@ -246,7 +251,8 @@ function SortableMealItem({ slot, isServed, onToggleCooked, onMoveToMaybe }) {
             checked={!!slot.cooked}
             onChange={(e) => onToggleCooked(slot.item_id, e.target.checked)}
             aria-label={`Mark "${slot.name}" cooked`}
-            className="h-5 w-5 rounded border-cream-200 text-brand-500 focus:ring-brand-300 focus:ring-2"
+            style={{ accentColor: '#D74520' }}
+            className="h-5 w-5 rounded border-cream-200 focus:ring-brand-300 focus:ring-2"
           />
         </label>
       )}
@@ -274,7 +280,7 @@ function DayCell({
     return (
       <div className="py-3">
         <div className="flex items-start gap-3">
-          <span className="text-[11px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase pt-3">
+          <span className="text-sm font-bold text-brand-700 w-8 flex-shrink-0 tracking-tighter uppercase pt-3">
             {dow}
           </span>
           <button
@@ -282,9 +288,9 @@ function DayCell({
             role="button"
             aria-label={`Schedule a meal for ${dateLabel}`}
             onClick={() => onOpenPicker(date)}
-            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border border-dashed border-cream-200 text-gray-400 hover:text-brand-500 hover:border-brand-200 hover:bg-brand-50/30 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border border-dashed border-cream-200 text-gray-700 hover:text-brand-700 hover:border-brand-200 hover:bg-brand-50/30 transition-colors min-h-[44px]"
           >
-            <Plus size={14} strokeWidth={2.5} />
+            <Plus size={16} strokeWidth={2.5} />
             <span className="text-sm italic">Tap to add a meal</span>
           </button>
         </div>
@@ -295,7 +301,7 @@ function DayCell({
   return (
     <div className="py-2">
       <div className="flex items-start gap-3">
-        <span className="text-[11px] font-bold text-brand-400 w-8 flex-shrink-0 tracking-tighter uppercase pt-4">
+        <span className="text-sm font-bold text-brand-700 w-8 flex-shrink-0 tracking-tighter uppercase pt-4">
           {dow}
         </span>
         <div className="flex-1 min-w-0">
@@ -313,9 +319,9 @@ function DayCell({
             role="button"
             aria-label={`Add another meal to ${dateLabel}`}
             onClick={() => onOpenPicker(date)}
-            className="mt-1 mb-1 flex items-center gap-1.5 text-[11px] font-bold text-brand-500 hover:text-brand-600 uppercase tracking-wide"
+            className="btn-text"
           >
-            <Plus size={12} strokeWidth={2.5} />
+            <Plus size={14} strokeWidth={2.5} />
             Add another meal
           </button>
         </div>
@@ -331,7 +337,7 @@ function ShortlistTab({ items, isServed, onSchedule }) {
   if (!isServed) {
     return (
       <div className="bg-white border border-cream-100 rounded-2xl px-5 py-8 text-center shadow-sm">
-        <p className="text-sm text-gray-500">
+        <p className="helper-text">
           Serve a plan to start shortlisting candidates for the period.
         </p>
       </div>
@@ -340,7 +346,7 @@ function ShortlistTab({ items, isServed, onSchedule }) {
   if (items.length === 0) {
     return (
       <div className="bg-white border border-cream-100 rounded-2xl px-5 py-8 text-center shadow-sm">
-        <p className="text-sm text-gray-500">
+        <p className="helper-text">
           Nothing shortlisted yet. Tap a candidate's bookmark to save it for later.
         </p>
       </div>
@@ -354,14 +360,14 @@ function ShortlistTab({ items, isServed, onSchedule }) {
           className="flex items-center gap-3 py-4"
           data-testid={`shortlist-item-${item.item_id}`}
         >
-          <Bookmark size={16} strokeWidth={2} className="text-brand-400 flex-shrink-0" />
-          <span className="text-sm text-gray-900 flex-1 min-w-0 truncate font-medium">
+          <Bookmark size={16} strokeWidth={2} className="text-brand-700 flex-shrink-0" />
+          <span className="text-base text-gray-900 flex-1 min-w-0 truncate font-medium">
             {item.name}
           </span>
           <button
             onClick={() => onSchedule(item)}
             aria-label={`Schedule ${item.name}`}
-            className="flex-shrink-0 text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-3.5 py-1.5 uppercase tracking-wide hover:bg-brand-100 transition-colors"
+            className="flex-shrink-0 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-4 py-3 min-h-[44px] uppercase tracking-wide hover:bg-brand-100 transition-colors"
           >
             Schedule
           </button>
@@ -1113,7 +1119,7 @@ export default function BrainstormMode({ userId }) {
   if (loading) {
     return (
       <div className="mobile-screen items-center justify-center pb-28">
-        <p className="text-sm text-gray-400">Building your plan…</p>
+        <p className="helper-text">Building your plan…</p>
       </div>
     )
   }
@@ -1162,7 +1168,7 @@ export default function BrainstormMode({ userId }) {
         {startingPeriod && (
           <div className="fixed inset-0 bg-black/30 z-[70] flex items-center justify-center">
             <div className="bg-white rounded-xl px-5 py-3 shadow-lg flex items-center gap-2">
-              <Loader2 size={16} className="animate-spin text-brand-500" />
+              <Loader2 size={16} className="animate-spin text-brand-700" />
               <span className="text-sm text-gray-700">Starting new period…</span>
             </div>
           </div>
@@ -1177,7 +1183,7 @@ export default function BrainstormMode({ userId }) {
       {/* Header */}
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">Brainstorm meals</p>
       </div>
 
@@ -1193,10 +1199,10 @@ export default function BrainstormMode({ userId }) {
             role="tab"
             aria-selected={activeTab === 'thisWeek'}
             onClick={() => setActiveTab('thisWeek')}
-            className={`py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
+            className={`py-3 min-h-[44px] rounded-full text-sm font-bold uppercase tracking-wider transition-colors ${
               activeTab === 'thisWeek'
-                ? 'bg-white text-brand-600 shadow-sm'
-                : 'text-gray-500 hover:text-brand-500'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-gray-700 hover:text-brand-700'
             }`}
           >
             This Week
@@ -1205,15 +1211,15 @@ export default function BrainstormMode({ userId }) {
             role="tab"
             aria-selected={activeTab === 'maybe'}
             onClick={() => setActiveTab('maybe')}
-            className={`py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 ${
+            className={`py-3 min-h-[44px] rounded-full text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${
               activeTab === 'maybe'
-                ? 'bg-white text-brand-600 shadow-sm'
-                : 'text-gray-500 hover:text-brand-500'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-gray-700 hover:text-brand-700'
             }`}
           >
             Maybe
             {shortlist.length > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-600">
+              <span className="text-sm font-bold px-2 py-1 rounded-full bg-brand-50 text-brand-700">
                 {shortlist.length}
               </span>
             )}
@@ -1221,7 +1227,7 @@ export default function BrainstormMode({ userId }) {
         </div>
 
         {shortlistError && (
-          <p className="text-xs text-red-500 text-center">{shortlistError}</p>
+          <p className="text-xs text-red-600 text-center">{shortlistError}</p>
         )}
 
         {activeTab === 'thisWeek' && (
@@ -1236,46 +1242,46 @@ export default function BrainstormMode({ userId }) {
             className="bg-brand-50 border border-brand-200 rounded-2xl px-4 py-4 shadow-sm space-y-3"
           >
             <div>
-              <p className="text-[11px] font-bold text-brand-500 tracking-widest uppercase mb-1">
+              <p className="section-heading text-brand-700 mb-1">
                 Your period has ended
               </p>
-              <p className="text-sm text-gray-700">
+              <p className="body-text">
                 Mark what you actually cooked, then lock it in.
               </p>
             </div>
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => setShowReview(true)}
-                className="btn-primary w-full"
+                className="btn-primary"
               >
                 Edit what you actually ate
               </button>
               <button
                 onClick={handleLockInAsIs}
                 disabled={lockingIn}
-                className="w-full py-3 rounded-2xl border border-brand-200 bg-white text-sm font-semibold text-brand-600 hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="btn-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {lockingIn ? (
-                  <><Loader2 size={14} className="animate-spin" /> Finalizing…</>
+                  <><Loader2 size={16} className="animate-spin" /> Finalizing…</>
                 ) : (
                   'Lock in as-is'
                 )}
               </button>
             </div>
             {periodError && (
-              <p className="text-xs text-red-500 text-center">{periodError}</p>
+              <p className="text-xs text-red-600 text-center">{periodError}</p>
             )}
           </div>
         )}
 
         {/* Last week's meals */}
         <div>
-          <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">LAST WEEK'S MEALS</p>
+          <p className="section-heading mb-3">Last week's meals</p>
           <div className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm">
             {lastWeek.map(({ day, name }) => (
               <div key={day} className="flex items-center gap-3 py-3">
-                <span className="text-xs font-medium text-gray-400 w-8 flex-shrink-0">{day.toUpperCase()}</span>
-                <span className={`text-sm flex-1 ${name ? 'text-gray-900' : 'text-gray-300'}`}>
+                <span className="text-sm font-bold text-gray-700 w-8 flex-shrink-0 uppercase tracking-wider">{day.toUpperCase()}</span>
+                <span className={`text-base flex-1 ${name ? 'text-gray-900' : 'text-gray-500 italic'}`}>
                   {name || '—'}
                 </span>
               </div>
@@ -1286,13 +1292,13 @@ export default function BrainstormMode({ userId }) {
         {/* Date strip + plan */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">YOUR MEAL PLAN</p>
+            <p className="section-heading">Your meal plan</p>
             <button
               onClick={() => loadData(true)}
               disabled={isServed}
-              className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider transition-colors ${isServed ? 'text-gray-300 cursor-not-allowed' : 'text-brand-500 hover:text-brand-600'}`}
+              className={`btn-text ${isServed ? 'text-gray-500 cursor-not-allowed pointer-events-none' : ''}`}
             >
-              <RefreshCw size={12} strokeWidth={2.5} />
+              <RefreshCw size={14} strokeWidth={2.5} />
               Regenerate
             </button>
           </div>
@@ -1317,7 +1323,7 @@ export default function BrainstormMode({ userId }) {
               >
                 <div className="divide-y divide-cream-50">
                   {dayGridDates.length === 0 ? (
-                    <p className="py-6 text-sm text-gray-400 text-center">
+                    <p className="py-6 helper-text text-center">
                       Pick a date above to start planning.
                     </p>
                   ) : (
@@ -1346,7 +1352,7 @@ export default function BrainstormMode({ userId }) {
             <button
               onClick={handleServe}
               disabled={servingPlan || !canServe}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-primary flex items-center justify-center gap-2"
             >
               {servingPlan ? (
                 <><Loader2 size={16} className="animate-spin" /> Saving…</>
@@ -1355,8 +1361,8 @@ export default function BrainstormMode({ userId }) {
               )}
             </button>
           ) : (
-            <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-2xl py-3">
-              <Check size={16} className="text-green-600" />
+            <div className="flex items-center justify-center gap-2 bg-green-50 border border-green-200 rounded-2xl py-3 min-h-[44px]">
+              <Check size={16} className="text-green-700" />
               <span className="text-sm font-medium text-green-700">
                 Served on {new Date(servedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </span>
@@ -1364,11 +1370,11 @@ export default function BrainstormMode({ userId }) {
           )}
 
           {serveError && (
-            <p className="text-xs text-red-500 text-center">{serveError}</p>
+            <p className="text-xs text-red-600 text-center">{serveError}</p>
           )}
 
           {planState === 'active' && periodError && (
-            <p className="text-xs text-red-500 text-center">{periodError}</p>
+            <p className="text-xs text-red-600 text-center">{periodError}</p>
           )}
 
           <div className="flex items-center gap-3">
@@ -1376,7 +1382,7 @@ export default function BrainstormMode({ userId }) {
               onClick={handleShare}
               disabled={!isServed || sharing}
               title={!isServed ? 'Finalize plan first' : undefined}
-              className={`btn-primary flex-1 flex items-center justify-center gap-2 ${!isServed ? 'opacity-40 cursor-not-allowed' : ''}`}
+              className="btn-primary flex-1 flex items-center justify-center gap-2"
             >
               <Share2 size={16} />
               {sharing ? 'Sharing…' : 'Share plan via text'}
@@ -1385,7 +1391,7 @@ export default function BrainstormMode({ userId }) {
               onClick={handleDownloadList}
               disabled={!isServed}
               title={!isServed ? 'Finalize plan first' : undefined}
-              className={`btn-primary flex-1 flex items-center justify-center gap-2 bg-brand-50 text-brand-600 border border-brand-200 hover:bg-brand-100 transition-colors ${!isServed ? 'opacity-40 cursor-not-allowed' : ''}`}
+              className="btn-secondary flex-1 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Download size={16} />
               Groceries
@@ -1398,15 +1404,15 @@ export default function BrainstormMode({ userId }) {
                 setResetError(null)
                 setShowResetConfirm(true)
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-red-200 text-red-600 bg-red-50 hover:bg-red-100 transition-colors text-sm font-medium"
+              className="w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-2xl border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 transition-colors text-sm font-semibold"
             >
-              <Trash2 size={14} />
+              <Trash2 size={16} />
               Reset this plan
             </button>
           )}
 
           {resetError && (
-            <p className="text-xs text-red-500 text-center">{resetError}</p>
+            <p className="text-xs text-red-600 text-center">{resetError}</p>
           )}
 
         </div>
@@ -1452,7 +1458,7 @@ export default function BrainstormMode({ userId }) {
           <Sheet.Header />
           <Sheet.Content>
             <div className="px-6 py-2 pb-safe">
-              <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
+              <p className="section-heading text-brand-700 mb-1">
                 Schedule from Maybe
               </p>
               <p className="text-base font-serif italic text-gray-700 mb-6">
@@ -1477,7 +1483,7 @@ export default function BrainstormMode({ userId }) {
                   }
                   if (periodDates.length === 0) {
                     return (
-                      <p className="text-sm text-gray-400 py-4 text-center">
+                      <p className="helper-text py-4 text-center">
                         No active period.
                       </p>
                     )
@@ -1489,7 +1495,7 @@ export default function BrainstormMode({ userId }) {
                       onClick={() =>
                         handleScheduleFromShortlist(scheduleSheetItem, d)
                       }
-                      className="w-full text-left py-3 text-sm text-gray-900 hover:text-brand-600 transition-colors"
+                      className="w-full text-left py-3 min-h-[44px] text-base text-gray-900 hover:text-brand-700 transition-colors"
                     >
                       {shortDateLabel(d)}
                     </button>
@@ -1499,15 +1505,15 @@ export default function BrainstormMode({ userId }) {
 
               <button
                 onClick={() => handleRemoveShortlist(scheduleSheetItem)}
-                className="w-full mt-4 py-3 rounded-2xl border border-red-200 text-sm text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full mt-4 py-3 min-h-[44px] rounded-2xl border border-red-200 text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
               >
-                <Trash2 size={14} />
+                <Trash2 size={16} />
                 Remove
               </button>
 
               <button
                 onClick={() => setScheduleSheetItem(null)}
-                className="w-full mt-2 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500"
+                className="btn-secondary mt-2"
               >
                 Cancel
               </button>
@@ -1526,19 +1532,19 @@ export default function BrainstormMode({ userId }) {
           <Sheet.Header />
           <Sheet.Content>
             <div className="px-6 py-2 pb-safe">
-              <p className="text-[11px] font-bold text-red-500 tracking-widest mb-1 uppercase">
+              <p className="section-heading text-red-700 mb-1">
                 Reset this plan?
               </p>
               <p className="text-base font-serif italic text-gray-700 mb-2">
                 Clear the current period.
               </p>
-              <p className="text-sm text-gray-600 mb-6">
+              <p className="helper-text mb-6">
                 This deletes the dates and every meal in your current plan.
                 It can't be undone. Past, finalized periods aren't affected.
               </p>
 
               {resetError && (
-                <p className="text-xs text-red-500 text-center mb-3">
+                <p className="text-xs text-red-600 text-center mb-3">
                   {resetError}
                 </p>
               )}
@@ -1546,18 +1552,18 @@ export default function BrainstormMode({ userId }) {
               <button
                 onClick={handleResetPlan}
                 disabled={resetting}
-                className="w-full py-3 rounded-2xl border border-red-200 bg-red-50 text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 min-h-[44px] rounded-2xl border border-red-200 bg-red-50 text-sm font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {resetting ? (
-                  <><Loader2 size={14} className="animate-spin" /> Resetting…</>
+                  <><Loader2 size={16} className="animate-spin" /> Resetting…</>
                 ) : (
-                  <><Trash2 size={14} /> Reset plan</>
+                  <><Trash2 size={16} /> Reset plan</>
                 )}
               </button>
               <button
                 onClick={() => setShowResetConfirm(false)}
                 disabled={resetting}
-                className="w-full mt-2 py-3 rounded-2xl border border-gray-200 text-sm text-gray-500 disabled:opacity-40"
+                className="btn-secondary mt-2 disabled:opacity-40"
               >
                 Cancel
               </button>
