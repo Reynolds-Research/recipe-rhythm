@@ -192,7 +192,7 @@ export default function DateRangePicker({
         className="w-full max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl px-6 pt-6 pb-8 shadow-2xl border-t border-cream-200"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
+        <p className="section-heading mb-1">
           New Planning Period
         </p>
         <p className="text-base font-serif italic text-gray-700 mb-4">
@@ -223,7 +223,7 @@ export default function DateRangePicker({
           {WEEKDAYS_SHORT.map((l, i) => (
             <div
               key={i}
-              className="text-[11px] font-bold text-gray-400 text-center uppercase tracking-wider"
+              className="text-xs font-bold text-gray-700 text-center uppercase tracking-wider"
             >
               {l}
             </div>
@@ -241,7 +241,7 @@ export default function DateRangePicker({
             } else if (inRange) {
               cls = `${base} bg-brand-100 ${cell.inMonth ? 'text-brand-700' : 'text-brand-400'} font-semibold`
             } else if (!cell.inMonth) {
-              cls = `${base} text-gray-300`
+              cls = `${base} text-gray-500`
             } else {
               cls = `${base} text-gray-700 hover:bg-brand-50`
             }
@@ -264,7 +264,7 @@ export default function DateRangePicker({
           {start && end ? (
             <p className="text-xs text-center text-gray-700">
               <span className="font-semibold">{formatShortDate(start)}</span>
-              <span className="text-gray-400"> → </span>
+              <span className="text-gray-700"> → </span>
               <span className="font-semibold">{formatShortDate(end)}</span>
             </p>
           ) : start ? (
@@ -272,7 +272,7 @@ export default function DateRangePicker({
               Start: <span className="font-semibold">{formatShortDate(start)}</span>. Tap an end date.
             </p>
           ) : (
-            <p className="text-xs text-center text-gray-400">
+            <p className="text-xs text-center text-gray-700">
               Tap a start date to begin.
             </p>
           )}
