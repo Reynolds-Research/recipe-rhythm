@@ -857,8 +857,24 @@ export default function BrainstormMode({ userId, onNavigate }) {
     setPickerDate(date)
   }
 
-  const handlePickerScheduled = async () => {
+  const handlePickerScheduled = async (preServeItem) => {
     setPickerDate(null)
+    if (preServeItem && !loadedPlan?.id) {
+      // Pre-serve pick: update the local plan slot without touching the DB.
+      setPlan(prev => prev.map(slot =>
+        slot.scheduled_date === pickerDate
+          ? {
+              scheduled_date: pickerDate,
+              name:        preServeItem.name,
+              id:          preServeItem.id ?? null,
+              is_wildcard: !!preServeItem.is_wildcard,
+              source_url:  preServeItem.source_url ?? null,
+              source:      preServeItem.source ?? null,
+            }
+          : slot
+      ))
+      return
+    }
     await loadData(false)
   }
 

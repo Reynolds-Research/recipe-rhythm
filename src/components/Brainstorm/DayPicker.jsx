@@ -174,7 +174,8 @@ export default function DayPicker({
 
   const handleSelectScheduled = async (item) => {
     if (!planId || !date) {
-      setError('Serve the plan first to add meals.')
+      // Pre-serve: hand the pick back to the parent to update local plan state.
+      onScheduled?.(item)
       return
     }
     setError(null)

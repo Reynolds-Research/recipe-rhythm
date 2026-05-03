@@ -62,16 +62,21 @@ export default function GroceryList({ userId }) {
     setError(null)
 
     try {
-      // 1. Fetch plan items joined to vault for name + ingredients
+      // 1. Fetch plan items joined to vault for name + ingredients.
+      //    Select categorical fields too so we can fall back when
+      //    ingredients_classified hasn't been populated yet.
       const { data: planItems, error: piErr } = await supabase
         .from('meal_plan_items')
-        .select('name, vault_id, vault(name, ingredients_classified)')
+        .select('name, vault_id, vault(name, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
         .eq('meal_plan_id', activePlan.id)
         .eq('is_shortlisted', false)
         .not('vault_id', 'is', null)
       if (piErr) throw piErr
 
-      // 2. Build recipes array; warn on items without ingredient data
+      // 2. Build recipes array.
+      //    Primary source: ingredients_classified (AI-analysed essentiality list).
+      //    Fallback: categorical fields (proteins, vegetables, etc.) for recipes
+      //    that haven't been through the classify-ingredients pass yet.
       const skippedNoVault = []
       const recipes = []
       for (const item of planItems ?? []) {
@@ -79,22 +84,32 @@ export default function GroceryList({ userId }) {
           skippedNoVault.push(item.name)
           continue
         }
-        const classified = item.vault.ingredients_classified
-        if (!Array.isArray(classified) || classified.length === 0) {
-          console.warn('[GroceryList] no ingredients for vault recipe:', item.vault.name)
+        const v = item.vault
+        const classified = v.ingredients_classified
+        let ingredients
+        if (Array.isArray(classified) && classified.length > 0) {
+          ingredients = classified.map(c => c.name).filter(Boolean)
+        } else {
+          ingredients = [
+            ...(v.proteins        || []),
+            ...(v.main_carb       || []),
+            ...(v.vegetables      || []),
+            ...(v.dairy_components || []),
+            ...(v.fruits          || []),
+          ].filter(Boolean)
+        }
+        if (ingredients.length === 0) {
+          console.warn('[GroceryList] no ingredient data for vault recipe:', v.name)
           continue
         }
-        recipes.push({
-          name: item.vault.name,
-          ingredients: classified.map(c => c.name).filter(Boolean),
-        })
+        recipes.push({ name: v.name, ingredients })
       }
       if (skippedNoVault.length) {
         console.warn('[GroceryList] skipped (no vault row):', skippedNoVault)
       }
 
       if (recipes.length === 0) {
-        setError('None of the meals in this plan have ingredient data. Add recipes to your Vault and re-link them.')
+        setError('None of the meals in this plan have ingredient data. Open each recipe in your Cookbook and save it to trigger ingredient analysis.')
         return
       }
 
