@@ -39,14 +39,14 @@ export default function Auth() {
         
         <div className="text-center space-y-2">
           <Logo className="w-16 h-16 mx-auto mb-4" />
-          <h1 className="text-xl text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
-          <p className="text-sm text-gray-400 font-serif italic">Login to sync your meal plan safely</p>
+          <h1 className="text-xl text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
+          <p className="text-sm text-gray-700 font-serif italic">Login to sync your meal plan safely</p>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
           <div className="space-y-3">
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-700" size={18} />
               <input
                 type="email"
                 value={email}
@@ -57,9 +57,9 @@ export default function Auth() {
                 className="input-base pl-11"
               />
             </div>
-            
+
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-700" size={18} />
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
@@ -67,12 +67,12 @@ export default function Auth() {
                 placeholder="Password"
                 required
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                className="input-base pl-11 pr-14"
+                className="input-base pl-11 pr-16"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400 uppercase tracking-widest hover:text-brand-500 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-3 min-h-[44px] text-sm font-bold text-gray-700 uppercase tracking-widest hover:text-brand-700 transition-colors"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -80,13 +80,13 @@ export default function Auth() {
           </div>
 
           {errorMsg && (
-            <p className="text-xs text-red-500 font-medium text-center bg-red-50 rounded-xl py-2 px-3 border border-red-100">
+            <p className="text-sm text-red-700 font-medium text-center bg-red-50 rounded-xl py-2 px-3 border border-red-100">
               {errorMsg}
             </p>
           )}
-          
+
           {successMsg && (
-            <p className="text-xs text-green-600 font-medium text-center bg-green-50 rounded-xl py-2 px-3 border border-green-100">
+            <p className="text-sm text-green-700 font-medium text-center bg-green-50 rounded-xl py-2 px-3 border border-green-100">
               {successMsg}
             </p>
           )}
@@ -111,7 +111,7 @@ export default function Auth() {
           <button
             type="button"
             onClick={() => { setIsSignUp(!isSignUp); setErrorMsg(''); }}
-            className="text-xs font-bold text-gray-400 hover:text-brand-500 transition-colors uppercase tracking-widest mt-4"
+            className="btn-text mt-4 mx-auto"
           >
             {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
           </button>

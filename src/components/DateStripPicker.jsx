@@ -105,13 +105,13 @@ export default function DateStripPicker({
     let cls =
       'relative flex flex-col items-center justify-center rounded-xl border py-2 px-1 transition-colors min-h-[56px]'
     if (isDisabled) {
-      cls += ' bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-60'
+      cls += ' bg-gray-50 border-gray-100 text-gray-500 cursor-not-allowed opacity-60'
     } else if (isSelected) {
-      cls += ' bg-brand-500 border-brand-500 text-white shadow-sm'
+      cls += ' bg-brand-700 border-brand-700 text-white shadow-sm'
     } else {
       cls += ' bg-white border-cream-200 text-gray-700 hover:border-brand-300'
     }
-    if (isToday) cls += ' ring-2 ring-brand-400'
+    if (isToday) cls += ' ring-2 ring-brand-700'
 
     return (
       <button
@@ -132,20 +132,20 @@ export default function DateStripPicker({
         className={cls}
       >
         <span
-          className={`text-[11px] font-bold uppercase tracking-wider ${
-            isSelected ? 'text-white/80' : 'text-gray-400'
+          className={`text-xs font-bold uppercase tracking-wider ${
+            isSelected ? 'text-white/90' : 'text-gray-700'
           }`}
         >
           {cell.weekday}
         </span>
-        <span className="text-base font-bold leading-none mt-0.5">
+        <span className="text-base font-bold leading-none mt-1">
           {cell.dayNum}
         </span>
         {isDisabled && (
           <Slash
             size={20}
             strokeWidth={1.5}
-            className="absolute text-gray-300 pointer-events-none"
+            className="absolute text-gray-500 pointer-events-none"
             aria-hidden="true"
           />
         )}
@@ -161,32 +161,32 @@ export default function DateStripPicker({
       className="bg-white border border-cream-200 rounded-2xl px-4 py-4 mb-3 shadow-sm"
       data-testid="date-strip-picker"
     >
-      <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">
+      <p className="section-heading mb-3">
         Pick the dates you want to plan
       </p>
 
-      <div className="grid grid-cols-7 gap-1.5" data-testid="date-strip-row-1">
+      <div className="grid grid-cols-7 gap-2" data-testid="date-strip-row-1">
         {firstWeek.map(renderCell)}
       </div>
 
       {expanded && (
-        <div className="grid grid-cols-7 gap-1.5 mt-1.5" data-testid="date-strip-row-2">
+        <div className="grid grid-cols-7 gap-2 mt-2" data-testid="date-strip-row-2">
           {secondWeek.map(renderCell)}
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-3">
+      <div className="flex items-center justify-between mt-3 gap-3">
         <p
-          className="text-[11px] text-gray-500 leading-tight"
+          className="text-sm text-gray-700 leading-tight"
           data-testid="date-strip-summary"
         >
-          <span className="font-semibold text-gray-700">
+          <span className="font-semibold text-gray-900">
             {selectedDates.length}
           </span>{' '}
           of {visibleHorizon} days selected
           {selectedDates.length > 0 && (
             <>
-              <span className="text-gray-300"> · </span>
+              <span className="text-gray-500"> · </span>
               {rangeLabel}
             </>
           )}
@@ -196,7 +196,7 @@ export default function DateStripPicker({
             type="button"
             onClick={() => setExpanded(false)}
             aria-expanded={expanded}
-            className="text-[11px] font-semibold text-gray-500 hover:text-brand-600 transition-colors"
+            className="text-sm font-semibold text-gray-700 hover:text-brand-700 transition-colors px-3 py-3 min-h-[44px] flex-shrink-0"
             data-testid="date-strip-collapse"
           >
             Hide second week
@@ -206,7 +206,7 @@ export default function DateStripPicker({
             type="button"
             onClick={() => setExpanded(true)}
             aria-expanded={expanded}
-            className="text-[11px] font-bold text-brand-600 bg-brand-50 border border-brand-200 rounded-full px-3 py-1 hover:bg-brand-100 transition-colors"
+            className="text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-4 py-3 min-h-[44px] hover:bg-brand-100 transition-colors flex-shrink-0"
             data-testid="date-strip-expand"
           >
             Show another 7 days

@@ -60,7 +60,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
   if (loading) {
     return (
       <div className="mobile-screen items-center justify-center pb-28">
-        <p className="text-sm text-gray-400">Checking for leftovers…</p>
+        <p className="helper-text">Checking for leftovers…</p>
       </div>
     )
   }
@@ -69,7 +69,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
     <div className="mobile-screen pb-28">
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
+        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">
           For My Wife
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -77,9 +77,9 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
         <div className="text-center">
-          <p className="text-sm text-gray-600 leading-relaxed">
+          <p className="body-text">
             Your last period ended{' '}
             <span className="font-semibold text-gray-900">
               {periodEnd ? formatShortDate(periodEnd) : 'recently'}
@@ -89,16 +89,14 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
         </div>
 
         {error && (
-          <p className="text-xs text-red-500 text-center">
+          <p className="text-xs text-red-600 text-center">
             Couldn't load leftovers. Try reloading.
           </p>
         )}
 
         {leftovers.length > 0 ? (
           <div>
-            <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">
-              Leftovers from last period
-            </p>
+            <p className="section-heading mb-3">Leftovers from last period</p>
             <div
               className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm"
               data-testid="gap-leftover-list"
@@ -109,15 +107,15 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
                   className="flex items-center gap-3 py-3"
                   data-testid="gap-leftover-item"
                 >
-                  <span className="text-[11px] font-bold text-brand-400 w-14 flex-shrink-0 tracking-tighter uppercase">
+                  <span className="text-sm font-bold text-brand-700 w-14 flex-shrink-0 tracking-tighter uppercase">
                     {formatShortDate(item.scheduled_date)}
                   </span>
-                  <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
+                  <span className="text-base flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
                     {item.name}
                     {item.is_wildcard && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
-                          <Sparkles size={8} />
+                      <div className="flex items-center gap-2">
+                        <span className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
+                          <Sparkles size={10} />
                           New
                         </span>
                         {item.source_url && (
@@ -125,11 +123,11 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
                             href={item.source_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-brand-400 hover:text-brand-600 transition-colors"
+                            className="text-brand-700 hover:text-brand-800 transition-colors"
                             title="View Recipe"
                             aria-label={`View recipe for ${item.name}`}
                           >
-                            <ExternalLink size={12} />
+                            <ExternalLink size={14} />
                           </a>
                         )}
                       </div>
@@ -144,7 +142,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
             className="bg-white border border-cream-100 rounded-2xl px-5 py-6 text-center shadow-sm"
             data-testid="gap-no-leftovers"
           >
-            <p className="text-sm text-gray-500 font-serif italic">
+            <p className="text-base text-gray-700 font-serif italic">
               Nothing left over — start fresh.
             </p>
           </div>
@@ -152,7 +150,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
 
         <button
           onClick={onStartNewPeriod}
-          className="btn-primary w-full flex items-center justify-center gap-2"
+          className="btn-primary flex items-center justify-center gap-2"
           data-testid="start-new-period-btn"
         >
           {loading ? (
