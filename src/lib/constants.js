@@ -245,6 +245,31 @@ export const MAX_PREP_TIME_BUCKETS = [
   { id: 'none', label: 'No limit', storedValue: null },
 ]
 
+/**
+ * PRD-003 P0.6: Grocery store sections — single source of truth.
+ *
+ * Used in three places that must stay in sync:
+ *   1. Here (app-level validation before any DB write).
+ *   2. The /api/grocery-list prompt (Bite B) — interpolated so the LLM can
+ *      only return in-vocabulary sections.
+ *   3. The grocery_list_items CHECK constraint in the DB migration
+ *      (supabase/migrations/20260502000001_grocery_lists_schema.sql) —
+ *      defense-in-depth backstop.
+ *
+ * Adding a new section requires updating all three locations. Don't reorder
+ * existing values — the UI renders sections in this canonical order.
+ */
+export const GROCERY_SECTIONS = [
+  'Produce',
+  'Meat & Seafood',
+  'Dairy',
+  'Pantry',
+  'Frozen',
+  'Bakery',
+  'Beverages',
+  'Other',
+]
+
 // PRD-002 P0.9: how many AI suggestions to mix into each full-grid regenerate.
 // Tunable per PRD-002 P0.9; raise if vault feels exhausted, lower if AI feels noisy.
 export const AI_CANDIDATE_COUNT = 3
