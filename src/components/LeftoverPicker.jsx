@@ -74,7 +74,7 @@ export default function LeftoverPicker({
       data-testid="leftover-picker"
     >
       <div className="w-full max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl px-6 pt-6 pb-8 shadow-2xl border-t border-cream-200 max-h-[90vh] flex flex-col">
-        <p className="text-[11px] font-bold text-brand-500 tracking-widest mb-1 uppercase">
+        <p className="section-heading text-brand-700 mb-1">
           Roll Forward
         </p>
         <p className="text-base font-serif italic text-gray-700 mb-4">
@@ -87,14 +87,14 @@ export default function LeftoverPicker({
             return (
               <label
                 key={item.id}
-                className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3 min-h-[44px] cursor-pointer"
                 data-testid="leftover-row"
               >
                 <span
                   className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                     checked
-                      ? 'bg-brand-500 border-brand-500'
-                      : 'bg-white border-gray-300'
+                      ? 'bg-brand-700 border-brand-700'
+                      : 'bg-white border-gray-500'
                   }`}
                   aria-hidden="true"
                 >
@@ -107,14 +107,14 @@ export default function LeftoverPicker({
                   className="sr-only"
                   aria-label={`Include ${item.name}`}
                 />
-                <span className="text-[11px] font-bold text-brand-400 w-12 flex-shrink-0 tracking-tighter uppercase">
+                <span className="text-sm font-bold text-brand-700 w-12 flex-shrink-0 tracking-tighter uppercase">
                   {formatShortDate(item.scheduled_date)}
                 </span>
-                <span className="text-sm flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
+                <span className="text-base flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
                   {item.name}
                   {item.is_wildcard && (
-                    <span className="bg-brand-100 text-brand-700 text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
-                      <Sparkles size={8} />
+                    <span className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
+                      <Sparkles size={10} />
                       New
                     </span>
                   )}
@@ -125,12 +125,12 @@ export default function LeftoverPicker({
         </div>
 
         <p
-          className="text-xs text-center text-gray-500 mb-4"
+          className="text-sm text-center text-gray-700 mb-4"
           data-testid="leftover-counter"
         >
           {selectedCount} selected / {daysAvailable} day{daysAvailable === 1 ? '' : 's'} available.
           {droppedCount > 0 && (
-            <span className="text-red-600 font-semibold">
+            <span className="text-red-700 font-semibold">
               {' '}
               {droppedCount} will be dropped.
             </span>
@@ -140,10 +140,10 @@ export default function LeftoverPicker({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="flex items-center justify-center gap-1 py-3 px-4 rounded-2xl border border-gray-200 text-sm text-gray-500 font-medium"
+            className="btn-secondary inline-flex items-center justify-center gap-1 w-auto px-4"
             data-testid="leftover-back"
           >
-            <ChevronLeft size={14} /> Back
+            <ChevronLeft size={16} /> Back
           </button>
           <button
             onClick={() => onConfirm(Array.from(selected))}

@@ -103,7 +103,7 @@ export default function PeriodReview({
 
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
+        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">
           Review Period
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -111,15 +111,13 @@ export default function PeriodReview({
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
 
         <div>
-          <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-3 uppercase">
-            Mark what you cooked
-          </p>
+          <p className="section-heading mb-3">Mark what you cooked</p>
           <div className="bg-white border border-cream-100 rounded-2xl px-5 divide-y divide-cream-50 shadow-sm">
             {items.length === 0 ? (
-              <p className="py-6 text-sm text-gray-400 text-center">
+              <p className="py-6 helper-text text-center">
                 This period has no scheduled meals.
               </p>
             ) : (
@@ -138,22 +136,23 @@ export default function PeriodReview({
                       checked={!!item.cooked}
                       disabled={disabled}
                       onChange={() => handleToggle(idx)}
-                      className="h-5 w-5 rounded border-cream-200 text-brand-500 focus:ring-brand-300 focus:ring-2 disabled:opacity-30"
+                      style={{ accentColor: '#D74520' }}
+                      className="h-5 w-5 rounded border-cream-200 focus:ring-brand-300 focus:ring-2 disabled:opacity-30"
                     />
                     <label
                       htmlFor={inputId}
                       className={`flex-1 cursor-pointer ${disabled ? 'cursor-not-allowed' : ''}`}
                     >
                       <div
-                        className={`text-sm font-medium leading-snug ${
+                        className={`text-base font-medium leading-snug ${
                           item.cooked
-                            ? 'line-through text-gray-400'
+                            ? 'line-through text-gray-500'
                             : 'text-gray-900'
                         }`}
                       >
                         {item.name}
                       </div>
-                      <div className="text-[11px] font-bold text-brand-400 tracking-tighter uppercase mt-0.5">
+                      <div className="text-sm font-bold text-brand-700 tracking-tighter uppercase mt-1">
                         {dow}
                       </div>
                     </label>
@@ -167,7 +166,7 @@ export default function PeriodReview({
         {error && (
           <p
             role="alert"
-            className="text-xs text-red-500 text-center"
+            className="text-xs text-red-600 text-center"
           >
             {error}
           </p>
@@ -178,7 +177,7 @@ export default function PeriodReview({
             <button
               onClick={handleFinalize}
               disabled={finalizing}
-              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="btn-primary flex items-center justify-center gap-2"
             >
               {finalizing ? (
                 <><Loader2 size={16} className="animate-spin" /> Finalizing…</>
@@ -189,9 +188,9 @@ export default function PeriodReview({
           )}
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-2xl border border-gray-200 text-sm text-gray-500 flex items-center justify-center gap-2 hover:bg-cream-100 transition-colors"
+            className="btn-secondary inline-flex items-center justify-center gap-2"
           >
-            <X size={14} />
+            <X size={16} />
             Close
           </button>
         </div>
