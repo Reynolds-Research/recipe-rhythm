@@ -95,7 +95,7 @@ export default function App() {
             key={id}
             onClick={() => setPage(id)}
             className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium tracking-wide uppercase transition-all
-              ${page === id ? 'text-brand-700 scale-110' : 'text-gray-700 hover:text-gray-900'}`}
+              ${page === id ? 'text-brand-500 scale-110' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <Icon size={20} strokeWidth={page === id ? 2.5 : 2} />
             {label}
