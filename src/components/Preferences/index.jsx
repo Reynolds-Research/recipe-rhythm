@@ -13,6 +13,7 @@ import {
   deleteMealPlanItems,
 } from '../../lib/mealPlanItems'
 import ChipPicker from '../../pages/Vault/ChipPicker'
+import Logo from '../Logo'
 
 /**
  * Preferences page (PRD-002 P0.2). Per-section auto-save: each chip toggle,
@@ -139,7 +140,7 @@ export default function Preferences({ userId }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-brand-500" size={32} />
+        <Loader2 className="animate-spin text-brand-700" size={32} />
         <span className="sr-only">Loading preferences…</span>
       </div>
     )
@@ -148,7 +149,7 @@ export default function Preferences({ userId }) {
   if (loadError) {
     return (
       <div className="min-h-screen bg-cream-50 px-5 py-10">
-        <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">
+        <div className="px-4 py-3 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100">
           {loadError}
         </div>
       </div>
@@ -201,15 +202,16 @@ export default function Preferences({ userId }) {
   // TODO: Convert to /settings/preferences route when PRD-003 P0.11 ships react-router.
   return (
     <div className="min-h-screen bg-cream-50 pb-32">
-      <header className="px-5 pt-[max(20px,env(safe-area-inset-top))] pb-4">
-        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">Settings</h1>
-        <p className="text-2xl text-gray-900 font-serif italic mt-1">Preferences</p>
-        <p className="text-xs text-gray-500 mt-2">
+      <header className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center pt-[max(20px,env(safe-area-inset-top))]">
+        <Logo className="w-8 h-8 mb-2" />
+        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
+        <p className="text-lg text-gray-900 mt-1 font-serif italic">Preferences</p>
+        <p className="helper-text mt-2">
           These rules filter every brainstorm. Changes save automatically.
         </p>
       </header>
 
-      <div className="px-5 space-y-8">
+      <div className="px-5 pt-5 space-y-8">
         {violatorsBanner && (
           <ViolatorsBanner
             items={violatorsBanner.items}
@@ -237,7 +239,7 @@ export default function Preferences({ userId }) {
               actually enforced by the recommender's hard filter; the rest
               are stored + surfaced here, but use Excluded ingredients to
               be specific. */}
-          <p className="text-sm text-gray-500 italic mt-2">
+          <p className="helper-text italic mt-2">
             Vegetarian, vegan, and pescatarian are enforced via the recipe's
             protein. Other restrictions are stored but not yet enforced — use
             Excluded ingredients to be specific.
@@ -273,24 +275,24 @@ export default function Preferences({ userId }) {
             onKeyDown={onIngredientKeyDown}
             placeholder="e.g., cilantro, mushrooms"
             aria-label="Add excluded ingredient"
-            className="w-full px-3 py-2 text-sm border border-cream-200 rounded-xl outline-none focus:ring-1 focus:ring-brand-400 bg-white"
+            className="input-base"
           />
           {excludedIngredients.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2" role="list" aria-label="Excluded ingredients list">
+            <div className="flex flex-wrap gap-2 mt-2" role="list" aria-label="Excluded ingredients list">
               {excludedIngredients.map(ing => (
                 <span
                   key={ing}
                   role="listitem"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand-500 text-white border border-brand-500"
+                  className="chip chip-selected"
                 >
                   {ing}
                   <button
                     type="button"
                     onClick={() => removeIngredient(ing)}
                     aria-label={`Remove ${ing}`}
-                    className="text-white/80 hover:text-white"
+                    className="text-white/80 hover:text-white ml-1"
                   >
-                    <X size={12} />
+                    <X size={14} />
                   </button>
                 </span>
               ))}
@@ -328,10 +330,10 @@ function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
       role="alert"
       className="px-4 py-3 bg-amber-50 text-amber-900 ring-1 ring-amber-200 rounded-xl"
     >
-      <p className="text-sm font-medium">
+      <p className="text-base font-semibold">
         {count} {count === 1 ? 'meal' : 'meals'} {count === 1 ? "doesn't" : "don't"} match your current preferences:
       </p>
-      <p className="text-xs text-amber-800 mt-1">
+      <p className="text-sm text-amber-900 mt-1">
         {visible.map(v => v.name).join(', ')}
         {overflow > 0 && <span className="ml-1 italic">+ {overflow} more</span>}
       </p>
@@ -340,7 +342,7 @@ function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
           type="button"
           onClick={onKeep}
           aria-label="Keep these meals in the active period"
-          className="px-3 py-1.5 text-xs font-medium bg-white text-amber-900 ring-1 ring-amber-200 rounded-full hover:bg-amber-100"
+          className="px-4 py-3 min-h-[44px] text-sm font-semibold bg-white text-amber-900 ring-1 ring-amber-200 rounded-full hover:bg-amber-100"
         >
           Keep
         </button>
@@ -349,11 +351,11 @@ function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
           onClick={onRemoveAll}
           disabled={removing}
           aria-label="Remove all violating meals from the active period"
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-full hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 px-4 py-3 min-h-[44px] text-sm font-semibold bg-amber-700 text-white rounded-full hover:bg-amber-800 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {removing
-            ? <Loader2 size={12} className="animate-spin" />
-            : <AlertTriangle size={12} />
+            ? <Loader2 size={14} className="animate-spin" />
+            : <AlertTriangle size={14} />
           }
           {removing ? 'Removing…' : 'Remove all'}
         </button>
@@ -370,13 +372,13 @@ function Section({ field, label, savedField, errorField, children }) {
       <div className="flex items-center justify-between mb-2">
         <h2
           id={`pref-${field}-label`}
-          className="text-xs font-bold tracking-widest uppercase text-gray-600"
+          className="section-heading"
         >
           {label}
         </h2>
         {isSaved && (
           <span
-            className="text-[11px] font-medium text-brand-600 transition-opacity"
+            className="text-sm font-semibold text-brand-700 transition-opacity"
             role="status"
           >
             Saved
@@ -385,7 +387,7 @@ function Section({ field, label, savedField, errorField, children }) {
       </div>
       {children}
       {isError && (
-        <p className="text-xs text-red-500 mt-2" role="alert">
+        <p className="text-xs text-red-600 mt-2" role="alert">
           Couldn't save — try again.
         </p>
       )}
