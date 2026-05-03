@@ -1,0 +1,46 @@
+name: Design System Lint
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ds-lint:
+    name: Banned pattern check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed src files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | grep -E '^src/.*\.(jsx|js)$' | tr '\n' ' ')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+      - name: Check banned patterns
+        if: steps.changed.outputs.files != ''
+        run: |
+          FILES="${{ steps.changed.outputs.files }}"
+          FAIL=0
+
+          echo "Checking: $FILES"
+
+          if grep -n 'text-\[1[0-3]px\]' $FILES; then
+            echo "::error::BAN: arbitrary font-size <14px (text-[10px] … text-[13px])"
+            FAIL=1
+          fi
+
+          if grep -En 'text-gray-(200|300|400)' $FILES; then
+            echo "::error::BAN: low-contrast gray text (text-gray-200/300/400)"
+            FAIL=1
+          fi
+
+          if grep -En '\b(p|px|py|pt|pb|pl|pr)-[0-9]+\.5\b' $FILES; then
+            echo "::error::BAN: half-step padding (e.g. p-1.5, py-2.5)"
+            FAIL=1
+          fi
+
+          exit $FAIL

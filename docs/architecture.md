@@ -151,6 +151,23 @@ still be used for decorative (non-text) borders/dividers.
 - Inline text-action buttons ("+ ADD ANOTHER MEAL") → `.btn-text` with at least `py-3` to reach 44px.
 - The bottom-nav each tap region is 1/5th of viewport × 64px — already passes; just fix the label styling.
 
+### CI guardrail (`.github/workflows/design-system-lint.yml`)
+
+Every PR targeting `main` runs a diff-based banned-pattern check against
+any changed `src/**/*.{jsx,js}` files. The workflow fails if it finds:
+
+| Pattern | Reason banned |
+|---|---|
+| `text-[10px]` … `text-[13px]` (arbitrary font-size <14px) | Sub-14px text fails WCAG AA at normal weight |
+| `text-gray-200`, `text-gray-300`, `text-gray-400` | Low-contrast text — use `gray-500` minimum for UI copy |
+| `(p\|px\|py\|…)-N.5` (half-step padding, e.g. `py-2.5`) | Off-scale values; use the sanctioned spacing scale only |
+
+The check is PR-diff-scoped (not a full-repo scan) so pre-existing
+violations in `DateRangePicker.jsx` and `MealNameConfirmSheet.jsx` don't
+block ongoing work — but those files are tracked tech debt to fix.
+
+Run `npm run lint:ds` locally for a full scan of `src/`.
+
 ### Primitives in `src/index.css`
 
 The `@layer components` block in `src/index.css` is the canonical set of
