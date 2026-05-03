@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2, Bookmark, BookmarkPlus, Plus, Trash2 } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2, Bookmark, BookmarkPlus, Plus, Trash2, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
@@ -377,7 +377,7 @@ function ShortlistTab({ items, isServed, onSchedule }) {
   )
 }
 
-export default function BrainstormMode({ userId }) {
+export default function BrainstormMode({ userId, onNavigate }) {
   const [lastWeek, setLastWeek] = useState([])
   const [plan, setPlan] = useState(() => {
     try {
@@ -408,6 +408,7 @@ export default function BrainstormMode({ userId }) {
   const [servingPlan, setServingPlan]   = useState(false)
   const { trigger } = useHaptics()
   const [serveError, setServeError] = useState(null)
+  const [justServed, setJustServed] = useState(false)
 
   // ADR-001 Phase 4: end-of-period review surface.
   const [loadedPlan, setLoadedPlan] = useState(null)
@@ -958,6 +959,7 @@ export default function BrainstormMode({ userId }) {
       const { served_at } = await createServedPlan(supabase, userId, items)
       setServedAt(served_at)
       setIsServed(true)
+      setJustServed(true)
       localStorage.removeItem('brainstorm_plan')
       // Refresh disabled dates so the just-served period blocks itself if the
       // user immediately tries to plan more (rare but possible mid-session).
@@ -1371,6 +1373,16 @@ export default function BrainstormMode({ userId }) {
 
           {serveError && (
             <p className="text-xs text-red-600 text-center">{serveError}</p>
+          )}
+
+          {isServed && justServed && onNavigate && (
+            <button
+              onClick={() => { setJustServed(false); onNavigate('grocery') }}
+              className="btn-primary flex items-center justify-center gap-2"
+            >
+              <ShoppingCart size={16} />
+              Generate grocery list →
+            </button>
           )}
 
           {planState === 'active' && periodError && (
