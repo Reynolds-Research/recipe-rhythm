@@ -23,6 +23,8 @@ _Last verified: **2026-04-19** via [`supabase/audits/c3_rls_verification.sql`](.
 | `meal_plans` | ✅ true | ✅ `Users can manage own meal plans` (FOR ALL) — `USING (user_id = auth.uid())`, role `public` | ✅ same policy (FOR ALL) — `WITH CHECK (user_id = auth.uid())` | ✅ same policy | ✅ same policy | Pre-existing, single `FOR ALL` policy. Functionally correct — `auth.uid()` is `NULL` for the `anon` role so even with `TO public` anonymous traffic matches nothing. Minor hardening option: recreate with `TO authenticated` for consistency with the other two tables. Non-urgent. Hardening SQL prepared (not yet run): [`c3_remediation_meal_plans_role.sql`](../supabase/audits/c3_remediation_meal_plans_role.sql) replaces the single `FOR ALL / TO public` policy with four per-operation `TO authenticated` policies matching meals/vault. **Also has the `meal_plans_no_period_overlap` EXCLUDE constraint** (added 2026-04-19 via ADR-001 Phase 1) preventing per-user period overlap. |
 | `meal_plan_items` | ✅ true | ✅ `meal_plan_items_select_own` — `USING (auth.uid() = user_id)` | ✅ `meal_plan_items_insert_own` — `WITH CHECK (auth.uid() = user_id)` | ✅ `meal_plan_items_update_own` — USING + WITH CHECK both `(auth.uid() = user_id)` | ✅ `meal_plan_items_delete_own` — `USING (auth.uid() = user_id)` | Added 2026-04-19 via [ADR-001 Phase 1 migration](../supabase/migrations/20260418000001_planning_periods_schema.sql). Mirrors the `meals`/`vault` policy pattern. Child of `meal_plans` (FK with `ON DELETE CASCADE`); deleting a meal_plans row automatically removes its items. |
 | `household_preferences` | ✅ true | ✅ `household_preferences_select_own` — `USING (auth.uid() = user_id)`, role `authenticated` | ✅ `household_preferences_insert_own` — `WITH CHECK (auth.uid() = user_id)` | ✅ `household_preferences_update_own` — USING + WITH CHECK both `(auth.uid() = user_id)` | ✅ `household_preferences_delete_own` — `USING (auth.uid() = user_id)` | Added 2026-04-27 via [PRD-002 P0.1 migration](../supabase/migrations/20260427000003_household_preferences.sql). Mirrors the `meal_plan_items` policy pattern. RLS-enabled; per-operation policies. The Row-Level-Security Status header above was last live-verified 2026-04-19 — re-run [`supabase/audits/c3_rls_verification.sql`](../supabase/audits/c3_rls_verification.sql) when convenient to refresh. |
+| `grocery_lists` | ✅ true | ✅ `grocery_lists_select_own` — `USING (auth.uid() = user_id)`, role `authenticated`; PLUS `grocery_lists_public_share` — `USING (share_token IS NOT NULL)`, role `anon` | ✅ `grocery_lists_insert_own` — `WITH CHECK (auth.uid() = user_id)` | ✅ `grocery_lists_update_own` — USING + WITH CHECK both `(auth.uid() = user_id)` | ✅ `grocery_lists_delete_own` — `USING (auth.uid() = user_id)` | Added 2026-05-02 via [PRD-003 P0.1 migration](../supabase/migrations/20260502000001_grocery_lists_schema.sql). Owner-scoped per-operation policies (role `authenticated`) + a public share SELECT policy (role `anon`, `USING (share_token IS NOT NULL)`). The anon policy is a no-op until Phase 3 populates `share_token`. |
+| `grocery_list_items` | ✅ true | ✅ `grocery_list_items_select_own` — join via `list_id → grocery_lists.user_id`, role `authenticated`; PLUS `grocery_list_items_public_share` — join via `list_id → grocery_lists.share_token IS NOT NULL`, role `anon` | ✅ `grocery_list_items_insert_own` — join-based WITH CHECK | ✅ `grocery_list_items_update_own` — join-based USING + WITH CHECK | ✅ `grocery_list_items_delete_own` — join-based USING | Added 2026-05-02 via [PRD-003 P0.1 migration](../supabase/migrations/20260502000001_grocery_lists_schema.sql). No `user_id` column — ownership derived by subquery joining to `grocery_lists`. |
 | `profiles` | ❌ **false — but empty (0 rows)** | N/A (RLS off) | N/A (RLS off) | N/A (RLS off) | N/A (RLS off) | Not referenced anywhere in `src/` and contains 0 rows. Confirmed as a starter-template remnant. Recommended action: drop the table — see [`supabase/audits/c3_remediation_drop_profiles.sql`](../supabase/audits/c3_remediation_drop_profiles.sql). |
 
 Legend for each policy column: write either the policy name (if present)
@@ -167,6 +169,52 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 
 **RLS:** four owner-scoped per-operation policies set in the migration — `household_preferences_select_own`, `household_preferences_insert_own`, `household_preferences_update_own`, `household_preferences_delete_own` — all keyed on `auth.uid() = user_id`, role `authenticated`. Mirrors the `meal_plan_items` / `vault_options` pattern.
 
+### `public.grocery_lists`
+**Added 2026-05-02** via [PRD-003 P0.1 migration](../supabase/migrations/20260502000001_grocery_lists_schema.sql). One grocery list per meal-planning period (or ad-hoc, without a plan). Foundation only — no API endpoint or UI until Phase 1.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` NOT NULL | PK, `DEFAULT gen_random_uuid()`. |
+| `user_id` | `uuid` NOT NULL | References `auth.users(id)` `ON DELETE CASCADE`. RLS key. |
+| `meal_plan_id` | `uuid` nullable | References `meal_plans(id)` `ON DELETE SET NULL`. `NULL` = ad-hoc list (no plan). Unique partial index `grocery_lists_user_plan_idx` on `(user_id, meal_plan_id) WHERE meal_plan_id IS NOT NULL` prevents two lists for the same plan. |
+| `share_token` | `text` nullable | Unique. `NULL` until the user generates a share link (Phase 3 P0.9). Set back to `NULL` on revoke (P0.10). The `anon` RLS policy (`grocery_lists_public_share`) allows SELECT when `share_token IS NOT NULL`; the application always queries `WHERE share_token = :token` for validation. |
+| `created_at` | `timestamptz` NOT NULL | Default `now()`. |
+| `updated_at` | `timestamptz` NOT NULL | Default `now()`. Maintained by `grocery_lists_set_updated_at` `BEFORE UPDATE` trigger (same pattern as `household_preferences`). |
+
+**Indexes:**
+- `grocery_lists_pkey` on `(id)` — primary key
+- `grocery_lists_share_token_key` unique on `(share_token)` — from the `UNIQUE` column constraint
+- `grocery_lists_user_idx` on `(user_id)` — fast "all lists for a user" lookup
+- `grocery_lists_user_plan_idx` unique partial on `(user_id, meal_plan_id) WHERE meal_plan_id IS NOT NULL` — one plan → at most one list; ad-hoc lists (NULL plan) unconstrained
+
+**Trigger:** `grocery_lists_set_updated_at` — `BEFORE UPDATE FOR EACH ROW EXECUTE FUNCTION public.grocery_lists_set_updated_at()`. Same in-repo plpgsql pattern as `household_preferences`; no `moddatetime` extension.
+
+**RLS:** five policies:
+- `grocery_lists_select_own` / `insert_own` / `update_own` / `delete_own` — four owner-scoped per-operation policies, role `authenticated`, keyed on `auth.uid() = user_id`
+- `grocery_lists_public_share` — SELECT only, role `anon`, `USING (share_token IS NOT NULL)`. No-op until Phase 3 populates share tokens.
+
+### `public.grocery_list_items`
+**Added 2026-05-02** via [PRD-003 P0.1 migration](../supabase/migrations/20260502000001_grocery_lists_schema.sql). Individual line items within a grocery list. No `user_id` column — ownership derived by subquery join to `grocery_lists.user_id`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` NOT NULL | PK, `DEFAULT gen_random_uuid()`. |
+| `list_id` | `uuid` NOT NULL | References `grocery_lists(id)` `ON DELETE CASCADE`. Indexed via `grocery_list_items_list_idx`. |
+| `name` | `text` NOT NULL | Item name as returned by the AI (or typed by the user for ad-hoc items). |
+| `quantity` | `text` nullable | Free-text AI output ("2 lbs", "1 bunch"). `NULL` = not specified. Structured `{value, unit}` is a P2 future (PRD OQ.A). |
+| `section` | `text` NOT NULL | Default `'Other'`. One of `GROCERY_SECTIONS` from [`src/lib/constants.js`](../src/lib/constants.js). Enforced first by app-level validation; the `grocery_list_items_section_valid` CHECK constraint is a defense-in-depth backstop. Adding a new section requires both `constants.js` and a migration to relax this CHECK. |
+| `is_bought` | `boolean` NOT NULL | Default `false`. Toggled when the user (or spouse via local state) checks off an item. |
+| `is_adhoc` | `boolean` NOT NULL | Default `false`. `TRUE` for items added manually (not from AI generation). Default section = `'Other'` per PRD OQ.E; AI section-suggest on ad-hoc is a P1 enhancement. |
+| `created_at` | `timestamptz` NOT NULL | Default `now()`. |
+
+**Constraint:** `grocery_list_items_section_valid` — `CHECK (section IN ('Produce','Meat & Seafood','Dairy','Pantry','Frozen','Bakery','Beverages','Other'))`. Mirrors `GROCERY_SECTIONS` in `src/lib/constants.js`.
+
+**Index:** `grocery_list_items_list_idx` on `(list_id)` — primary access pattern (load all items for a list).
+
+**RLS:** five policies, all using a subquery join through `grocery_lists`:
+- `grocery_list_items_select_own` / `insert_own` / `update_own` / `delete_own` — owner-scoped, role `authenticated`, `USING/WITH CHECK (list_id IN (SELECT id FROM grocery_lists WHERE user_id = auth.uid()))`. Uses the IN-subquery form rather than EXISTS — keeps the policy column reference (`list_id`) outside the subquery so PostgreSQL unambiguously resolves it to the policy table's column.
+- `grocery_list_items_public_share` — SELECT only, role `anon`, `USING (list_id IN (SELECT id FROM grocery_lists WHERE share_token IS NOT NULL))`
+
 ## Views
 
 ### `public.current_leftovers`
@@ -223,6 +271,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260427_household_preferences.sql`](../supabase/migrations/verify_20260427_household_preferences.sql) | 2026-04-27 | Read-only verification queries for the household_preferences migration: column shape, primary key, CHECK constraint, RLS-enabled bit, four per-operation policies, `BEFORE UPDATE` trigger and its function, and a row-count smoke check (expected 0 immediately after migration). |
 | [`20260428000001_vault_ingredients_classified.sql`](../supabase/migrations/20260428000001_vault_ingredients_classified.sql) | 2026-04-28 | PRD-004 Phase A (P0.1): adds `vault.ingredients_classified` (`jsonb` nullable). Shape `[{name, essentiality, source}, ...]` per ADR-002. NULL until populated by the bulk-backfill script. Existing owner-scoped vault RLS policies cover the new column — no policy work required. |
 | [`verify_20260428_ingredients_classified.sql`](../supabase/migrations/verify_20260428_ingredients_classified.sql) | 2026-04-28 | Read-only verification queries for the ingredients_classified migration: column shape, comment, smoke counts of classified vs unclassified rows, and an RLS sanity check confirming the existing vault policies are intact. |
+| [`20260502000001_grocery_lists_schema.sql`](../supabase/migrations/20260502000001_grocery_lists_schema.sql) | 2026-05-02 | PRD-003 Phase 1 (P0.1): creates `public.grocery_lists` and `public.grocery_list_items`. `grocery_lists` has `user_id`, `meal_plan_id` (FK `ON DELETE SET NULL`), `share_token` (unique nullable), `created_at`, `updated_at` + an `BEFORE UPDATE` trigger. `grocery_list_items` has `list_id`, `name`, `quantity` (free-text, OQ.A), `section` (CHECK against `GROCERY_SECTIONS`), `is_bought`, `is_adhoc`. Owner-scoped per-operation RLS on both tables; `anon`-role public SELECT policies for the share-link flow (no-op until Phase 3 populates tokens). Unique partial index `grocery_lists_user_plan_idx` prevents duplicate lists per plan while allowing multiple ad-hoc lists. No UI, no API endpoint — schema foundation only. |
+| [`verify_20260502.sql`](../supabase/migrations/verify_20260502.sql) | 2026-05-02 | Read-only verification queries for the grocery schema migration: column shapes (both tables), RLS-enabled bits, all five owner-scoped + one anon SELECT policy on each table, all indexes, the section CHECK constraint definition, and an empty-row smoke check. Behavioral testing (CHECK rejection, unique-index blocking, RLS isolation) is covered at the application layer (Vitest + e2e). |
 
 ## Related audit items + ADRs
 

@@ -7,6 +7,7 @@ import {
   DIETARY_RESTRICTIONS,
   MAX_PREP_TIME_BUCKETS,
   PROTEIN_CATEGORIES,
+  GROCERY_SECTIONS,
   buildAnalyzeRecipePromptBlock,
 } from '../constants'
 
@@ -167,6 +168,31 @@ describe('MAX_PREP_TIME_BUCKETS', () => {
 
     // No other null sentinels.
     expect(numeric.every(v => v !== null)).toBe(true)
+  })
+})
+
+describe('GROCERY_SECTIONS', () => {
+  it('is exported as an array', () => {
+    expect(Array.isArray(GROCERY_SECTIONS)).toBe(true)
+  })
+
+  it('has exactly 8 sections', () => {
+    expect(GROCERY_SECTIONS).toHaveLength(8)
+  })
+
+  it('every entry is a non-empty string', () => {
+    for (const s of GROCERY_SECTIONS) {
+      expect(typeof s).toBe('string')
+      expect(s.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('includes "Other" (the ad-hoc default per PRD OQ.E)', () => {
+    expect(GROCERY_SECTIONS).toContain('Other')
+  })
+
+  it('has no duplicates', () => {
+    expect(new Set(GROCERY_SECTIONS).size).toBe(GROCERY_SECTIONS.length)
   })
 })
 

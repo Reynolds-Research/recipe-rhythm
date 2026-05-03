@@ -21,6 +21,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import 'dotenv/config'
 import { buildAnalyzeRecipePromptBlock } from './src/lib/constants.js'
 import { createClassifyIngredientsHandler } from './api/_lib/classifyHandler.js'
+import { createGroceryListHandler } from './api/_lib/groceryListHandler.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 const API_PORT = Number(process.env.API_PORT || 3001)
@@ -204,6 +205,11 @@ ${excludeBullets}${preferencesBlock}
 // this route + the Vercel mirror in api/classify-ingredients.js stay in
 // lockstep. Reuses the module-scoped `anthropic` client.
 app.post('/api/classify-ingredients', createClassifyIngredientsHandler({ anthropic }))
+
+// PRD-003 P0.3 (Bite B): /api/grocery-list (Haiku 4.5). Validation + prompt
+// + parse logic lives in api/_lib/groceryListHandler.js so this route + the
+// Vercel mirror in api/grocery-list.js stay in lockstep.
+app.post('/api/grocery-list', createGroceryListHandler({ anthropic }))
 
 // Spell-check + title-case a single meal/recipe name. Used by Vault add and
 // LogMode save to standardize names before they're persisted. Haiku 4.5 —
