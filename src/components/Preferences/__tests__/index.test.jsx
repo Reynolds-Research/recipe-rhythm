@@ -45,6 +45,8 @@ const EMPTY_PREFS = {
   excluded_ingredients: [],
   excluded_cuisines: [],
   max_prep_time_minutes: null,
+  adults: 2,
+  children: 0,
 }
 
 beforeEach(() => {
@@ -79,7 +81,7 @@ async function renderAndLoad() {
 }
 
 describe('Preferences page (PRD-002 P0.2)', () => {
-  it('renders a loading state, then the four sections after getPreferences resolves', async () => {
+  it('renders a loading state, then the five sections after getPreferences resolves', async () => {
     // Hold the promise so we can observe the loading state.
     let resolve
     getPreferences.mockReturnValueOnce(new Promise(r => { resolve = r }))
@@ -92,11 +94,12 @@ describe('Preferences page (PRD-002 P0.2)', () => {
       resolve({ ...EMPTY_PREFS })
     })
 
-    // All four section headers are present.
+    // All five section headers are present.
     expect(await screen.findByRole('heading', { name: /dietary restrictions/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /excluded cuisines/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /excluded ingredients/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /max prep time/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /household size/i })).toBeInTheDocument()
   })
 
   it('toggling a dietary chip calls upsertPreferences with the updated array', async () => {
@@ -212,6 +215,65 @@ describe('Preferences page (PRD-002 P0.2)', () => {
       () => expect(screen.queryByText('Saved')).not.toBeInTheDocument(),
       { timeout: 3000 },
     )
+  })
+
+  it('blurring the adults input with a new value calls upsertPreferences with { adults: value }', async () => {
+    const user = userEvent.setup()
+    await renderAndLoad()
+
+    const input = screen.getByLabelText(/number of adults/i)
+    await user.clear(input)
+    await user.type(input, '3')
+    await user.tab()
+
+    expect(upsertPreferences).toHaveBeenCalledTimes(1)
+    expect(upsertPreferences).toHaveBeenCalledWith(
+      USER_ID,
+      { adults: 3 },
+      expect.anything(),
+    )
+  })
+
+  it('blurring the children input with a new value calls upsertPreferences with { children: value }', async () => {
+    const user = userEvent.setup()
+    await renderAndLoad()
+
+    const input = screen.getByLabelText(/number of children/i)
+    await user.clear(input)
+    await user.type(input, '2')
+    await user.tab()
+
+    expect(upsertPreferences).toHaveBeenCalledTimes(1)
+    expect(upsertPreferences).toHaveBeenCalledWith(
+      USER_ID,
+      { children: 2 },
+      expect.anything(),
+    )
+  })
+
+  it('adults input reverts to current value when invalid (0) is entered', async () => {
+    const user = userEvent.setup()
+    await renderAndLoad()
+
+    const input = screen.getByLabelText(/number of adults/i)
+    await user.clear(input)
+    await user.type(input, '0')
+    await user.tab()
+
+    expect(upsertPreferences).not.toHaveBeenCalled()
+    expect(input).toHaveValue(2)
+  })
+
+  it('adults input does not call upsertPreferences when the value is unchanged', async () => {
+    const user = userEvent.setup()
+    await renderAndLoad()
+
+    const input = screen.getByLabelText(/number of adults/i)
+    // blur without changing the value
+    await user.click(input)
+    await user.tab()
+
+    expect(upsertPreferences).not.toHaveBeenCalled()
   })
 })
 
