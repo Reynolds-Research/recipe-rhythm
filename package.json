@@ -15,6 +15,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "backfill:structured-ingredients": "node scripts/backfill-structured-ingredients.mjs",
     "lint:ds": "grep -rn 'text-\\[1[0-3]px\\]' src/ --include='*.jsx' --include='*.js'; grep -rnE 'text-gray-(200|300|400)' src/ --include='*.jsx' --include='*.js'; grep -rnE '\\b(p|px|py|pt|pb|pl|pr)-[0-9]+\\.5\\b' src/ --include='*.jsx' --include='*.js'; echo 'lint:ds scan complete (non-zero output = violations found)'"
   },
   "dependencies": {
