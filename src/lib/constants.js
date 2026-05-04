@@ -300,7 +300,7 @@ export function buildAnalyzeRecipePromptBlock() {
   "cuisine_type": one of [${CUISINE_OPTIONS.join(', ')}] or null,
   "flavor_profile": one of [${FLAVOR_OPTIONS.join(', ')}] or null,
   "proteins": array from [${PROTEIN_OPTIONS.join(', ')}],
-  "cooking_method": one of [${COOKING_METHOD_OPTIONS.join(', ')}] or null,
+  "cooking_method": the PRIMARY technique by which the finished dish is cooked — one of [${COOKING_METHOD_OPTIONS.join(', ')}] or null. Choose the method that defines the dish as a whole, not a sub-step for a single ingredient (e.g. Spaghetti Carbonara is "Soup/Stew" or null rather than "Pan-seared", because the pancetta rendering is a sub-step; Chicken Parmesan is "Baked" not "Pan-seared" even though the chicken is seared first),
   "main_carb": one of [${CARB_OPTIONS.join(', ')}] or null,
   "dietary_tags": array from [${DIETARY_OPTIONS.join(', ')}],
   "dairy_components": array from [${DAIRY_OPTIONS.join(', ')}],
