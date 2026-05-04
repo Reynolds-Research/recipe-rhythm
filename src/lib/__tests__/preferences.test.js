@@ -26,7 +26,7 @@ function makeSupabase(responses = {}) {
       }
       client.calls.push(state)
       const chain = {
-        select(_cols) {
+        select() {
           if (!state.op) state.op = 'select'
           return chain
         },

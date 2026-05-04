@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { toTitleCase, normalizeMealName } from '../mealNameNormalize'
 
 describe('toTitleCase', () => {
@@ -59,14 +59,8 @@ describe('toTitleCase', () => {
 })
 
 describe('normalizeMealName', () => {
-  let originalFetch
-
-  beforeEach(() => {
-    originalFetch = global.fetch
-  })
-
   afterEach(() => {
-    global.fetch = originalFetch
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 
@@ -81,26 +75,26 @@ describe('normalizeMealName', () => {
   })
 
   it('uses the API-corrected name and reports changes', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ corrected: 'Spaghetti Carbonara' }),
-    })
+    }))
     const r = await normalizeMealName('spagheti carbonera')
     expect(r.corrected).toBe('Spaghetti Carbonara')
     expect(r.hasChanges).toBe(true)
   })
 
   it('reports hasChanges=false when corrected matches the trimmed input', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ corrected: 'Chicken Parmesan' }),
-    })
+    }))
     const r = await normalizeMealName('Chicken Parmesan')
     expect(r.hasChanges).toBe(false)
   })
 
   it('falls back to local title-case when fetch throws', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('offline'))
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const r = await normalizeMealName('chicken parmesan')
     expect(r.corrected).toBe('Chicken Parmesan')
@@ -109,27 +103,27 @@ describe('normalizeMealName', () => {
   })
 
   it('falls back to local title-case on non-OK response', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }))
     const r = await normalizeMealName('chicken parmesan')
     expect(r.corrected).toBe('Chicken Parmesan')
     expect(r.error).toBe('upstream')
   })
 
   it('falls back to local title-case when API returns malformed JSON', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => { throw new Error('bad json') },
-    })
+    }))
     const r = await normalizeMealName('chicken parmesan')
     expect(r.corrected).toBe('Chicken Parmesan')
     expect(r.error).toBe('parse')
   })
 
   it('falls back to local title-case when API returns no corrected field', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ corrected: '' }),
-    })
+    }))
     const r = await normalizeMealName('chicken parmesan')
     expect(r.corrected).toBe('Chicken Parmesan')
   })
