@@ -5,6 +5,11 @@ import { useHaptics } from '../../hooks/useHaptics'
 import RecipeForm from './RecipeForm'
 import RecipeCard from './RecipeCard'
 import { useVault } from './useVault'
+import { chipsRequireReExtraction } from '../../lib/chipDiff'
+
+// PRD-006 D1: how long the success banner stays visible after a chip-driven
+// re-extraction completes. Errors stick until manually dismissed.
+const REEXTRACT_SUCCESS_TTL_MS = 2500
 
 /**
  * Vault page — the recipe library. Composes the data layer (useVault) with
@@ -42,6 +47,7 @@ export default function Vault({ userId }) {
     deleteRecipe,
     updateRecipe,
     setRating,
+    reExtractIngredients,
   } = useVault(userId)
 
   const [showForm, setShowForm]     = useState(false)
@@ -51,6 +57,9 @@ export default function Vault({ userId }) {
   const [editingId, setEditingId]         = useState(null)
   const [editFields, setEditFields]       = useState({})
   const [savingEdit, setSavingEdit]       = useState(false)
+  // PRD-006 D1: status banner for chip-driven ingredient re-extraction. Shape:
+  // { kind: 'progress' | 'success' | 'error', message: string } | null.
+  const [reExtractStatus, setReExtractStatus] = useState(null)
   const { trigger } = useHaptics()
 
   // Form-submit handler bridges the form's onSubmit callback to the data
@@ -106,10 +115,50 @@ export default function Vault({ userId }) {
   const handleSaveEdit = async (id) => {
     trigger('success')
     setSavingEdit(true)
+    // Snapshot the pre-save chip state so we can compare after the write
+    // commits and decide whether to re-extract ingredients.
+    const preSave = recipes.find(r => r.id === id) ?? {}
+    const nextChips = {
+      proteins:         editFields.proteins         || [],
+      main_carb:        editFields.main_carb        ?? null,
+      dairy_components: editFields.dairy_components || [],
+      vegetables:       editFields.vegetables       || [],
+      fruits:           editFields.fruits           || [],
+    }
     await updateRecipe(id, editFields)
     setSavingEdit(false)
     setEditingId(null)
     setEditFields({})
+
+    // PRD-006 D1: if structural chips changed, the stored ingredient list is
+    // now out of sync with what the user just confirmed. Re-extract in the
+    // background — the chip save itself has already committed, so a failed
+    // re-extraction doesn't cost the user any work.
+    if (chipsRequireReExtraction(preSave, nextChips)) {
+      setReExtractStatus({ kind: 'progress', message: 'Updating ingredients…' })
+      try {
+        await reExtractIngredients(id, {
+          protein:          editFields.proteins,
+          cooking_method:   editFields.cooking_method,
+          main_carb:        editFields.main_carb,
+          dietary_tags:     editFields.dietary_tags,
+          dairy_components: editFields.dairy_components,
+          vegetables:       editFields.vegetables,
+          fruit:            editFields.fruits,
+          prep_time:        editFields.prep_time_minutes,
+        })
+        setReExtractStatus({ kind: 'success', message: 'Ingredients updated to match' })
+        setTimeout(() => {
+          setReExtractStatus(prev => (prev?.kind === 'success' ? null : prev))
+        }, REEXTRACT_SUCCESS_TTL_MS)
+      } catch (err) {
+        console.error('[Vault] re-extract ingredients failed:', err)
+        setReExtractStatus({
+          kind: 'error',
+          message: "Couldn't refresh ingredients — try again later",
+        })
+      }
+    }
   }
 
   const handleRatingChange = async (recipeId, newRating) => {
@@ -156,6 +205,34 @@ export default function Vault({ userId }) {
         <div className="mx-5 mt-4 px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100 flex items-center justify-between">
           <span>{vaultError}</span>
           <button onClick={() => setVaultError(null)} className="text-red-400 hover:text-red-600"><X size={16} /></button>
+        </div>
+      )}
+
+      {/* PRD-006 D1: chip-driven ingredient re-extraction status banner. */}
+      {reExtractStatus && (
+        <div
+          role="status"
+          className={`mx-5 mt-4 px-4 py-3 text-sm rounded-xl border flex items-center justify-between ${
+            reExtractStatus.kind === 'error'
+              ? 'bg-red-50 text-red-600 border-red-100'
+              : reExtractStatus.kind === 'success'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                : 'bg-cream-100 text-gray-700 border-cream-200'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            {reExtractStatus.kind === 'progress' && <Loader2 size={14} className="animate-spin" />}
+            {reExtractStatus.message}
+          </span>
+          {reExtractStatus.kind !== 'progress' && (
+            <button
+              onClick={() => setReExtractStatus(null)}
+              className="opacity-70 hover:opacity-100"
+              aria-label="Dismiss"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
       )}
 

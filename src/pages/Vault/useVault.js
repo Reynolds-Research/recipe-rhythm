@@ -248,6 +248,64 @@ export function useVault(userId) {
   }
 
   /**
+   * PRD-006 D1 — Re-extract ingredients_structured for an existing recipe,
+   * pinning the user's confirmed chip values as ground truth in the AI prompt.
+   * Used by:
+   *   1. The vault edit flow, when a structural chip change happens (so the
+   *      stored ingredient list matches the new chips).
+   *   2. The Settings backfill button (one-shot refresh across the vault).
+   *
+   * `chips` is a partial dict shaped like the analyze-recipe userChips field
+   * (protein/cooking_method/main_carb/dietary_tags/dairy_components/
+   * vegetables/fruit/prep_time). Missing fields are fine — the prompt just
+   * ignores them.
+   *
+   * Throws on failure (proxy unreachable, parse error, DB write error) so the
+   * caller can surface an error toast. The chip-edit save itself has already
+   * committed by the time this runs, so the user doesn't lose work on failure.
+   */
+  const reExtractIngredients = async (recipeId, chips) => {
+    const recipe = recipes.find(r => r.id === recipeId)
+    if (!recipe) throw new Error(`recipe ${recipeId} not found in local cache`)
+
+    const components = await analyzeRecipe({
+      name: recipe.name,
+      url: recipe.recipe_url || '',
+      userChips: chips,
+    })
+    if (!components) throw new Error('analyze-recipe returned no components')
+
+    // Write back the new ingredient list plus any chip categories the model
+    // returned. The prompt instructs the model not to contradict user-set
+    // chips, so this either no-ops (chips identical) or fills in refinements
+    // for fields the user left empty (e.g. dietary_tags).
+    const update = {
+      ingredients_structured: components.ingredients_structured ?? null,
+    }
+    if (components.proteins         !== undefined) update.proteins         = components.proteins ?? null
+    if (components.cooking_method   !== undefined) update.cooking_method   = components.cooking_method ?? null
+    if (components.main_carb        !== undefined) update.main_carb        = components.main_carb ?? null
+    if (components.dietary_tags     !== undefined) update.dietary_tags     = components.dietary_tags ?? null
+    if (components.dairy_components !== undefined) update.dairy_components = components.dairy_components ?? null
+    if (components.vegetables       !== undefined) update.vegetables       = components.vegetables ?? null
+    if (components.fruits           !== undefined) update.fruits           = components.fruits ?? null
+    if (components.prep_time_minutes !== undefined) update.prep_time_minutes = components.prep_time_minutes ?? null
+
+    const { data, error } = await supabase
+      .from('vault')
+      .update(update)
+      .eq('id', recipeId)
+      .eq('user_id', userId)
+      .select()
+      .single()
+
+    if (error) throw new Error(`re-extract DB write failed: ${error.message}`)
+
+    setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...update } : r))
+    return data
+  }
+
+  /**
    * PRD-001 P1.1 — Family rating updates are immediate. Optimistically
    * updates local state first so the star fill is instant, then writes to
    * Supabase. On error we refetch authoritative state to roll back.
@@ -281,5 +339,6 @@ export function useVault(userId) {
     deleteRecipe,
     updateRecipe,
     setRating,
+    reExtractIngredients,
   }
 }
