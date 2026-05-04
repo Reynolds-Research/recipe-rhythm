@@ -22,29 +22,64 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const MODEL = 'claude-haiku-4-5-20251001'
 
+const CATEGORY_FIELDS = ['proteins', 'main_carb', 'vegetables', 'fruits', 'dairy_components']
+
 /**
- * Build the focused Anthropic prompt for a single vault row.
- * The response shape is a strict subset of /api/analyze-recipe: only
- * `servings` and `ingredients_structured` — the other fields are already
- * populated for existing vault recipes.
+ * Collect the ingredient-category values from the vault row's categorical
+ * arrays into a flat string[], suitable for passing to the AI as context.
+ * Mirrors the normalizeVaultRowToIngredients logic in the classification
+ * backfill — trims, drops empties, dedupes case-insensitively.
+ */
+export function collectCategoryHints(row) {
+  const seen = new Set()
+  const out = []
+  const push = (v) => {
+    if (typeof v !== 'string') return
+    const t = v.trim()
+    if (!t) return
+    const key = t.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(t)
+  }
+  for (const field of CATEGORY_FIELDS) {
+    const v = row?.[field]
+    if (Array.isArray(v)) v.forEach(push)
+    else push(v)
+  }
+  return out
+}
+
+/**
+ * Build the Anthropic prompt for a single vault row.
+ *
+ * The vault stores ingredients as categorical labels (e.g. proteins=["Chicken"],
+ * vegetables=["Tomato"]), not as a free-text ingredient list. We pass those
+ * labels as hints and ask the AI to synthesize typical ingredient entries
+ * (with reasonable quantities) based on the recipe name. Quantities will be
+ * approximate — this is a best-effort backfill for existing recipes.
+ *
+ * Response shape: `servings` + `ingredients_structured` only — the other
+ * analyze-recipe fields are already populated for existing vault rows.
  */
 export function buildBackfillPrompt(row) {
-  const ingredientsList =
-    Array.isArray(row.ingredients) && row.ingredients.length > 0
-      ? row.ingredients.join('\n')
-      : '(no ingredients listed)'
+  const hints = collectCategoryHints(row)
+  const hintLine = hints.length > 0 ? hints.join(', ') : 'none recorded'
+  const cuisineLine = row.cuisine_type ? `Cuisine: ${row.cuisine_type}` : ''
 
-  return `Parse the ingredient list for this recipe and return ONLY a JSON object — no prose, no markdown fences.
+  return `You are synthesizing a structured ingredient list for an existing recipe record. The vault stores ingredients as category labels, not a free-text list, so use the recipe name and category hints to infer typical ingredients with reasonable quantities for a home cook.
+
+Return ONLY a JSON object — no prose, no markdown fences.
 
 Recipe: ${row.name}
-Ingredients:
-${ingredientsList}
+${cuisineLine}
+Ingredient categories recorded: ${hintLine}
 
 Return exactly:
 {
-  "servings": integer number of portions this recipe yields (from the recipe text), or null if not stated,
+  "servings": typical number of portions this recipe yields as an integer (e.g. 4), or null if genuinely unclear,
   "ingredients_structured": [
-    {"name": "ingredient name", "quantity": "measurement as written or null", "unit": "unit if separable from quantity or null", "notes": "prep/handling notes or null"}
+    {"name": "ingredient name", "quantity": "typical quantity for home cooking or null", "unit": "unit if applicable or null", "notes": "prep notes or null"}
   ]
 }`
 }
@@ -116,7 +151,7 @@ async function main() {
 
   const { data: rows, error: queryError } = await supabase
     .from('vault')
-    .select('id, name, ingredients')
+    .select(`id, name, cuisine_type, ${CATEGORY_FIELDS.join(', ')}`)
     .is('ingredients_structured', null)
     .is('deleted_at', null)
     .order('id', { ascending: true })

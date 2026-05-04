@@ -1,15 +1,16 @@
 /**
  * Unit tests for scripts/backfill-structured-ingredients.mjs.
- * Drives `buildBackfillPrompt` and `processRow` with mocked dependencies —
- * no network calls, no `main()` invoked.
+ * Drives `collectCategoryHints`, `buildBackfillPrompt`, and `processRow`
+ * with mocked dependencies — no network calls, no `main()` invoked.
  */
 import { describe, it, expect, vi } from 'vitest'
 import {
+  collectCategoryHints,
   buildBackfillPrompt,
   processRow,
 } from '../../../scripts/backfill-structured-ingredients.mjs'
 
-// Minimal Supabase mock that covers the `.from('vault').update({...}).eq('id', id)` chain.
+// Minimal Supabase mock covering `.from('vault').update({...}).eq('id', id)`.
 function makeSupabaseMock({ updateError = null } = {}) {
   const eq = vi.fn().mockResolvedValue({ data: null, error: updateError })
   const update = vi.fn().mockReturnValue({ eq })
@@ -29,26 +30,55 @@ function makeAnthropic(jsonPayload) {
 
 const silentLogger = { log: vi.fn(), error: vi.fn() }
 
+// ---------- collectCategoryHints ----------
+
+describe('collectCategoryHints', () => {
+  it('collects values from all category fields and dedupes case-insensitively', () => {
+    const row = {
+      proteins: ['Chicken', 'chicken '],
+      main_carb: 'Pasta',
+      vegetables: ['Tomato', 'Spinach/Greens'],
+      fruits: null,
+      dairy_components: ['Parmesan'],
+    }
+    expect(collectCategoryHints(row)).toEqual(['Chicken', 'Pasta', 'Tomato', 'Spinach/Greens', 'Parmesan'])
+  })
+
+  it('returns [] when all fields are empty or null', () => {
+    expect(collectCategoryHints({})).toEqual([])
+    expect(collectCategoryHints({ proteins: [], main_carb: null, vegetables: null })).toEqual([])
+  })
+
+  it('ignores non-string entries', () => {
+    expect(collectCategoryHints({ proteins: ['Beef', 42, null, '  '] })).toEqual(['Beef'])
+  })
+})
+
 // ---------- buildBackfillPrompt ----------
 
 describe('buildBackfillPrompt', () => {
   it('includes the recipe name', () => {
-    const prompt = buildBackfillPrompt({ name: 'Spaghetti Carbonara', ingredients: ['200g pasta', '3 eggs'] })
-    expect(prompt).toContain('Spaghetti Carbonara')
+    const prompt = buildBackfillPrompt({ name: 'Chicken Tikka Masala', proteins: ['Chicken'], main_carb: 'Rice', vegetables: [], fruits: [], dairy_components: [] })
+    expect(prompt).toContain('Chicken Tikka Masala')
   })
 
-  it('joins ingredients as newline-separated lines', () => {
-    const prompt = buildBackfillPrompt({ name: 'Test', ingredients: ['1 cup flour', '2 eggs', '1 tsp salt'] })
-    expect(prompt).toContain('1 cup flour\n2 eggs\n1 tsp salt')
+  it('includes category hints joined as comma-separated line', () => {
+    const prompt = buildBackfillPrompt({ name: 'Test', proteins: ['Beef'], main_carb: 'Bread', vegetables: ['Onion/Garlic'], fruits: [], dairy_components: ['Cheese'] })
+    expect(prompt).toContain('Beef, Bread, Onion/Garlic, Cheese')
   })
 
-  it('uses sentinel when ingredients is empty or null', () => {
-    expect(buildBackfillPrompt({ name: 'Empty', ingredients: [] })).toContain('(no ingredients listed)')
-    expect(buildBackfillPrompt({ name: 'Null', ingredients: null })).toContain('(no ingredients listed)')
+  it('uses "none recorded" when all categories are empty', () => {
+    const prompt = buildBackfillPrompt({ name: 'Mystery Dish', proteins: [], main_carb: null, vegetables: null, fruits: null, dairy_components: null })
+    expect(prompt).toContain('none recorded')
   })
 
-  it('requests both servings and ingredients_structured fields', () => {
-    const prompt = buildBackfillPrompt({ name: 'X', ingredients: [] })
+  it('includes cuisine_type when present', () => {
+    const prompt = buildBackfillPrompt({ name: 'Pasta', cuisine_type: 'Italian', proteins: [], main_carb: 'Pasta', vegetables: [], fruits: [], dairy_components: [] })
+    expect(prompt).toContain('Italian')
+  })
+
+  it('requests both servings and ingredients_structured', () => {
+    const prompt = buildBackfillPrompt({ name: 'X', proteins: [], main_carb: null, vegetables: [], fruits: [], dairy_components: [] })
     expect(prompt).toContain('"servings"')
     expect(prompt).toContain('"ingredients_structured"')
   })
@@ -61,15 +91,15 @@ describe('processRow — happy path', () => {
     const aiPayload = {
       servings: 4,
       ingredients_structured: [
-        { name: 'pasta', quantity: '200g', unit: 'g', notes: null },
-        { name: 'eggs',  quantity: '3',    unit: null, notes: null },
+        { name: 'chicken breast', quantity: '1 lb', unit: 'lb', notes: 'boneless' },
+        { name: 'pasta',          quantity: '8 oz', unit: 'oz', notes: null },
       ],
     }
     const anthropicClient = makeAnthropic(aiPayload)
     const supabase = makeSupabaseMock()
 
     const result = await processRow({
-      row: { id: 'r1', name: 'Carbonara', ingredients: ['200g pasta', '3 eggs'] },
+      row: { id: 'r1', name: 'Chicken Pasta', proteins: ['Chicken'], main_carb: 'Pasta', vegetables: [], fruits: [], dairy_components: [] },
       anthropicClient,
       supabase,
       logger: silentLogger,
@@ -88,11 +118,9 @@ describe('processRow — happy path', () => {
     const anthropicClient = makeAnthropic(aiPayload)
     const supabase = makeSupabaseMock()
 
-    await processRow({ row: { id: 'r2', name: 'Bread', ingredients: ['1 cup flour'] }, anthropicClient, supabase, logger: silentLogger })
+    await processRow({ row: { id: 'r2', name: 'Bread', proteins: [], main_carb: 'Bread', vegetables: [], fruits: [], dairy_components: [] }, anthropicClient, supabase, logger: silentLogger })
 
-    expect(supabase._spies.update).toHaveBeenCalledWith(
-      expect.objectContaining({ servings: null }),
-    )
+    expect(supabase._spies.update).toHaveBeenCalledWith(expect.objectContaining({ servings: null }))
   })
 
   it('non-integer servings (float) is stored as null', async () => {
@@ -100,25 +128,21 @@ describe('processRow — happy path', () => {
     const anthropicClient = makeAnthropic(aiPayload)
     const supabase = makeSupabaseMock()
 
-    await processRow({ row: { id: 'r3', name: 'Butter Cookie', ingredients: [] }, anthropicClient, supabase, logger: silentLogger })
+    await processRow({ row: { id: 'r3', name: 'Cookie', proteins: [], main_carb: null, vegetables: [], fruits: [], dairy_components: ['Butter'] }, anthropicClient, supabase, logger: silentLogger })
 
-    expect(supabase._spies.update).toHaveBeenCalledWith(
-      expect.objectContaining({ servings: null }),
-    )
+    expect(supabase._spies.update).toHaveBeenCalledWith(expect.objectContaining({ servings: null }))
   })
 })
 
 describe('processRow — AI / parse failures', () => {
   it('returns { ok: false, reason: "analyze" } when Anthropic throws', async () => {
     const anthropicClient = {
-      messages: {
-        create: vi.fn().mockRejectedValue(Object.assign(new Error('timeout'), { status: 503 })),
-      },
+      messages: { create: vi.fn().mockRejectedValue(Object.assign(new Error('timeout'), { status: 503 })) },
     }
     const supabase = makeSupabaseMock()
 
     const result = await processRow({
-      row: { id: 'r4', name: 'Pasta', ingredients: [] },
+      row: { id: 'r4', name: 'Pasta', proteins: [], main_carb: 'Pasta', vegetables: [], fruits: [], dairy_components: [] },
       anthropicClient,
       supabase,
       logger: silentLogger,
@@ -132,12 +156,12 @@ describe('processRow — AI / parse failures', () => {
 
   it('returns { ok: false, reason: "parse" } when AI returns non-JSON', async () => {
     const anthropicClient = {
-      messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'Sorry, I cannot help.' }] }) },
+      messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: 'Sorry, cannot help.' }] }) },
     }
     const supabase = makeSupabaseMock()
 
     const result = await processRow({
-      row: { id: 'r5', name: 'Pasta', ingredients: [] },
+      row: { id: 'r5', name: 'Pasta', proteins: [], main_carb: 'Pasta', vegetables: [], fruits: [], dairy_components: [] },
       anthropicClient,
       supabase,
       logger: silentLogger,
@@ -148,12 +172,12 @@ describe('processRow — AI / parse failures', () => {
     expect(supabase._spies.update).not.toHaveBeenCalled()
   })
 
-  it('returns { ok: false, reason: "parse" } when ingredients_structured is missing', async () => {
+  it('returns { ok: false, reason: "parse" } when ingredients_structured is missing from AI response', async () => {
     const anthropicClient = makeAnthropic({ servings: 2 })
     const supabase = makeSupabaseMock()
 
     const result = await processRow({
-      row: { id: 'r6', name: 'Pasta', ingredients: [] },
+      row: { id: 'r6', name: 'Pasta', proteins: [], main_carb: 'Pasta', vegetables: [], fruits: [], dairy_components: [] },
       anthropicClient,
       supabase,
       logger: silentLogger,
@@ -171,7 +195,7 @@ describe('processRow — Supabase update failure', () => {
     const supabase = makeSupabaseMock({ updateError: { message: 'connection error' } })
 
     const result = await processRow({
-      row: { id: 'r7', name: 'Soup', ingredients: ['salt'] },
+      row: { id: 'r7', name: 'Soup', proteins: ['Chicken'], main_carb: null, vegetables: [], fruits: [], dairy_components: [] },
       anthropicClient,
       supabase,
       logger: silentLogger,
