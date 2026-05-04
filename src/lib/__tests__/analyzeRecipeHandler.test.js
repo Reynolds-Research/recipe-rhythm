@@ -325,10 +325,12 @@ describe('createAnalyzeRecipeHandler — userChips grounding (PRD-006 D1)', () =
     }, mockRes())
 
     const prompt = getPromptText(client)
-    // Block heading and instruction.
+    // Block heading + truth-hierarchy clauses.
     expect(prompt).toContain('USER-CONFIRMED CHIPS:')
-    expect(prompt).toContain('Use them as ground truth when extracting ingredients')
-    expect(prompt).toContain('should not contradict any chip the user explicitly set')
+    expect(prompt).toContain('Recipe URL and name remain the primary source of truth')
+    expect(prompt).toContain('User-confirmed chips are authoritative for the categorical attributes')
+    expect(prompt).toContain('Do not fabricate ingredients to satisfy a chip')
+    expect(prompt).toContain('You may incorporate or ignore any individual chip')
     // Each populated value appears.
     expect(prompt).toContain('Protein: Chicken, Tofu')
     expect(prompt).toContain('Cooking method: Stir-Fried')
@@ -355,6 +357,33 @@ describe('createAnalyzeRecipeHandler — userChips grounding (PRD-006 D1)', () =
     expect(prompt).toContain('Protein: Beef')
     expect(prompt).not.toContain('Main carb:')
     expect(prompt).not.toContain('Cooking method:')
+  })
+
+  it('conflict case: chips contradict URL/name → prompt carries the safety-rail clauses keeping URL/name authoritative for ingredients', async () => {
+    const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    // The user has set protein=['salmon'] on a recipe whose name + URL clearly
+    // describe Spaghetti Carbonara. The handler must not "remove" pancetta /
+    // eggs to satisfy the chip — the prompt has to tell the model to defer to
+    // URL/name for recipe identity and not confabulate ingredients to match
+    // the chip.
+    await handler({
+      body: {
+        name: 'Spaghetti Carbonara',
+        url: 'https://example.com/recipes/carbonara/',
+        userChips: { protein: ['salmon'] },
+      },
+    }, mockRes())
+
+    const prompt = getPromptText(client)
+    // The conflicting inputs are both present in the prompt as the model sees them.
+    expect(prompt).toContain('Spaghetti Carbonara')
+    expect(prompt).toContain('https://example.com/recipes/carbonara/')
+    expect(prompt).toContain('Protein: salmon')
+    // Safety-rail instruction is the part this test really cares about.
+    expect(prompt).toContain('Recipe URL and name remain the primary source of truth')
+    expect(prompt).toContain('Do not fabricate ingredients to satisfy a chip')
+    expect(prompt).toContain('do not confabulate ingredients that fit the chip but not the dish')
   })
 })
 
