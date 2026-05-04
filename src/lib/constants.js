@@ -290,6 +290,10 @@ export const PICKER_VAULT_COUNT = 5
  *   - prep_time_minutes: integer minutes or null when not estimable from
  *     the source. The client treats this as null-safe — if the AI returns
  *     null, the form leaves the prep-time chip unselected.
+ *   - servings (PRD-006 P0.2): integer portions this recipe yields, or null.
+ *     The endpoint resolves null via default_servings or the hardcoded fallback.
+ *   - ingredients_structured (PRD-006 P0.2): parsed ingredient list.
+ *     Shape per item: {name, quantity, unit, notes} — see handler for details.
  */
 export function buildAnalyzeRecipePromptBlock() {
   return `{
@@ -302,6 +306,8 @@ export function buildAnalyzeRecipePromptBlock() {
   "dairy_components": array from [${DAIRY_OPTIONS.join(', ')}],
   "vegetables": array from [${VEGETABLE_OPTIONS.join(', ')}],
   "fruits": array from [${FRUIT_OPTIONS.join(', ')}],
-  "prep_time_minutes": positive integer estimate of total prep + cook time in minutes, or null if you cannot reasonably estimate
+  "prep_time_minutes": positive integer estimate of total prep + cook time in minutes, or null if you cannot reasonably estimate,
+  "servings": integer number of portions this recipe yields, or null if the recipe text does not state it,
+  "ingredients_structured": [{"name": ingredient name (required, e.g. "olive oil"), "quantity": measurement value as written (e.g. "2 tbsp", "1/2 cup") or null if not given, "unit": unit of measurement if separable from quantity (e.g. "tbsp", "cup") or null when no unit applies (e.g. for "3 eggs"), "notes": any prep or handling notes for this ingredient (e.g. "diced", "room temperature", "to taste") or null if none}]
 }`
 }
