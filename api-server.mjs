@@ -19,7 +19,7 @@ import express from 'express'
 import cors from 'cors'
 import Anthropic from '@anthropic-ai/sdk'
 import 'dotenv/config'
-import { buildAnalyzeRecipePromptBlock } from './src/lib/constants.js'
+import { createAnalyzeRecipeHandler } from './api/_lib/analyzeRecipeHandler.js'
 import { createClassifyIngredientsHandler } from './api/_lib/classifyHandler.js'
 import { createGroceryListHandler } from './api/_lib/groceryListHandler.js'
 
@@ -71,42 +71,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.post('/api/analyze-recipe', async (req, res) => {
-  if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
-
-  const { name = '', url = '', imageBase64 = null, mediaType = null } = req.body || {}
-
-  const content = []
-  if (imageBase64 && mediaType) {
-    content.push({
-      type: 'image',
-      source: { type: 'base64', media_type: mediaType, data: imageBase64 },
-    })
-  }
-
-  let textPrompt = `Analyze this meal/recipe and return a JSON object with its components. Return ONLY valid JSON with no markdown or explanation.\n`
-  if (name) textPrompt += `\nRecipe Name: "${name}"`
-  if (url) textPrompt += `\nRecipe URL: "${url}"`
-  if (imageBase64) textPrompt += `\n(See attached image)`
-
-  textPrompt += '\n\n' + buildAnalyzeRecipePromptBlock()
-
-  content.push({ type: 'text', text: textPrompt })
-
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 350,
-      messages: [{ role: 'user', content }],
-    })
-    const text = msg.content?.[0]?.text ?? ''
-    const parsed = parseJsonLoose(text, /\{[\s\S]*\}/)
-    if (!parsed) return res.status(502).json({ error: 'parse_failed' })
-    return res.json({ components: parsed })
-  } catch (err) {
-    return sendUpstreamError(res, err, 'analyze-recipe')
-  }
-})
+// PRD-006 P0.2: logic lives in api/_lib/analyzeRecipeHandler.js so this route
+// and the Vercel mirror in api/analyze-recipe.js stay in lockstep.
+app.post('/api/analyze-recipe', createAnalyzeRecipeHandler({ anthropic }))
 
 // PRD-002 P0.3: render the household preferences as a structured prompt block.
 // Returns '' when the field is missing or every sub-list is empty/null, so the
