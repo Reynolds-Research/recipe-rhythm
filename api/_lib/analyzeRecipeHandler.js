@@ -19,6 +19,46 @@ import { buildAnalyzeRecipePromptBlock } from '../../src/lib/constants.js'
 // fall back to 4 (a reasonable single-household serving count).
 const SERVINGS_HARDCODED_FALLBACK = 4
 
+/**
+ * PRD-006 D1: build an optional chip-grounding block that pins user-confirmed
+ * chip values as ground truth for the extractor. Returns '' when userChips is
+ * absent / empty / has no presentable values — in that case the rest of the
+ * prompt is byte-for-byte identical to the pre-D1 behavior.
+ *
+ * Protein/fruit are singular here (matching the PRD-006 chip vocabulary in the
+ * RecipeCard edit UI), even though the AI response uses the plural array
+ * column names from the DB schema (proteins/fruits).
+ */
+function buildUserChipsBlock(userChips) {
+  if (!userChips || typeof userChips !== 'object') return ''
+  const fields = [
+    ['Protein',          userChips.protein],
+    ['Cooking method',   userChips.cooking_method],
+    ['Main carb',        userChips.main_carb],
+    ['Dietary tags',     userChips.dietary_tags],
+    ['Dairy components', userChips.dairy_components],
+    ['Vegetables',       userChips.vegetables],
+    ['Fruit',            userChips.fruit],
+    ['Prep time',        userChips.prep_time],
+  ]
+  const lines = []
+  for (const [label, raw] of fields) {
+    if (raw === null || raw === undefined) continue
+    if (Array.isArray(raw)) {
+      if (raw.length === 0) continue
+      lines.push(`- ${label}: ${raw.join(', ')}`)
+    } else if (raw !== '') {
+      lines.push(`- ${label}: ${raw}`)
+    }
+  }
+  if (lines.length === 0) return ''
+  return (
+    'USER-CONFIRMED CHIPS:\n' +
+    lines.join('\n') + '\n\n' +
+    'These chip values were confirmed by the user. Use them as ground truth when extracting ingredients. The model may incorporate or ignore individual chip values based on what is most useful for accurate ingredient extraction, but should not contradict any chip the user explicitly set.\n\n'
+  )
+}
+
 export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' } = {}) {
   return async function analyzeRecipeHandler(req, res) {
     if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
@@ -29,6 +69,7 @@ export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' }
       imageBase64 = null,
       mediaType = null,
       default_servings,
+      userChips = null,
     } = req.body || {}
 
     // Validate default_servings: must be a positive integer if supplied.
@@ -49,7 +90,12 @@ export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' }
       })
     }
 
-    let textPrompt = `Analyze this meal/recipe and return a JSON object with its components. Return ONLY valid JSON with no markdown or explanation.\n`
+    // PRD-006 D1: when the caller supplies user-confirmed chip values, pin them
+    // as ground truth. When userChips is absent / empty, the chip block is the
+    // empty string and the rest of the prompt is byte-for-byte unchanged.
+    const userChipsBlock = buildUserChipsBlock(userChips)
+
+    let textPrompt = userChipsBlock + `Analyze this meal/recipe and return a JSON object with its components. Return ONLY valid JSON with no markdown or explanation.\n`
     if (name) textPrompt += `\nRecipe Name: "${name}"`
     if (url) textPrompt += `\nRecipe URL: "${url}"`
     if (imageBase64) textPrompt += `\n(See attached image)`

@@ -258,6 +258,106 @@ describe('createAnalyzeRecipeHandler — parse failure', () => {
   })
 })
 
+// Helper used by the userChips tests below: capture the exact text prompt
+// that was sent to Anthropic in the most recent call.
+function getPromptText(client) {
+  const content = client.messages.create.mock.calls[0][0].messages[0].content
+  return Array.isArray(content)
+    ? content.find(b => b.type === 'text')?.text ?? ''
+    : String(content)
+}
+
+describe('createAnalyzeRecipeHandler — userChips grounding (PRD-006 D1)', () => {
+  it('absent userChips → prompt is byte-for-byte identical to no-userChips baseline', async () => {
+    // Establish the baseline first.
+    const baselineClient = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const baselineHandler = createAnalyzeRecipeHandler({ anthropic: baselineClient })
+    await baselineHandler({ body: { name: 'Pad Thai' } }, mockRes())
+    const baselinePrompt = getPromptText(baselineClient)
+
+    // Then run with userChips: undefined and userChips: null and {}.
+    for (const variant of [undefined, null, {}]) {
+      const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+      const handler = createAnalyzeRecipeHandler({ anthropic: client })
+      const body = { name: 'Pad Thai' }
+      if (variant !== undefined) body.userChips = variant
+      await handler({ body }, mockRes())
+      expect(getPromptText(client), `userChips=${JSON.stringify(variant)} should produce baseline prompt`).toBe(baselinePrompt)
+    }
+  })
+
+  it('userChips with all-empty arrays + null scalars → no chip block, prompt identical to baseline', async () => {
+    const baselineClient = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const baselineHandler = createAnalyzeRecipeHandler({ anthropic: baselineClient })
+    await baselineHandler({ body: { name: 'Test' } }, mockRes())
+    const baselinePrompt = getPromptText(baselineClient)
+
+    const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    await handler({
+      body: {
+        name: 'Test',
+        userChips: {
+          protein: null, cooking_method: null, main_carb: null,
+          dietary_tags: [], dairy_components: [], vegetables: [],
+          fruit: [], prep_time: null,
+        },
+      },
+    }, mockRes())
+    expect(getPromptText(client)).toBe(baselinePrompt)
+  })
+
+  it('userChips with values → chip-grounding block is present, lists user values, includes ground-truth instruction', async () => {
+    const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    await handler({
+      body: {
+        name: 'Pad Thai',
+        userChips: {
+          protein:        ['Chicken', 'Tofu'],
+          cooking_method: 'Stir-Fried',
+          main_carb:      'Rice Noodles',
+          dietary_tags:   ['Gluten-Free'],
+          fruit:          [],          // empty array → omitted
+          prep_time:      30,
+        },
+      },
+    }, mockRes())
+
+    const prompt = getPromptText(client)
+    // Block heading and instruction.
+    expect(prompt).toContain('USER-CONFIRMED CHIPS:')
+    expect(prompt).toContain('Use them as ground truth when extracting ingredients')
+    expect(prompt).toContain('should not contradict any chip the user explicitly set')
+    // Each populated value appears.
+    expect(prompt).toContain('Protein: Chicken, Tofu')
+    expect(prompt).toContain('Cooking method: Stir-Fried')
+    expect(prompt).toContain('Main carb: Rice Noodles')
+    expect(prompt).toContain('Dietary tags: Gluten-Free')
+    expect(prompt).toContain('Prep time: 30')
+    // Empty/absent fields are omitted (no "Fruit:" line).
+    expect(prompt).not.toContain('Fruit:')
+    expect(prompt).not.toContain('Dairy components:')
+    // The chip-grounding block precedes the analyze instruction.
+    expect(prompt.indexOf('USER-CONFIRMED CHIPS:'))
+      .toBeLessThan(prompt.indexOf('Analyze this meal/recipe'))
+  })
+
+  it('userChips with only one populated field → block contains only that field', async () => {
+    const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    await handler({
+      body: { name: 'Test', userChips: { protein: ['Beef'] } },
+    }, mockRes())
+
+    const prompt = getPromptText(client)
+    expect(prompt).toContain('USER-CONFIRMED CHIPS:')
+    expect(prompt).toContain('Protein: Beef')
+    expect(prompt).not.toContain('Main carb:')
+    expect(prompt).not.toContain('Cooking method:')
+  })
+})
+
 describe('createAnalyzeRecipeHandler — prompt contract', () => {
   it('calls Anthropic with claude-sonnet-4-6 and max_tokens: 1500', async () => {
     const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
