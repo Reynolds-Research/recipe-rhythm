@@ -60,6 +60,8 @@ const SAMPLE_ROW = {
   excluded_ingredients: ['cilantro'],
   excluded_cuisines: ['Indian'],
   max_prep_time_minutes: 45,
+  adults: 2,
+  children: 0,
   created_at: '2026-04-27T10:00:00Z',
   updated_at: '2026-04-27T10:00:00Z',
 }
@@ -98,6 +100,8 @@ describe('getPreferences', () => {
       excluded_ingredients: [],
       excluded_cuisines: [],
       max_prep_time_minutes: null,
+      adults: 2,
+      children: 0,
     })
   })
 
@@ -231,5 +235,49 @@ describe('upsertPreferences', () => {
       code: '23514',
       message: 'check_violation',
     })
+  })
+
+  it('accepts valid adults value and upserts it', async () => {
+    const supabase = makeSupabase({
+      'household_preferences.upsert': { data: { ...SAMPLE_ROW, adults: 3 }, error: null },
+    })
+    const result = await upsertPreferences(USER, { adults: 3 }, supabase)
+    expect(result.adults).toBe(3)
+    expect(supabase.calls[0].payload.adults).toBe(3)
+  })
+
+  it('throws InvalidPreferenceError for adults < 1 (0, negative)', async () => {
+    const supabase = makeSupabase()
+    for (const bad of [0, -1, -10]) {
+      await expect(
+        upsertPreferences(USER, { adults: bad }, supabase),
+      ).rejects.toBeInstanceOf(InvalidPreferenceError)
+    }
+    expect(supabase.calls).toHaveLength(0)
+  })
+
+  it('throws InvalidPreferenceError for non-integer adults', async () => {
+    const supabase = makeSupabase()
+    await expect(
+      upsertPreferences(USER, { adults: 1.5 }, supabase),
+    ).rejects.toBeInstanceOf(InvalidPreferenceError)
+    expect(supabase.calls).toHaveLength(0)
+  })
+
+  it('accepts valid children value (including 0) and upserts it', async () => {
+    const supabase = makeSupabase({
+      'household_preferences.upsert': { data: { ...SAMPLE_ROW, children: 2 }, error: null },
+    })
+    const result = await upsertPreferences(USER, { children: 2 }, supabase)
+    expect(result.children).toBe(2)
+    expect(supabase.calls[0].payload.children).toBe(2)
+  })
+
+  it('throws InvalidPreferenceError for children < 0', async () => {
+    const supabase = makeSupabase()
+    await expect(
+      upsertPreferences(USER, { children: -1 }, supabase),
+    ).rejects.toBeInstanceOf(InvalidPreferenceError)
+    expect(supabase.calls).toHaveLength(0)
   })
 })

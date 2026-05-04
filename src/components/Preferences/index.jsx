@@ -47,6 +47,8 @@ export default function Preferences({ userId }) {
   const [savedField, setSavedField] = useState(null)        // field name flashed as "Saved"
   const [errorField, setErrorField] = useState(null)        // field name with active error
   const [ingredientDraft, setIngredientDraft] = useState('')
+  const [adultsDraft, setAdultsDraft] = useState('')
+  const [childrenDraft, setChildrenDraft] = useState('')
   // PRD-002 P0.12: violators banner state. `null` when there's nothing to
   // show; the shape is { items: [{ id, name }] } when the most recent
   // upsert revealed active-period meals that violate the new preferences.
@@ -62,6 +64,8 @@ export default function Preferences({ userId }) {
       .then(data => {
         if (cancelled) return
         setPrefs(data)
+        setAdultsDraft(String(data.adults ?? 2))
+        setChildrenDraft(String(data.children ?? 0))
         setLoadError(null)
       })
       .catch(err => {
@@ -199,6 +203,26 @@ export default function Preferences({ userId }) {
     saveField('max_prep_time_minutes', nextValue, prefs.max_prep_time_minutes ?? null)
   }
 
+  const onAdultsBlur = () => {
+    const next = parseInt(adultsDraft, 10)
+    if (!Number.isInteger(next) || next < 1) {
+      setAdultsDraft(String(prefs.adults ?? 2))
+      return
+    }
+    if (next === (prefs.adults ?? 2)) return
+    saveField('adults', next, prefs.adults ?? 2)
+  }
+
+  const onChildrenBlur = () => {
+    const next = parseInt(childrenDraft, 10)
+    if (!Number.isInteger(next) || next < 0) {
+      setChildrenDraft(String(prefs.children ?? 0))
+      return
+    }
+    if (next === (prefs.children ?? 0)) return
+    saveField('children', next, prefs.children ?? 0)
+  }
+
   // TODO: Convert to /settings/preferences route when PRD-003 P0.11 ships react-router.
   return (
     <div className="min-h-screen bg-cream-50 pb-32">
@@ -315,6 +339,45 @@ export default function Preferences({ userId }) {
             ariaLabel="Max prep time"
           />
         </Section>
+
+        <Section
+          fields={['adults', 'children']}
+          label="Household size"
+          savedField={savedField}
+          errorField={errorField}
+        >
+          <p className="helper-text mb-3">
+            Used to scale grocery list quantities (PRD-006 Bite γ).
+          </p>
+          <div className="flex flex-col gap-3">
+            <label className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-700">Adults</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={adultsDraft}
+                onChange={e => setAdultsDraft(e.target.value)}
+                onBlur={onAdultsBlur}
+                aria-label="Number of adults"
+                className="input-base w-20 text-center"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-700">Children</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={childrenDraft}
+                onChange={e => setChildrenDraft(e.target.value)}
+                onBlur={onChildrenBlur}
+                aria-label="Number of children"
+                className="input-base w-20 text-center"
+              />
+            </label>
+          </div>
+        </Section>
       </div>
     </div>
   )
@@ -364,14 +427,16 @@ function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
   )
 }
 
-function Section({ field, label, savedField, errorField, children }) {
-  const isSaved = savedField === field
-  const isError = errorField === field
+function Section({ field, fields, label, savedField, errorField, children }) {
+  const fieldList = fields ?? (field ? [field] : [])
+  const anchorId = fieldList[0] ?? 'section'
+  const isSaved = fieldList.some(f => savedField === f)
+  const isError = fieldList.some(f => errorField === f)
   return (
-    <section aria-labelledby={`pref-${field}-label`}>
+    <section aria-labelledby={`pref-${anchorId}-label`}>
       <div className="flex items-center justify-between mb-2">
         <h2
-          id={`pref-${field}-label`}
+          id={`pref-${anchorId}-label`}
           className="section-heading"
         >
           {label}

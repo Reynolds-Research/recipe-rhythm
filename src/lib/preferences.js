@@ -58,6 +58,8 @@ function defaults(userId) {
     excluded_ingredients: [],
     excluded_cuisines: [],
     max_prep_time_minutes: null,
+    adults: 2,
+    children: 0,
   }
 }
 
@@ -111,6 +113,18 @@ export async function upsertPreferences(userId, patch, supabase) {
       if (!KNOWN_CUISINES.has(cuisine)) {
         throw new InvalidPreferenceError('excluded_cuisine', cuisine)
       }
+    }
+  }
+  if ('adults' in patch) {
+    const v = patch.adults
+    if (!Number.isInteger(v) || v < 1) {
+      throw new InvalidPreferenceError('adults', v)
+    }
+  }
+  if ('children' in patch) {
+    const v = patch.children
+    if (!Number.isInteger(v) || v < 0) {
+      throw new InvalidPreferenceError('children', v)
     }
   }
 
