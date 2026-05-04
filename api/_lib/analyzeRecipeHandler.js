@@ -55,7 +55,11 @@ function buildUserChipsBlock(userChips) {
   return (
     'USER-CONFIRMED CHIPS:\n' +
     lines.join('\n') + '\n\n' +
-    'These chip values were confirmed by the user. Use them as ground truth when extracting ingredients. The model may incorporate or ignore individual chip values based on what is most useful for accurate ingredient extraction, but should not contradict any chip the user explicitly set.\n\n'
+    'These chip values were confirmed by the user after the original extraction. Use them as follows:\n' +
+    '1. Recipe URL and name remain the primary source of truth for what dish is being made and what its ingredients should be.\n' +
+    '2. User-confirmed chips are authoritative for the categorical attributes they cover (protein, main_carb, dairy_components, vegetables, fruit, dietary_tags, cooking_method, prep_time). When a chip and the recipe identity disagree on a categorical attribute, defer to the user\'s chip.\n' +
+    '3. Do not fabricate ingredients to satisfy a chip. If the URL clearly describes a different dish than the chips suggest, extract ingredients accurately based on the URL/name; do not confabulate ingredients that fit the chip but not the dish.\n' +
+    '4. You may incorporate or ignore any individual chip if it doesn\'t usefully constrain ingredient extraction.\n\n'
   )
 }
 

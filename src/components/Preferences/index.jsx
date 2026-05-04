@@ -458,8 +458,8 @@ export default function Preferences({ userId }) {
           </div>
         </Section>
 
-        {/* PRD-006 D1 (TEMPORARY — remove this section after the user has run
-            it once. Tracked as a follow-up in RECIPE_TODOS.md). */}
+        {/* TODO(prd-006): remove after first successful backfill run.
+            One-shot section; tracked as a follow-up in RECIPE_TODOS.md. */}
         <section aria-labelledby="pref-backfill-label">
           <div className="flex items-center justify-between mb-2">
             <h2 id="pref-backfill-label" className="section-heading">
