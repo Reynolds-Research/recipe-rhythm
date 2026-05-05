@@ -105,7 +105,7 @@
 - [x] **Phase A — Foundation** (PR #54, commit `78b2f9c`): `vault.ingredients_classified jsonb` column, `/api/classify-ingredients` Haiku 4.5 endpoint, bulk backfill script (P0.1 + P0.2 + P0.3).
 - [x] **Phase B — Validation gate** (PR #56 + #59, commits `5d860a0`, `5c6c22b`, `281fdd0`): ground-truth fixture, accuracy eval script, prompt tuning loop (P0.4 + P0.5 + P0.6).
 - [x] **ADR-003 — Implied-meat dish-name filter** (commit `5732c8f`): app-layer dish-name keyword check in `passesPreferences` for vegetarian / vegan / pescatarian. (Adjacent to PRD-004, not on the phase plan; doesn't block Phase C.)
-- [x] **Phase C — Filter behavior change** (PR #85, P0.7 + P0.8 + P0.9): `passesPreferences` gates excluded-ingredient matches on `essentiality === 'essential'`; `/api/analyze-recipe` auto-classifies on save so new recipes never have `NULL` `ingredients_classified`; Preferences UI explains the new behavior.
+- [x] **Phase C — Filter behavior change** (PR #85, commit `d43260b`, P0.7 + P0.8 + P0.9): `passesPreferences` gates excluded-ingredient matches on `essentiality === 'essential'`; `/api/analyze-recipe` auto-classifies on save so new recipes never have `NULL` `ingredients_classified`; Preferences UI explains the new behavior.
 
 ### Pending
 
