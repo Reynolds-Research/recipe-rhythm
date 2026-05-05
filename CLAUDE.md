@@ -15,7 +15,7 @@ The app has three primary user-facing surfaces:
 
 - **Frontend:** React 19.2, Vite 8, Tailwind CSS 3.4, lucide-react, framer-motion, react-modal-sheet, @dnd-kit/core + @dnd-kit/sortable
 - **Backend:** Supabase (DB + Auth + Storage) with owner-scoped RLS on every table; local Express proxy at `api-server.mjs`; Vercel serverless mirror at `api/` (keep both in sync)
-- **AI:** `@anthropic-ai/sdk` 0.90. Endpoints: `/api/analyze-recipe` (Sonnet 4.6) for recipe parsing; `/api/swap-suggestions`, `/api/grocery-list`, `/api/classify-ingredients`, `/api/normalize-meal-name` (all Haiku 4.5). Each Express route in `api-server.mjs` has a Vercel mirror in `api/` — keep both in sync.
+- **AI:** `@anthropic-ai/sdk` 0.93. Endpoints: `/api/analyze-recipe` (Sonnet 4.6) for recipe parsing; `/api/swap-suggestions`, `/api/grocery-list`, `/api/classify-ingredients`, `/api/normalize-meal-name` (all Haiku 4.5). Each Express route in `api-server.mjs` has a Vercel mirror in `api/` — keep both in sync.
 - **Testing:** Vitest 4 + React Testing Library + `@testing-library/user-event` (unit/integration); Playwright (e2e)
 - **Routing:** None today. `App.jsx` uses `page` state + conditional rendering. `react-router-dom` is planned in PRD-003 P0.11.
 - **No TypeScript.** JS only.
