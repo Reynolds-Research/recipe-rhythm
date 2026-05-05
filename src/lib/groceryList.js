@@ -2,9 +2,15 @@
  * PRD-003 P0.3 (Bite B): shared AI grocery-list generator.
  *
  * Pure logic: takes an Anthropic SDK client (injected for testability) +
- * a list of recipes (each with name + ingredients) + a pantry-staples
- * list, and returns a consolidated grocery list grouped by the
- * GROCERY_SECTIONS enum.
+ * a list of recipes (each with name + ingredients + servings) + a
+ * pantry-staples list + a household size, and returns a consolidated
+ * grocery list grouped by the GROCERY_SECTIONS enum.
+ *
+ * Each ingredient in `recipes[].ingredients` is a free-text string. The
+ * page that calls this lib formats per-ingredient strings either as just
+ * the name (legacy / unstructured rows) or as `"name: quantity unit, notes"`
+ * (PRD-006 Bite δ — when ingredients_structured is available). The prompt
+ * tells the AI to honor provided quantities and estimate only when missing.
  *
  * Used by both the local Express proxy (api-server.mjs) and the Vercel
  * serverless mirror (api/grocery-list.js) so the prompt + parse logic
@@ -63,7 +69,7 @@ ${recipeBlocks}
 Pantry staples the user already has — EXCLUDE any matching ingredient entirely (case-insensitive substring match): ${staplesLine}
 
 Instructions:
-1. Scale each recipe's ingredient quantities by (household_size / yield) — e.g. a recipe that yields 4 servings, in a 6-person household, scales every quantity by 1.5.
+1. Each recipe lists its yield and its ingredients. When an ingredient is given with a quantity (e.g. "olive oil: 2 tbsp"), use that quantity as the baseline for scaling — do NOT re-estimate. When an ingredient is given without a quantity (e.g. just "olive oil"), estimate a reasonable amount per recipe-yield first. Then scale the resulting quantity by (household_size / yield) — a recipe that yields 4 servings, in a 6-person household, scales every quantity by 1.5.
 2. Consolidate identical or near-identical ingredients across recipes into a single line item AFTER scaling. If olive oil appears in three recipes, it must appear ONCE in the output, with quantities summed.
 3. Express each consolidated quantity as a free-text string (e.g. "3 lbs", "2 bunches", "5 cloves", "1 dozen"). If you cannot reasonably estimate, return null for that item's quantity.
 4. Categorize each item into exactly one of these grocery store sections: ${sectionsLine}. Use exactly the spelling shown — do not invent new sections.

@@ -12,7 +12,7 @@
 
 PRD-003 shipped a Hybrid AI-generated grocery list that worked from each recipe's *categorical* ingredient tags (proteins, vegetables, dairy, etc.). This was acceptable for v1 but left two known limits called out as P2 deferrals:
 
-1. **No structured per-recipe ingredients.** Quantities were rough and not auditable per recipe. The AI generator had to guess "two pounds of chicken" from the recipe name and the categorical tag, with no recipe-specific signal. Users couldn't edit quantities meaningfully without changing the underlying recipe text.
+1. **No structured per-recipe ingredients.** Quantities were rough and not auditable per recipe. The AI generator had to guess "two pounds of chicken" from the recipe name and the categorical tag, with no recipe-specific signal. Users couldn't edit quantities meaningfully without changing the underlying recipe text. Even after `vault.ingredients_structured` was populated (Bite α, P0.1) and household scaling wired in (Bite γ, P0.7), the grocery-list page was still sending only ingredient *names* — the actual extracted quantities sat in the DB but never reached the prompt. Bite δ (P0.8) closes that loop.
 2. **No household-size scaling.** Recipes default to a single yield (~4 servings); a 2-adult, 1-child household doing a 5-day meal plan got a list calibrated for nobody in particular. The categorical model had no way to scale because it had no quantity baseline to scale *from*.
 
 PRD-006 introduces the structured-ingredients foundation that PRD-003 P2.1 deferred, plus the household-composition data model needed to scale grocery quantities sensibly.
@@ -90,7 +90,8 @@ PRD-006 introduces the structured-ingredients foundation that PRD-003 P2.1 defer
 | P0.4 | **Bulk backfill script** | `scripts/backfill-structured-ingredients.mjs` iterates `vault` rows where `ingredients_structured IS NULL AND deleted_at IS NULL`. Calls Haiku 4.5 (cheaper than Sonnet for already-categorized rows) with a backfill-specific prompt that returns *only* `servings` + `ingredients_structured` (other fields already populated). Idempotent — re-runs retry only unfinished rows. Per-row failures log + continue; three consecutive 5xx Anthropic responses trigger hard stop (signal: API outage; re-run later). Service-role key (`SUPABASE_SERVICE_ROLE_KEY`) reads cross-user; never imported by browser code. Registered as `npm run backfill:structured-ingredients`. | ✅ Shipped (PR #77 + #79; backfill body PR #77, npm script wiring PR #79) |
 | P0.5 | **Household-size preferences UI** | Settings page (`Preferences/index.jsx`) adds two numeric inputs for `adults` (default 2) and `children` (default 0). Persists to `household_preferences.adults` / `.children`. The `(adults + children)` total drives the `default_servings` parameter passed to `/api/analyze-recipe` for new recipe saves. | ✅ Shipped (PR #77) |
 | P0.6 | **Chip-grounded re-extraction with truth-hierarchy prompt (Path D1)** | When `userChips` is supplied to `/api/analyze-recipe`, the prompt prepends a `USER-CONFIRMED CHIPS:` block and follows it with an explicit truth hierarchy: (1) **recipe URL/name = primary source** for what dish is being made and what its ingredients should be; (2) **user chips = authoritative for categorical attributes** (`protein`, `cooking_method`, `main_carb`, `dairy_components`, `vegetables`, `fruit`, `dietary_tags`, `prep_time`); (3) **never fabricate ingredients to fit a chip** — extract accurately from the URL/name, ignore the chip if it doesn't usefully constrain. When `userChips` is absent / empty, the prompt is byte-for-byte identical to the pre-D1 form (zero behavior change for first-time analysis). | ✅ Shipped (PR #78 for D1 mechanism, PR #80 for explicit truth-hierarchy refinement) |
-| P0.7 | **Bite γ — wire household scaling into `/api/grocery-list`** | The endpoint accepts `householdSize` (computed as `adults + children` from `household_preferences`) + per-recipe `servings`. The prompt instructs the model to scale quantities by `(household_size / servings)` per recipe-line so a 5-day plan for a 3-person household produces appropriately-sized totals. Recipes with `servings IS NULL` fall back to the hardcoded 4 (same chain as P0.3). | ⏳ Pending |
+| P0.7 | **Bite γ — wire household scaling into `/api/grocery-list`** | The endpoint accepts `householdSize` (computed as `adults + children` from `household_preferences`) + per-recipe `servings`. The prompt instructs the model to scale quantities by `(household_size / servings)` per recipe-line so a 5-day plan for a 3-person household produces appropriately-sized totals. Recipes with `servings IS NULL` fall back to the hardcoded 4 (same chain as P0.3). | ✅ Shipped (PR #86, commit `c688c6e`) |
+| P0.8 | **Bite δ — structured-ingredient pipe-through to `/api/grocery-list`** | The grocery-list page formats each ingredient string with the AI-extracted quantity inline (e.g. `"olive oil: 2 tbsp"`) when `vault.ingredients_structured` is populated, falling through to `ingredients_classified` names and then chip arrays as before. The grocery-list prompt is updated to tell the AI to use provided quantities as the scaling baseline and to estimate only when none is given. The API contract is unchanged — `ingredients` remains `string[]`; the format of each string is the page's responsibility. | ⏳ Pending |
 
 ### Scope changes after authoring
 
@@ -203,9 +204,10 @@ No external deadlines.
 - **Phase 1 — Bite α (P0.1, P0.2, P0.3):** schema migration + shared analyze-recipe handler + servings fallback chain. Foundation. Shipped 2026-05-03 (PR #75) + the `cooking_method` scope tightening (PR #76, commit `cd25f99`) and backfill-script category-array selection fix (commit `dfc3a12`) that surfaced during Bite α investigation.
 - **Phase 2 — Bite β (P0.4, P0.5):** backfill script + household-size preferences UI. Shipped 2026-05-04 (PR #77) + npm script wiring (PR #79).
 - **Phase 3 — Path D1 (P0.6):** chip-grounded re-extraction + truth-hierarchy prompt refinement. Shipped 2026-05-04 (PR #78 mechanism, PR #80 truth-hierarchy).
-- **Phase 4 — Bite γ (P0.7) — PENDING.** Grocery-list scaling consumer. The user-visible payoff: grocery lists scaled to actual household. (The original Bite γ also included a re-parse-on-edit half; that was descoped on 2026-05-05 — see "Scope changes after authoring" in §6.) Estimated 1 sitting.
+- **Phase 4 — Bite γ (P0.7) — SHIPPED** (PR #86, commit `c688c6e`). Grocery-list scaling consumer. The user-visible payoff: grocery lists scaled to actual household. (The original Bite γ also included a re-parse-on-edit half; that was descoped on 2026-05-05 — see "Scope changes after authoring" in §6.)
+- **Phase 5 — Bite δ (P0.8) — PENDING.** Pipe structured-ingredient quantities through to `/api/grocery-list` so the AI scales actual extracted quantities instead of name-based estimates. No DB or API contract change. Estimated 1 sitting.
 
-After Bite γ, this PRD closes out at v1.0. Successor work (per-ingredient editing, scaling refinements, Path D2+) lives in P1 and graduates only on demand.
+After Bite δ, this PRD closes out at v1.0. Successor work (per-ingredient editing, scaling refinements, Path D2+) lives in P1 and graduates only on demand.
 
 ## 12. Testing Plan
 
@@ -220,8 +222,16 @@ Most of this PRD is shipped; the testing burden falls on Bite γ. For shipped ph
 | Grocery-list page wiring | `src/pages/GroceryList/__tests__/GroceryList.test.jsx` | Page passes `householdSize = adults + children` and per-recipe `servings` to `/api/grocery-list`; null `vault.servings` propagates as null (no client-side fallback). |
 | End-to-end Playwright | extend `e2e/grocery-list.spec.ts` | Set household to 2 adults + 1 child → generate grocery list → quantities reflect 3-person household, not 4. |
 
+**For Bite δ (P0.8):**
+
+| Requirement | Test file | Test cases |
+|---|---|---|
+| Bite δ — structured-ingredient formatting | `src/pages/GroceryList/__tests__/GroceryListBody.test.jsx` | Recipe with structured data → POSTed strings include quantity. Empty / missing structured → fallback to classified names. Empty / missing both → fallback to chip arrays. `main_carb` single-string regression guard (must not be spread into characters). Recipe with no usable ingredient data is skipped with `console.warn`. |
+| Bite δ — prompt honors provided quantities | `src/lib/__tests__/groceryListHandler.test.js` | Prompt instruction tells the AI to use provided quantities as the baseline; ingredient strings flow through to the user message verbatim. |
+
 ## 13. Revision History
 
 | Version | Date | Notes |
 |---|---|---|
 | v0.1 | 2026-05-04 | **Retrospective authoring.** Phases 1–3 (P0.1–P0.6) were already shipped on `main` between 2026-05-03 and 2026-05-04 across PRs #75, #76, #77, #78, #79, #80. This document captures the original problem statement, decisions, and remaining scope (Bite γ / P0.7) so the work has a single canonical reference. The lack of an authoring-time PRD was flagged in `docs/STATUS.md` as a documentation gap; this draft closes that gap. The bulk of v0.1 reads as forward-looking (P0.1–P0.6 with Acceptance Criteria stated as if to-be-built) deliberately — that's the best record of "what we set out to do," even though the audit also notes ✅ Shipped status per row. |
+| v0.2 | 2026-05-05 | **Bite δ (P0.8) added.** P0.7 (Bite γ) retroactively marked ✅ Shipped (PR #86). Added P0.8 to the requirements table, updated §1 problem statement, §8 API summary, §11 phasing (Phase 4 shipped / Phase 5 added), and §12 testing plan. PRD closes at v1.0 after Bite δ merges. |

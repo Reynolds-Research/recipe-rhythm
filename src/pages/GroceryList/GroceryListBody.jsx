@@ -5,6 +5,35 @@ import { fetchMostRecentPlan } from '../../lib/mealPlanReader'
 import { getPreferences } from '../../lib/preferences'
 import { GROCERY_SECTIONS } from '../../lib/constants'
 
+/**
+ * PRD-006 Bite δ: format a single structured-ingredient entry as a string
+ * the grocery-list AI can read. The model gets quantity + unit inline so
+ * it scales the actual recipe quantity instead of re-estimating from the
+ * name. Examples:
+ *   { name: 'olive oil', quantity: '2', unit: 'tbsp' }       → "olive oil: 2 tbsp"
+ *   { name: 'garlic clove', quantity: '3', unit: null,
+ *     notes: 'minced' }                                       → "garlic clove: 3, minced"
+ *   { name: 'kosher salt', quantity: null, unit: null,
+ *     notes: 'to taste' }                                     → "kosher salt: to taste"
+ *   { name: 'olive oil' }                                     → "olive oil"
+ *
+ * Returns null when the entry has no usable name.
+ */
+function formatStructuredIngredient(entry) {
+  if (!entry || typeof entry.name !== 'string') return null
+  const name = entry.name.trim()
+  if (!name) return null
+
+  const qty = typeof entry.quantity === 'string' ? entry.quantity.trim() : ''
+  const unit = typeof entry.unit === 'string' ? entry.unit.trim() : ''
+  const notes = typeof entry.notes === 'string' ? entry.notes.trim() : ''
+
+  const measureParts = [qty, unit].filter(Boolean).join(' ').trim()
+  const tail = [measureParts, notes].filter(Boolean).join(', ')
+
+  return tail ? `${name}: ${tail}` : name
+}
+
 export default function GroceryListBody({ userId }) {
   const [loading, setLoading]       = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -65,7 +94,7 @@ export default function GroceryListBody({ userId }) {
       //    ingredients_classified hasn't been populated yet.
       const { data: planItems, error: piErr } = await supabase
         .from('meal_plan_items')
-        .select('name, vault_id, vault(name, servings, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
+        .select('name, vault_id, vault(name, servings, ingredients_structured, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
         .eq('meal_plan_id', activePlan.id)
         .eq('is_shortlisted', false)
         .not('vault_id', 'is', null)
@@ -79,9 +108,10 @@ export default function GroceryListBody({ userId }) {
       const safeHouseholdSize = Math.max(1, householdSize)
 
       // 2. Build recipes array.
-      //    Primary source: ingredients_classified (AI-analysed essentiality list).
-      //    Fallback: categorical fields (proteins, vegetables, etc.) for recipes
-      //    that haven't been through the classify-ingredients pass yet.
+      //    Preference order:
+      //      1. ingredients_structured — names + quantities + units + notes (Bite δ)
+      //      2. ingredients_classified — names only (PRD-004 Phase A backfill)
+      //      3. chip arrays            — fallback for the oldest rows
       const skippedNoVault = []
       const recipes = []
       for (const item of planItems ?? []) {
@@ -90,17 +120,27 @@ export default function GroceryListBody({ userId }) {
           continue
         }
         const v = item.vault
-        const classified = v.ingredients_classified
-        let ingredients
-        if (Array.isArray(classified) && classified.length > 0) {
-          ingredients = classified.map(c => c.name).filter(Boolean)
-        } else {
+
+        let ingredients = null
+        const structured = v.ingredients_structured
+        if (Array.isArray(structured) && structured.length > 0) {
+          ingredients = structured
+            .map(formatStructuredIngredient)
+            .filter(Boolean)
+        }
+        if (!ingredients || ingredients.length === 0) {
+          const classified = v.ingredients_classified
+          if (Array.isArray(classified) && classified.length > 0) {
+            ingredients = classified.map(c => c?.name).filter(Boolean)
+          }
+        }
+        if (!ingredients || ingredients.length === 0) {
           ingredients = [
-            ...(v.proteins        || []),
-            ...(v.main_carb       || []),
-            ...(v.vegetables      || []),
+            ...(v.proteins         || []),
+            ...(typeof v.main_carb === 'string' && v.main_carb ? [v.main_carb] : []),
+            ...(v.vegetables       || []),
             ...(v.dairy_components || []),
-            ...(v.fruits          || []),
+            ...(v.fruits           || []),
           ].filter(Boolean)
         }
         if (ingredients.length === 0) {
