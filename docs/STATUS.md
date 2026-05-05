@@ -20,7 +20,7 @@
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
 | PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** | P1 nice-to-haves |
 
-**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #<pending>).
+**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86).
 
 ---
 
@@ -152,7 +152,7 @@
 - [x] **Phase 2 — Bite β** (PR #77, commit `1e2c518`, P0.4 + P0.5): bulk backfill script (`scripts/backfill-structured-ingredients.mjs`) + household-size preferences UI in Settings. Backfill registered as npm script in PR #79 (commit `610bf9d`): `npm run backfill:structured-ingredients`.
 - [x] **Phase 3 — Path D1** (PR #78, commit `096778d`, P0.6): chip-grounded ingredient re-extraction with explicit `userChips` parameter on `/api/analyze-recipe`. Truth-hierarchy refinement (PR #80, commit `b5af1eb`): explicit ordering in the prompt — recipe URL/name = primary source for ingredients; user chips = authoritative for categorical attributes; never fabricate ingredients to fit a chip.
 
-- [x] **Phase 4 — Bite γ** (PR #<pending>, commit `<pending>`, P0.7): grocery-list endpoint accepts `householdSize` + per-recipe `servings`; prompt scales quantities by `(householdSize / servings)` per recipe-line and consolidates after scaling. Recipes with `servings IS NULL` fall back to 4. Original Bite γ also covered a re-parse-on-edit trigger; that half was descoped 2026-05-05 (see PRD-006 §6 "Scope changes after authoring") because the assumed `vault.ingredients text[]` column never existed.
+- [x] **Phase 4 — Bite γ** (PR #86, commit `c688c6e`, P0.7): grocery-list endpoint accepts `householdSize` + per-recipe `servings`; prompt scales quantities by `(householdSize / servings)` per recipe-line and consolidates after scaling. Recipes with `servings IS NULL` fall back to 4. Original Bite γ also covered a re-parse-on-edit trigger; that half was descoped 2026-05-05 (see PRD-006 §6 "Scope changes after authoring") because the assumed `vault.ingredients text[]` column never existed.
 
 ### Pending
 
