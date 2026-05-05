@@ -222,7 +222,7 @@ export default function GroceryList({ userId }) {
         {/* No active plan */}
         {!activePlan && (
           <div className="text-center py-16 space-y-2">
-            <ShoppingCart size={32} className="mx-auto text-gray-400" />
+            <ShoppingCart size={32} className="mx-auto text-gray-500" />
             <p className="body-text">No active planning period.</p>
             <p className="helper-text">Start one in Brainstorm to create a grocery list.</p>
           </div>
@@ -231,7 +231,7 @@ export default function GroceryList({ userId }) {
         {/* Active plan, no list yet, not generating */}
         {activePlan && !generating && items.length === 0 && (
           <div className="text-center py-16 space-y-4">
-            <ShoppingCart size={32} className="mx-auto text-gray-400" />
+            <ShoppingCart size={32} className="mx-auto text-gray-500" />
             <p className="body-text">No grocery list yet for this plan.</p>
             <button onClick={handleGenerate} className="btn-primary">
               Generate List
