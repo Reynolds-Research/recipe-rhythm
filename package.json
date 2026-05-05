@@ -19,7 +19,7 @@
     "lint:ds": "grep -rn 'text-\\[1[0-3]px\\]' src/ --include='*.jsx' --include='*.js'; grep -rnE 'text-gray-(200|300|400)' src/ --include='*.jsx' --include='*.js'; grep -rnE '\\b(p|px|py|pt|pb|pl|pr)-[0-9]+\\.5\\b' src/ --include='*.jsx' --include='*.js'; echo 'lint:ds scan complete (non-zero output = violations found)'"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.90.0",
+    "@anthropic-ai/sdk": "^0.93.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
