@@ -47,6 +47,7 @@ const EMPTY_PREFS = {
   max_prep_time_minutes: null,
   adults: 2,
   children: 0,
+  pantry_staples: [],
 }
 
 beforeEach(() => {
@@ -274,6 +275,66 @@ describe('Preferences page (PRD-002 P0.2)', () => {
     await user.tab()
 
     expect(upsertPreferences).not.toHaveBeenCalled()
+  })
+
+  it('pantry staples section renders with existing chip when prefs include pantry_staples', async () => {
+    getPreferences.mockResolvedValueOnce({
+      ...EMPTY_PREFS,
+      pantry_staples: ['olive oil'],
+    })
+
+    await renderAndLoad()
+
+    expect(screen.getByRole('heading', { name: /pantry staples/i })).toBeInTheDocument()
+    expect(screen.getByText('olive oil', { selector: '[role="listitem"]' })).toBeInTheDocument()
+  })
+
+  it('adding a pantry staple via Enter calls upsertPreferences with the new item appended', async () => {
+    const user = userEvent.setup()
+    getPreferences.mockResolvedValueOnce({
+      ...EMPTY_PREFS,
+      pantry_staples: ['olive oil'],
+    })
+    upsertPreferences.mockImplementation(async (_userId, patch) => ({
+      ...EMPTY_PREFS,
+      pantry_staples: ['olive oil'],
+      ...patch,
+    }))
+
+    await renderAndLoad()
+
+    const input = screen.getByLabelText(/add pantry staple/i)
+    await user.type(input, 'salt{Enter}')
+
+    expect(upsertPreferences).toHaveBeenCalledTimes(1)
+    expect(upsertPreferences).toHaveBeenCalledWith(
+      USER_ID,
+      { pantry_staples: ['olive oil', 'salt'] },
+      expect.anything(),
+    )
+  })
+
+  it('removing a pantry staple chip calls upsertPreferences with the item removed', async () => {
+    const user = userEvent.setup()
+    getPreferences.mockResolvedValueOnce({
+      ...EMPTY_PREFS,
+      pantry_staples: ['olive oil', 'salt'],
+    })
+    upsertPreferences.mockImplementation(async (_userId, patch) => ({
+      ...EMPTY_PREFS,
+      ...patch,
+    }))
+
+    await renderAndLoad()
+
+    await user.click(screen.getByRole('button', { name: /remove olive oil/i }))
+
+    expect(upsertPreferences).toHaveBeenCalledTimes(1)
+    expect(upsertPreferences).toHaveBeenCalledWith(
+      USER_ID,
+      { pantry_staples: ['salt'] },
+      expect.anything(),
+    )
   })
 })
 

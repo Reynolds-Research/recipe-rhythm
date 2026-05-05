@@ -48,6 +48,7 @@ export default function Preferences({ userId }) {
   const [savedField, setSavedField] = useState(null)        // field name flashed as "Saved"
   const [errorField, setErrorField] = useState(null)        // field name with active error
   const [ingredientDraft, setIngredientDraft] = useState('')
+  const [stapleDraft, setStapleDraft] = useState('')
   const [adultsDraft, setAdultsDraft] = useState('')
   const [childrenDraft, setChildrenDraft] = useState('')
   // PRD-002 P0.12: violators banner state. `null` when there's nothing to
@@ -175,6 +176,7 @@ export default function Preferences({ userId }) {
   const dietary = prefs.dietary_restrictions || []
   const excludedCuisines = prefs.excluded_cuisines || []
   const excludedIngredients = prefs.excluded_ingredients || []
+  const pantryStaples = prefs.pantry_staples || []
   const maxPrepBucketId = bucketIdForMinutes(prefs.max_prep_time_minutes)
 
   const onDietaryChange = (next) => {
@@ -207,6 +209,30 @@ export default function Preferences({ userId }) {
   const removeIngredient = (ing) => {
     const next = excludedIngredients.filter(v => v !== ing)
     saveField('excluded_ingredients', next, excludedIngredients)
+  }
+
+  const submitStaple = () => {
+    const raw = stapleDraft.trim().toLowerCase()
+    if (!raw) return
+    if (pantryStaples.includes(raw)) {
+      setStapleDraft('')
+      return
+    }
+    const next = [...pantryStaples, raw]
+    setStapleDraft('')
+    saveField('pantry_staples', next, pantryStaples)
+  }
+
+  const onStapleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      submitStaple()
+    }
+  }
+
+  const removeStaple = (item) => {
+    const next = pantryStaples.filter(v => v !== item)
+    saveField('pantry_staples', next, pantryStaples)
   }
 
   const onPrepBucketChange = (nextId) => {
@@ -405,6 +431,47 @@ export default function Preferences({ userId }) {
             Recipes are hidden only when an excluded ingredient is{' '}
             <span className="font-semibold not-italic">essential</span> to the dish —
             recipes that just mention it are still shown.
+          </p>
+        </Section>
+
+        <Section
+          field="pantry_staples"
+          label="Pantry staples"
+          savedField={savedField}
+          errorField={errorField}
+        >
+          <input
+            type="text"
+            value={stapleDraft}
+            onChange={e => setStapleDraft(e.target.value)}
+            onKeyDown={onStapleKeyDown}
+            placeholder="e.g., olive oil, salt, garlic"
+            aria-label="Add pantry staple"
+            className="input-base"
+          />
+          {pantryStaples.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2" role="list" aria-label="Pantry staples list">
+              {pantryStaples.map(item => (
+                <span
+                  key={item}
+                  role="listitem"
+                  className="chip chip-selected"
+                >
+                  {item}
+                  <button
+                    type="button"
+                    onClick={() => removeStaple(item)}
+                    aria-label={`Remove ${item}`}
+                    className="text-white/80 hover:text-white ml-1"
+                  >
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="helper-text italic mt-2">
+            Items you always have on hand. They'll be skipped on generated grocery lists.
           </p>
         </Section>
 

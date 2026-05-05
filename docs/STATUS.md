@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-05 against `origin/main` @ `9603701` (PR #88 merged; PR #89 Bite δ pending merge)
+**Last verified:** 2026-05-06 against `origin/main` @ `36d2d1f` (PR #89 Bite δ merged; PRD-003 P0.2 pantry staples in progress)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 shipped** (v1.0) | P1.2–P1.6 nice-to-haves; not blocking anything |
 | PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
-| PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Pantry staples (P0.2), ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
+| PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
 | PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + B + C shipped** | Phase D (override UI) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
 | PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
@@ -98,10 +98,10 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Fix** (commit `1a5ab3d`): unblock pre-serve meal picks + ingredient-less vault recipes.
 - [x] **P0.6** (assumed, surface in `GroceryList` page): section grouping + canonical section enum. *Confirm this is fully implemented before declaring done.*
 - [x] **P0.8** (assumed, basic toggle in `GroceryList` page): mark item bought toggle. *Confirm.*
+- [x] **P0.2** (PR #TBD, commit `TBD`): `household_preferences.pantry_staples text[]` column + Settings UI section + grocery-list wiring. Lists generated after a staple is added skip any line item matching by case-insensitive substring.
 
 ### In progress / pending
 
-- [ ] **P0.2** — `pantry_staples text[]` on `household_preferences` + settings UI
 - [ ] **P0.7** — Ad-hoc add input
 - [ ] **P0.9** — Share-link infrastructure (token + public route)
 - [ ] **P0.10** — Revoke share link

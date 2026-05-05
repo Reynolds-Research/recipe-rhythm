@@ -120,6 +120,57 @@ function setupGenerateFlow(vault) {
   })
 }
 
+// ---- PRD-003 P0.2: pantry_staples wiring tests ----
+
+describe('PRD-003 P0.2 — pantry_staples flows through to fetch body', () => {
+  const MINIMAL_VAULT = {
+    name: 'Pasta',
+    servings: 2,
+    ingredients_structured: [{ name: 'pasta', quantity: '200', unit: 'g' }],
+    ingredients_classified: null,
+    proteins: [], main_carb: null, vegetables: [], dairy_components: [], fruits: [],
+  }
+
+  it('pantry_staples from prefs flow through as pantryStaples in the fetch body', async () => {
+    getPreferences.mockResolvedValue({ adults: 2, children: 0, pantry_staples: ['olive oil', 'salt'] })
+    setupGenerateFlow(MINIMAL_VAULT)
+
+    render(<GroceryListBody userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body)
+    expect(body.pantryStaples).toEqual(['olive oil', 'salt'])
+  })
+
+  it('empty pantry_staples flows through as [] in the fetch body', async () => {
+    getPreferences.mockResolvedValue({ adults: 2, children: 0, pantry_staples: [] })
+    setupGenerateFlow(MINIMAL_VAULT)
+
+    render(<GroceryListBody userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body)
+    expect(body.pantryStaples).toEqual([])
+  })
+
+  it('defensive fallback: pantryStaples is [] when prefs has no pantry_staples key', async () => {
+    getPreferences.mockResolvedValue({ adults: 2, children: 0 })
+    setupGenerateFlow(MINIMAL_VAULT)
+
+    render(<GroceryListBody userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body)
+    expect(body.pantryStaples).toEqual([])
+  })
+})
+
 // ---- Bite δ tests ----
 
 describe('Bite δ — structured-ingredient formatting', () => {
