@@ -15,7 +15,7 @@ The app has three primary user-facing surfaces:
 
 - **Frontend:** React 19.2, Vite 8, Tailwind CSS 3.4, lucide-react, framer-motion, react-modal-sheet, @dnd-kit/core + @dnd-kit/sortable
 - **Backend:** Supabase (DB + Auth + Storage) with owner-scoped RLS on every table; local Express proxy at `api-server.mjs`; Vercel serverless mirror at `api/` (keep both in sync)
-- **AI:** `@anthropic-ai/sdk` 0.90 — Sonnet 4.6 for `/api/analyze-recipe`, Haiku 4.5 for `/api/swap-suggestions` (PRD-003 will add `/api/grocery-list`)
+- **AI:** `@anthropic-ai/sdk` 0.90. Endpoints: `/api/analyze-recipe` (Sonnet 4.6) for recipe parsing; `/api/swap-suggestions`, `/api/grocery-list`, `/api/classify-ingredients`, `/api/normalize-meal-name` (all Haiku 4.5). Each Express route in `api-server.mjs` has a Vercel mirror in `api/` — keep both in sync.
 - **Testing:** Vitest 4 + React Testing Library + `@testing-library/user-event` (unit/integration); Playwright (e2e)
 - **Routing:** None today. `App.jsx` uses `page` state + conditional rendering. `react-router-dom` is planned in PRD-003 P0.11.
 - **No TypeScript.** JS only.
@@ -37,18 +37,24 @@ The app has three primary user-facing surfaces:
 - `docs/architecture.md` — high-level architecture overview
 - `api-server.mjs` — local-dev Express proxy holding the Anthropic key
 - `api/` — Vercel serverless port of the proxy (keep in sync with `api-server.mjs`)
-- `RECIPE_TODOS.md` — does NOT live in the repo; it's in the user's Claude.ai project knowledge folder. Don't try to read or write it from inside the repo.
+- `scripts/` — one-off and admin Node scripts: backfill jobs (`backfill-structured-ingredients.mjs`, `backfill-ingredients-classification.js`), classification eval tooling (`build-classification-truth-set.js`, `eval-classification-accuracy.js`), and git-hooks installation (`install-git-hooks.sh`). Some are wired up as npm scripts in `package.json` (e.g. `npm run backfill:structured-ingredients`).
+- `docs/STATUS.md` — the canonical "where are we?" document. Single source of truth for which PRD phases have shipped vs. are pending. **Read this immediately after CLAUDE.md at the start of every session.** Updated as part of every PR that completes a PRD phase (see "Status etiquette" below). Replaces the legacy `RECIPE_TODOS.md`, which has been retired and should not be referenced.
 
 ## PRDs (the source of truth for what to build)
 
-When working on a feature, **read the relevant PRD first**. Do not invent requirements that aren't in the PRD.
+When working on a feature, **read the relevant PRD first**. Do not invent requirements that aren't in the PRD. Always cross-reference against `docs/STATUS.md` to know which phases of each PRD have already shipped.
 
-1. **PRD-001 — Recipe Vault & Cooking Record** — [`docs/prds/PRD-001-recipe-vault-and-cooking-record.md`](docs/prds/PRD-001-recipe-vault-and-cooking-record.md). Restores the meals→vault link, soft-deletes vault recipes, centralizes enums. Dependency root for the other two PRDs.
-2. **PRD-002 — Meal Planning** — [`docs/prds/PRD-002-meal-planning.md`](docs/prds/PRD-002-meal-planning.md). Brainstorm UX upgrade, household preferences (hard filter), `prep_time_minutes`, "maybe" / shortlist state. **Hard-blocked on PRD-001 Phase 1 + P1.1.**
+1. **PRD-001 — Recipe Vault & Cooking Record** — [`docs/prds/PRD-001-recipe-vault-and-cooking-record.md`](docs/prds/PRD-001-recipe-vault-and-cooking-record.md). Restores the meals→vault link, soft-deletes vault recipes, centralizes enums. Dependency root for PRD-002 and PRD-003.
+2. **PRD-002 — Meal Planning** — [`docs/prds/PRD-002-meal-planning.md`](docs/prds/PRD-002-meal-planning.md). Brainstorm UX upgrade, household preferences (hard filter), `prep_time_minutes`, "maybe" / shortlist state. **Was hard-blocked on PRD-001 Phase 1 + P1.1; both shipped.**
 3. **PRD-003 — Grocery Tracking** — [`docs/prds/PRD-003-grocery-tracking.md`](docs/prds/PRD-003-grocery-tracking.md). AI-generated lists (Hybrid approach), pantry staples lite, the share-link primitive (token + public route + react-router).
+4. **PRD-004 — Smarter Ingredient Filtering** — [`docs/prds/PRD-004-smarter-ingredient-filtering.md`](docs/prds/PRD-004-smarter-ingredient-filtering.md). AI classifies vault ingredients as `essential` vs. `omittable`; preference filter gates only on essentials. Builds on PRD-002 P0.3. Paired with [ADR-002](docs/adr/ADR-002-ingredient-classification.md) and [ADR-003](docs/adr/ADR-003-implied-meat-dish-name-filter.md).
+5. **PRD-005 — Mobile UX, Spacing & Typography** — [`docs/prds/PRD-005-mobile-ux-spacing-typography.md`](docs/prds/PRD-005-mobile-ux-spacing-typography.md). Hygiene-only audit: spacing scale, typography scale, WCAG AA contrast, 44px touch targets, design-system primitive adoption, CI lint guardrail. Independent of feature PRDs.
+6. **PRD-006 — Structured Ingredients & Household Composition** — *PRD doc is not yet authored.* Schema and bites are tracked in `docs/STATUS.md` and `docs/schema.md`. Adds `vault.ingredients_structured jsonb`, `vault.servings`, `household_preferences.adults` / `.children`, plus a backfill script and chip-grounded re-extraction. Authoring `docs/prds/PRD-006-*.md` is itself a pending item.
 
 ADRs:
 - **ADR-001 — Planning Period Save State** — [`docs/adr/ADR-001-planning-period-save-state.md`](docs/adr/ADR-001-planning-period-save-state.md). Schema decisions for date-ranged planning periods, leftovers, end-of-period review.
+- **ADR-002 — Ingredient Classification** — [`docs/adr/ADR-002-ingredient-classification.md`](docs/adr/ADR-002-ingredient-classification.md). Rationale for the AI-classifier approach in PRD-004.
+- **ADR-003 — Implied-Meat Dish-Name Filter** — [`docs/adr/ADR-003-implied-meat-dish-name-filter.md`](docs/adr/ADR-003-implied-meat-dish-name-filter.md). App-layer dish-name keyword filter for vegetarian/vegan/pescatarian preferences; companion to PRD-004's essentiality classifier.
 
 ## Workflow conventions
 
@@ -84,6 +90,13 @@ To compare branches: `git diff main..other-branch -- <path>`.
 - **Pair every migration with a verify SQL file** in the same directory: `verify_<timestamp>.sql`. Read-only checks that confirm the migration applied correctly.
 - **Document every column / table change in `docs/schema.md`** — update column reference tables and the migrations log table at the bottom.
 - **RLS for every new table.** Owner-scoped policies on `user_id`, mirroring the existing `meals` / `vault` / `meal_plan_items` patterns. Never ship a table without RLS.
+
+## Status etiquette
+
+- **Every PR that completes a PRD phase or a P-numbered requirement MUST update `docs/STATUS.md`** in the same PR. Move the relevant line from "Pending" to "Shipped" in the right PRD section, note the PR number and commit hash, and bump the "Last verified" line at the top.
+- **Outdated `docs/STATUS.md` is a release blocker** — treat it the same as outdated `docs/schema.md`. If a reviewer notices drift between the file and what actually shipped, the PR doesn't merge until both are reconciled.
+- **At the start of every session, read `docs/STATUS.md` immediately after this file**, then run `git log --oneline -20` to spot-check that the file matches reality. If they don't match, reconciling is the first task — not the work that was originally requested.
+- **Bug-fix or refactor PRs that don't complete a PRD phase do not need to touch STATUS.md** — only phase-completing or P-numbered work.
 
 ## MCP-powered verification (preview branches & deployments)
 
@@ -143,15 +156,16 @@ If either MCP errors or appears unreachable, **ask the user** — don't silently
 ## Common gotchas (real ones we've hit)
 
 - **`react-modal-sheet` import shape.** Use `import { Sheet } from 'react-modal-sheet'`, not `import Sheet from 'react-modal-sheet'`. The default-import form may work in dev but breaks in production builds and tests.
-- **Timezone-naive dates.** `new Date().toISOString().split('T')[0]` writes UTC, even when the user's local time is the previous day (audit U8). PRD-002 P0.11 introduces a centralized `formatLocalDate()` helper — until that lands, be aware.
+- **Timezone-naive dates.** `new Date().toISOString().split('T')[0]` writes UTC, even when the user's local time is the previous day (audit U8). Use the centralized `formatLocalDate()` helper in `src/lib/dateUtils.js` (shipped via PRD-002 P0.11) for any `eaten_on` / `scheduled_date` write. Don't reintroduce raw `toISOString().split('T')[0]`.
 - **`pg_trgm` `RETURNS TABLE` ambiguity.** Naming OUT params `id`, `name`, `image_url` collides with `vault.id`/`vault.name` inside a `LANGUAGE sql` function body. Postgres flags this in some contexts (notably fresh DBs / Supabase Preview Branches). Fix: use prefixed OUT names (`match_id`, `match_name`, `match_image_url`) and qualify the SELECT (`vault.id AS match_id, ...`). See `vault_fuzzy_match` in the Phase 1 migration.
 - **The Claude.ai project's master prompt may be stale.** It may list older versions of the stack (React 18, Vite 6, Vanilla CSS, Phosphor Icons). The truth is in `package.json`. If there's a conflict, **trust the codebase**.
 - **Don't fix unrelated lint or test errors** while doing focused work. Note them in the PR description as follow-ups; don't expand scope unless the prompt explicitly asks.
 
 ## When in doubt
 
-1. Read the PRD for the feature you're working on (`docs/prds/`)
-2. Read the prompt for your phase (`docs/prompts/`) if one exists
-3. Read `docs/schema.md` and `docs/architecture.md` for system context
-4. Run `git log --oneline -20` to see recent activity for context on what just shipped
-5. **Ask the user before guessing.** A short clarifying question is always better than a wrong assumption.
+1. Read `docs/STATUS.md` to see which PRD phases have shipped vs. are pending
+2. Read the PRD for the feature you're working on (`docs/prds/`)
+3. Read the prompt for your phase (`docs/prompts/`) if one exists
+4. Read `docs/schema.md` and `docs/architecture.md` for system context
+5. Run `git log --oneline -20` to see recent activity for context on what just shipped
+6. **Ask the user before guessing.** A short clarifying question is always better than a wrong assumption.
