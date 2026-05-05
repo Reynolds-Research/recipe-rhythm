@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-06 against `origin/main` @ `36d2d1f` (PR #89 Bite δ merged; PRD-003 P0.2 pantry staples in progress)
+**Last verified:** 2026-05-06 against `origin/main` @ `0399dda` (PR #90 PRD-003 P0.2 pantry staples merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -98,7 +98,7 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Fix** (commit `1a5ab3d`): unblock pre-serve meal picks + ingredient-less vault recipes.
 - [x] **P0.6** (assumed, surface in `GroceryList` page): section grouping + canonical section enum. *Confirm this is fully implemented before declaring done.*
 - [x] **P0.8** (assumed, basic toggle in `GroceryList` page): mark item bought toggle. *Confirm.*
-- [x] **P0.2** (PR #TBD, commit `TBD`): `household_preferences.pantry_staples text[]` column + Settings UI section + grocery-list wiring. Lists generated after a staple is added skip any line item matching by case-insensitive substring.
+- [x] **P0.2** (PR #90, commit `b8881ec`): `household_preferences.pantry_staples text[]` column + Settings UI section + grocery-list wiring. Lists generated after a staple is added skip any line item matching by case-insensitive substring.
 
 ### In progress / pending
 
