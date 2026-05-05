@@ -102,7 +102,21 @@ describe('getPreferences', () => {
       max_prep_time_minutes: null,
       adults: 2,
       children: 0,
+      pantry_staples: [],
     })
+  })
+
+  it('defaults() includes pantry_staples: []', async () => {
+    const supabase = makeSupabase({
+      'household_preferences.select': {
+        data: null,
+        error: { code: 'PGRST116', message: 'no rows' },
+      },
+    })
+
+    const prefs = await getPreferences(USER, supabase)
+
+    expect(prefs).toHaveProperty('pantry_staples', [])
   })
 
   it('propagates non-PGRST116 errors', async () => {
@@ -219,6 +233,30 @@ describe('upsertPreferences', () => {
       'cilantro',
       'olives',
     ])
+  })
+
+  it('normalizes pantry_staples (trim + lowercase + dedupe)', async () => {
+    const supabase = makeSupabase({
+      'household_preferences.upsert': { data: SAMPLE_ROW, error: null },
+    })
+
+    await upsertPreferences(
+      USER,
+      { pantry_staples: ['  Olive Oil  ', 'olive oil', 'SALT', ''] },
+      supabase,
+    )
+
+    expect(supabase.calls[0].payload.pantry_staples).toEqual(['olive oil', 'salt'])
+  })
+
+  it('does not touch pantry_staples when the patch omits it', async () => {
+    const supabase = makeSupabase({
+      'household_preferences.upsert': { data: { ...SAMPLE_ROW, adults: 3 }, error: null },
+    })
+
+    await upsertPreferences(USER, { adults: 3 }, supabase)
+
+    expect(supabase.calls[0].payload).not.toHaveProperty('pantry_staples')
   })
 
   it('propagates Supabase errors from the upsert', async () => {

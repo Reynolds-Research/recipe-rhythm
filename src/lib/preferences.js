@@ -60,6 +60,7 @@ function defaults(userId) {
     max_prep_time_minutes: null,
     adults: 2,
     children: 0,
+    pantry_staples: [],
   }
 }
 
@@ -131,6 +132,9 @@ export async function upsertPreferences(userId, patch, supabase) {
   const row = { user_id: userId, ...patch }
   if (Array.isArray(patch.excluded_ingredients)) {
     row.excluded_ingredients = normalizeIngredients(patch.excluded_ingredients)
+  }
+  if (Array.isArray(patch.pantry_staples)) {
+    row.pantry_staples = normalizeIngredients(patch.pantry_staples)
   }
 
   const { data, error } = await supabase

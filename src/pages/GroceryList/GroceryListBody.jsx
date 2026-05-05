@@ -106,6 +106,7 @@ export default function GroceryListBody({ userId }) {
       const prefs = await getPreferences(userId, supabase)
       const householdSize = (prefs?.adults ?? 2) + (prefs?.children ?? 0)
       const safeHouseholdSize = Math.max(1, householdSize)
+      const pantryStaples = Array.isArray(prefs?.pantry_staples) ? prefs.pantry_staples : []
 
       // 2. Build recipes array.
       //    Preference order:
@@ -162,7 +163,7 @@ export default function GroceryListBody({ userId }) {
       const res = await fetch('/api/grocery-list', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ recipes, pantryStaples: [], householdSize: safeHouseholdSize }),
+        body: JSON.stringify({ recipes, pantryStaples, householdSize: safeHouseholdSize }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
