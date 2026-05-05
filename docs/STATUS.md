@@ -30,7 +30,7 @@ Nav simplification work that doesn't belong to any one PRD.
 
 ### Shipped
 
-- [x] **Groceries → Prep Table sheet** (PR #TBD, commit `TBD`): folded the Groceries tab into a bottom sheet inside Prep Table, opened from the existing post-Serve action row. Removed `handleDownloadList` (pre-PRD-003 TXT export) as dead code. Bottom nav reduced from 6 tabs to 5 (Log, Prep Table, Calendar, Cookbook, Settings).
+- [x] **Groceries → Prep Table sheet** (PR #87, commit `7da022b`): folded the Groceries tab into a bottom sheet inside Prep Table, opened from the existing post-Serve action row. Removed `handleDownloadList` (pre-PRD-003 TXT export) as dead code. Bottom nav reduced from 6 tabs to 5 (Log, Prep Table, Calendar, Cookbook, Settings).
 
 ### Pending
 
