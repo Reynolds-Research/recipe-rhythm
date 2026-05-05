@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Pencil, Loader2, LogOut, CalendarDays, Settings } from 'lucide-react'
+import { BookOpen, Pencil, Loader2, Menu, CalendarDays } from 'lucide-react'
 import ChefKnife from './components/ChefKnife'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
@@ -9,12 +9,14 @@ import Vault from './pages/Vault'
 import GroceryList from './pages/GroceryList'
 import CalendarView from './components/CalendarView'
 import Preferences from './components/Preferences'
+import AppMenuSheet from './components/AppMenuSheet'
 
 export default function App() {
   const [session, setSession]         = useState(null)
   const [loadingSession, setLoadingSession] = useState(true)
   const [page, setPage]               = useState('log')
   const [recentMeals, setRecentMeals] = useState([])
+  const [menuOpen, setMenuOpen]       = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -56,12 +58,12 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto relative">
       <button
-        onClick={() => supabase.auth.signOut()}
+        onClick={() => setMenuOpen(true)}
         className="btn-icon absolute top-[max(20px,env(safe-area-inset-top))] right-[max(20px,env(safe-area-inset-right))] z-50"
-        title="Sign Out"
-        aria-label="Sign out"
+        title="Menu"
+        aria-label="Open menu"
       >
-        <LogOut size={18} />
+        <Menu size={18} />
       </button>
 
       <main>
@@ -92,7 +94,6 @@ export default function App() {
           { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },
           { id: 'calendar',   label: 'Calendar',    Icon: CalendarDays  },
           { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
-          { id: 'settings',   label: 'Settings',    Icon: Settings  },
         // eslint-disable-next-line no-unused-vars
         ].map(({ id, label, Icon }) => (
           <button
@@ -106,6 +107,12 @@ export default function App() {
           </button>
         ))}
       </nav>
+      <AppMenuSheet
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onOpenSettings={() => setPage('settings')}
+        onSignOut={() => supabase.auth.signOut()}
+      />
     </div>
   )
 }

@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-05 against `origin/main` @ `9e3f371` (PR #86 merged)
+**Last verified:** 2026-05-05 against `origin/main` @ `fc44a7b` (PR #87 merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -32,9 +32,10 @@ Nav simplification work that doesn't belong to any one PRD.
 
 - [x] **Groceries → Prep Table sheet** (PR #87, commit `7da022b`): folded the Groceries tab into a bottom sheet inside Prep Table, opened from the existing post-Serve action row. Removed `handleDownloadList` (pre-PRD-003 TXT export) as dead code. Bottom nav reduced from 6 tabs to 5 (Log, Prep Table, Calendar, Cookbook, Settings).
 
+- [x] **Settings + Sign-out → top-right menu** (PR #TBD, commit `TBD`): replaced the standalone sign-out icon with a Menu icon that opens a bottom sheet containing Settings and Sign out. Removed the Settings entry from the bottom nav. Bottom nav reduced from 5 tabs to 4 (Log, Prep Table, Calendar, Cookbook).
+
 ### Pending
 
-- [ ] **Settings + Sign-out → top-right menu** — companion PR; see `docs/prompts/feat-app-shell-top-menu.md`.
 - [ ] **Remove the `page === 'grocery'` branch from `App.jsx`** — follow-up after a grace period (1 release). Removes `src/pages/GroceryList/index.jsx` page-level shell entirely; `GroceryListBody` stays as the canonical surface.
 
 ---
