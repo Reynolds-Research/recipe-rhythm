@@ -18,9 +18,9 @@
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Pantry staples (P0.2), ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
 | PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + Phase B shipped** | Phase C (filter behavior change) — the user-visible flip |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
-| PRD-006 | Structured Ingredients + Household Composition | 🟡 **Bites α + β + Path D1 + truth-hierarchy shipped** | Bite γ (re-parse on edit); **also: author the PRD doc** |
+| PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.6 shipped** (Bites α + β + Path D1 + truth-hierarchy) | P0.7 / Bite γ — re-parse on edit + wire household scaling into `/api/grocery-list` |
 
-⚠️ **Documentation gap:** PRD-006 has 6+ shipped PRs but no markdown file in `docs/prds/`. The schema is documented in `docs/schema.md`, but there's no PRD specifying scope, phasing, or success metrics. Authoring this is itself a "next thing."
+**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (pending).
 
 ---
 
@@ -141,24 +141,23 @@
 
 ---
 
-## PRD-006 — Structured Ingredients + Household Composition
+## PRD-006 — Structured Ingredients & Household Scaling
 
-> ⚠️ **Documentation gap:** No PRD markdown file in `docs/prds/`. Schema is captured in `docs/schema.md`. Authoring `docs/prds/PRD-006-*.md` is itself a pending item — without it, scope and success metrics aren't pinned down anywhere. (Inferred name from commit messages and schema.md.)
+[`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md) · **Draft v0.1** · 🟡 P0.1–P0.6 shipped, P0.7 (Bite γ) pending
 
-### Shipped (inferred from commits)
+### Shipped
 
-- [x] **Bite α** (PR #75, commit `103eb1c`, P0.1): structured-ingredients schema (`vault.ingredients_structured jsonb`, `vault.servings int`) + household composition (`household_preferences.adults`, `household_preferences.children` + CHECK constraint).
-- [x] **Bite β** (PR #77, commit `1e2c518`): backfill script for existing vault rows + household-size preferences UI.
-- [x] **Cooking-method scope fix** (PR #76, commit `cd25f99`): scope `cooking_method` to dish-level technique, not sub-steps.
-- [x] **Backfill script fix** (commit `dfc3a12`): select category arrays, not `vault.ingredients`.
-- [x] **Backfill registered as npm script** (PR #79, commit `610bf9d`): `backfill:structured-ingredients`.
-- [x] **Path D1** (PR #78, commit `096778d`): chip-grounded ingredient re-extraction.
-- [x] **Truth-hierarchy chip-grounding prompt** (PR #80, commit `b5af1eb`): explicit truth-hierarchy in chip-grounding prompt.
+- [x] **Phase 1 — Bite α** (PR #75, commit `103eb1c`, P0.1 + P0.2 + P0.3): schema migration (`vault.ingredients_structured jsonb`, `vault.servings int`, `household_preferences.adults`, `household_preferences.children`, CHECK constraint), shared `/api/analyze-recipe` handler at `api/_lib/analyzeRecipeHandler.js`, servings fallback chain (AI → caller default → hardcoded 4) with `servings_inferred` flag.
+- [x] **Bite α follow-ups** (PR #76, commit `cd25f99`): scope `cooking_method` to dish-level technique; (commit `dfc3a12`): backfill script category-array selection fix.
+- [x] **Phase 2 — Bite β** (PR #77, commit `1e2c518`, P0.4 + P0.5): bulk backfill script (`scripts/backfill-structured-ingredients.mjs`) + household-size preferences UI in Settings. Backfill registered as npm script in PR #79 (commit `610bf9d`): `npm run backfill:structured-ingredients`.
+- [x] **Phase 3 — Path D1** (PR #78, commit `096778d`, P0.6): chip-grounded ingredient re-extraction with explicit `userChips` parameter on `/api/analyze-recipe`. Truth-hierarchy refinement (PR #80, commit `b5af1eb`): explicit ordering in the prompt — recipe URL/name = primary source for ingredients; user chips = authoritative for categorical attributes; never fabricate ingredients to fit a chip.
 
-### Pending (inferred)
+### Pending
 
-- [ ] **Bite γ** — re-parse on edit (referenced in `docs/schema.md` as "Bite γ"); P0.7 work per schema.md callouts.
-- [ ] **PRD-006 markdown doc itself** — author it with scope, phases, success metrics, open questions.
+- [ ] **Phase 4 — Bite γ (P0.7)**:
+  - (a) Re-parse `ingredients_structured` when `vault.ingredients text[]` is edited via `RecipeForm` save (or programmatic update). Diff-based trigger; failures degrade gracefully (set NULL, retry on next backfill).
+  - (b) Wire household scaling into `/api/grocery-list`: accept `household_size` (computed from `adults + children`) + per-recipe `servings`; scale quantities by `(household_size / servings)`. Recipes with `servings IS NULL` fall back to 4.
+- [ ] All P1 polish (per-ingredient inline editing, reparse latency UX, kid-vs-adult scaling refinement, Path D2+).
 
 ---
 
