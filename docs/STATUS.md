@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-05 against `origin/main` @ `5294d29` (PR #85 merged)
+**Last verified:** 2026-05-05 against `origin/main` @ `9e3f371` (PR #86 merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -21,6 +21,21 @@
 | PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** | P1 nice-to-haves |
 
 **PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86).
+
+---
+
+## Cross-cutting — Information Architecture
+
+Nav simplification work that doesn't belong to any one PRD.
+
+### Shipped
+
+- [x] **Groceries → Prep Table sheet** (PR #87, commit `7da022b`): folded the Groceries tab into a bottom sheet inside Prep Table, opened from the existing post-Serve action row. Removed `handleDownloadList` (pre-PRD-003 TXT export) as dead code. Bottom nav reduced from 6 tabs to 5 (Log, Prep Table, Calendar, Cookbook, Settings).
+
+### Pending
+
+- [ ] **Settings + Sign-out → top-right menu** — companion PR; see `docs/prompts/feat-app-shell-top-menu.md`.
+- [ ] **Remove the `page === 'grocery'` branch from `App.jsx`** — follow-up after a grace period (1 release). Removes `src/pages/GroceryList/index.jsx` page-level shell entirely; `GroceryListBody` stays as the canonical surface.
 
 ---
 

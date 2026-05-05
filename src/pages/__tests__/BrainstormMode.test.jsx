@@ -51,6 +51,13 @@ vi.mock('../../lib/preferences', () => ({
   getPreferences: vi.fn(),
 }))
 
+vi.mock('../../components/GroceryListSheet', () => ({
+  default: ({ isOpen, onClose }) =>
+    isOpen
+      ? <div data-testid="grocery-list-sheet"><button onClick={onClose}>Close</button></div>
+      : null,
+}))
+
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({ children }) => <div>{children}</div>,
   closestCenter: vi.fn(),
@@ -936,5 +943,33 @@ describe('BrainstormMode', () => {
         ).toBeGreaterThan(0)
       })
     })
+  })
+
+  it('Groceries button opens the grocery sheet when plan is served', async () => {
+    fetchMostRecentPlan.mockResolvedValue({
+      plan: {
+        id: 'plan-active',
+        served_at: '2026-04-19T12:00:00Z',
+        period_start: '2026-04-19',
+        period_end: '2026-04-23',
+        finalized_at: null,
+        items: [],
+        shortlist: [],
+        scheduledDates: [],
+        source: 'new',
+      },
+    })
+    classifyPlanState.mockReturnValue('active')
+
+    render(<BrainstormMode userId="user-1" />)
+    await waitFor(() => {
+      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+    })
+
+    expect(screen.queryByTestId('grocery-list-sheet')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Groceries$/i }))
+
+    expect(screen.getByTestId('grocery-list-sheet')).toBeInTheDocument()
   })
 })

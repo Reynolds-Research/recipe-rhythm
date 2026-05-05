@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BookOpen, Pencil, Loader2, LogOut, CalendarDays, Settings, ShoppingCart } from 'lucide-react'
+import { BookOpen, Pencil, Loader2, LogOut, CalendarDays, Settings } from 'lucide-react'
 import ChefKnife from './components/ChefKnife'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
@@ -69,7 +69,7 @@ export default function App() {
           <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
         )}
         {page === 'brainstorm' && (
-          <BrainstormMode userId={userId} onNavigate={setPage} />
+          <BrainstormMode userId={userId} />
         )}
         {page === 'calendar' && (
           <CalendarView userId={userId} />
@@ -90,7 +90,6 @@ export default function App() {
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },
           { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },
-          { id: 'grocery',    label: 'Groceries',   Icon: ShoppingCart },
           { id: 'calendar',   label: 'Calendar',    Icon: CalendarDays  },
           { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
           { id: 'settings',   label: 'Settings',    Icon: Settings  },
