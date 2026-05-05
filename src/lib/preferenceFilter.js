@@ -208,18 +208,48 @@ export function passesPreferences(item, preferences) {
     }
   }
 
-  // 3. excluded_ingredients (case-insensitive substring against haystack)
+  // 3. excluded_ingredients
+  //
+  // PRD-004 Phase C (P0.7): an excluded ingredient hides a recipe only when
+  // the matched ingredient appears in ingredients_classified with
+  // essentiality === 'essential'. This solves the cheeseburger problem:
+  // excluding 'onion' no longer hides recipes that merely mention it.
+  //
+  // Defensive fallback: if ingredients_classified is null or missing
+  // (a row the Phase A backfill missed; rare post-Phase-A), fall back to
+  // the pre-Phase-C substring behavior so we don't silently let through
+  // recipes that genuinely shouldn't pass.
   const excludedIngredients = Array.isArray(preferences.excluded_ingredients)
     ? preferences.excluded_ingredients
     : []
   if (excludedIngredients.length > 0) {
-    const haystack = collectIngredientHaystack(item)
-    if (haystack) {
+    const classified = Array.isArray(item.ingredients_classified)
+      ? item.ingredients_classified
+      : null
+
+    if (classified !== null) {
+      // Phase C path: gate on essentiality.
+      const essentialNames = classified
+        .filter(c => c && c.essentiality === 'essential' && typeof c.name === 'string')
+        .map(c => c.name.toLowerCase())
       for (const ing of excludedIngredients) {
         if (typeof ing !== 'string') continue
         const needle = ing.trim().toLowerCase()
         if (!needle) continue
-        if (haystack.includes(needle)) return false
+        // Case-insensitive substring on essential names only.
+        // Substring (not exact match) so 'onion' matches 'red onion', etc.
+        if (essentialNames.some(n => n.includes(needle))) return false
+      }
+    } else {
+      // Pre-Phase-C fallback: substring on the full haystack.
+      const haystack = collectIngredientHaystack(item)
+      if (haystack) {
+        for (const ing of excludedIngredients) {
+          if (typeof ing !== 'string') continue
+          const needle = ing.trim().toLowerCase()
+          if (!needle) continue
+          if (haystack.includes(needle)) return false
+        }
       }
     }
   }

@@ -401,6 +401,11 @@ export default function Preferences({ userId }) {
               ))}
             </div>
           )}
+          <p className="helper-text italic mt-2">
+            Recipes are hidden only when an excluded ingredient is{' '}
+            <span className="font-semibold not-italic">essential</span> to the dish —
+            recipes that just mention it are still shown.
+          </p>
         </Section>
 
         <Section

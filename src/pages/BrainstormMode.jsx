@@ -560,7 +560,7 @@ export default function BrainstormMode({ userId, onNavigate }) {
       // recommendation candidates.
       supabase
         .from('vault')
-        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits, family_rating, prep_time_minutes')
+        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits, family_rating, prep_time_minutes, ingredients_classified')
         .eq('user_id', userId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),

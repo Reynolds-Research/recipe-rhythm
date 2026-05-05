@@ -399,3 +399,117 @@ describe('passesPreferences — multi-criteria ANDing', () => {
     ).toBe(false)
   })
 })
+
+// ─── PRD-004 Phase C ──────────────────────────────────────────────────────────
+// Essentiality gating for excluded_ingredients. The pre-Phase-C tests above
+// (lines 71–106) continue to use items without `ingredients_classified`, so
+// they hit the defensive-fallback path and prove backward compatibility.
+
+describe('passesPreferences — Phase C: essentiality gating (P0.7)', () => {
+  const prefs = { ...EMPTY_PREFS, excluded_ingredients: ['onion'] }
+
+  it('excludes "onion" + recipe has onion as omittable → passes (the cheeseburger case)', () => {
+    expect(
+      passesPreferences(
+        {
+          name: 'Cheeseburger',
+          ingredients_classified: [
+            { name: 'beef', essentiality: 'essential', source: 'ai' },
+            { name: 'onion', essentiality: 'omittable', source: 'ai' },
+            { name: 'cheese', essentiality: 'essential', source: 'ai' },
+          ],
+        },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+
+  it('excludes "onion" + recipe has onion as essential → fails (the onion-rings case)', () => {
+    expect(
+      passesPreferences(
+        {
+          name: 'Onion Rings',
+          ingredients_classified: [
+            { name: 'onion', essentiality: 'essential', source: 'ai' },
+            { name: 'breadcrumbs', essentiality: 'essential', source: 'ai' },
+          ],
+        },
+        prefs,
+      ),
+    ).toBe(false)
+  })
+
+  it('excludes "onion" + ingredients_classified is null + haystack has onion → fails (defensive fallback)', () => {
+    expect(
+      passesPreferences(
+        {
+          name: 'Cheeseburger',
+          ingredients_classified: null,
+          vegetables: ['Onion'],
+        },
+        prefs,
+      ),
+    ).toBe(false)
+  })
+
+  it('excludes "onion" + ingredients_classified is [] (empty) → passes (no essentials to gate on)', () => {
+    expect(
+      passesPreferences(
+        {
+          name: 'Mystery Dish',
+          ingredients_classified: [],
+          vegetables: ['Onion'],
+        },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+
+  it('excludes "onion" + classified has no onion entry but haystack does → passes (trust the classifier)', () => {
+    expect(
+      passesPreferences(
+        {
+          name: 'Cheeseburger',
+          ingredients_classified: [
+            { name: 'beef', essentiality: 'essential', source: 'ai' },
+            { name: 'cheese', essentiality: 'essential', source: 'ai' },
+          ],
+          vegetables: ['Onion'],
+        },
+        prefs,
+      ),
+    ).toBe(true)
+  })
+
+  it('substring match still works within essential names: "garlic" matches "roasted garlic clove" → fails', () => {
+    expect(
+      passesPreferences(
+        {
+          name: 'Garlic Bread',
+          ingredients_classified: [
+            { name: 'roasted garlic clove', essentiality: 'essential', source: 'ai' },
+            { name: 'bread', essentiality: 'essential', source: 'ai' },
+          ],
+        },
+        { ...EMPTY_PREFS, excluded_ingredients: ['garlic'] },
+      ),
+    ).toBe(false)
+  })
+
+  it('other preference rules still apply alongside essentiality gating', () => {
+    // A recipe with omittable onion passes the ingredient rule but still fails
+    // if another preference (prep time) is violated.
+    expect(
+      passesPreferences(
+        {
+          name: 'Cheeseburger',
+          ingredients_classified: [
+            { name: 'onion', essentiality: 'omittable', source: 'ai' },
+          ],
+          prep_time_minutes: 120,
+        },
+        { ...prefs, max_prep_time_minutes: 30 },
+      ),
+    ).toBe(false)
+  })
+})

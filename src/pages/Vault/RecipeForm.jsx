@@ -62,6 +62,9 @@ export default function RecipeForm({
   // PRD-002 P0.4: prep time stored as the bucket's representative integer
   // (or null when no chip is selected).
   const [prepTimeMinutes, setPrepTimeMinutes] = useState(null)
+  // PRD-004 Phase C (P0.8): when AI analyze runs, store the classification
+  // result so it flows through to the vault insert.
+  const [ingredientsClassified, setIngredientsClassified] = useState(null)
 
   const [imageFile, setImageFile]       = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -115,6 +118,7 @@ export default function RecipeForm({
       if (s.prep_time_minutes != null && prepTimeMinutes == null) {
         setPrepTimeMinutes(s.prep_time_minutes)
       }
+      setIngredientsClassified(s.ingredients_classified ?? null)
       setAiApplied(true)
     } else {
       setAiError(true)
@@ -136,6 +140,7 @@ export default function RecipeForm({
     setVegetables([])
     setFruits([])
     setPrepTimeMinutes(null)
+    setIngredientsClassified(null)
     setAiApplied(false)
     setAiError(false)
     if (imagePreview) URL.revokeObjectURL(imagePreview)
@@ -160,6 +165,7 @@ export default function RecipeForm({
       fruits,
       prepTimeMinutes,
       imageFile,
+      ingredientsClassified,
     })
     if (result?.ok) resetForm()
   }

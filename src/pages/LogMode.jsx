@@ -161,20 +161,21 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     const { data: newVault, error: insertErr } = await supabase
       .from('vault')
       .insert({
-        user_id:          userId,
-        name:             savedMealName,
-        is_wildcard:      false,
-        auto_completed:   true,
-        notes:            savedMealNote             || null,
-        cuisine_type:     analysis?.cuisine_type     ?? null,
-        flavor_profile:   analysis?.flavor_profile   ?? null,
-        proteins:         analysis?.proteins         ?? [],
-        cooking_method:   analysis?.cooking_method   ?? null,
-        main_carb:        analysis?.main_carb        ?? null,
-        dietary_tags:     analysis?.dietary_tags     ?? [],
-        dairy_components: analysis?.dairy_components ?? [],
-        vegetables:       analysis?.vegetables       ?? [],
-        fruits:           analysis?.fruits           ?? [],
+        user_id:                userId,
+        name:                   savedMealName,
+        is_wildcard:            false,
+        auto_completed:         true,
+        notes:                  savedMealNote                      || null,
+        cuisine_type:           analysis?.cuisine_type             ?? null,
+        flavor_profile:         analysis?.flavor_profile           ?? null,
+        proteins:               analysis?.proteins                 ?? [],
+        cooking_method:         analysis?.cooking_method           ?? null,
+        main_carb:              analysis?.main_carb                ?? null,
+        dietary_tags:           analysis?.dietary_tags             ?? [],
+        dairy_components:       analysis?.dairy_components         ?? [],
+        vegetables:             analysis?.vegetables               ?? [],
+        fruits:                 analysis?.fruits                   ?? [],
+        ingredients_classified: analysis?.ingredients_classified   ?? null,
       })
       .select('id')
       .single()

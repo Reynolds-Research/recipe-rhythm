@@ -14,6 +14,7 @@
  */
 import { parseJsonLoose } from './anthropic.js'
 import { buildAnalyzeRecipePromptBlock } from '../../src/lib/constants.js'
+import { classifyIngredients, ClassifyIngredientsError } from '../../src/lib/classifyIngredients.js'
 
 // When the AI can't infer servings and the caller didn't supply a default,
 // fall back to 4 (a reasonable single-household serving count).
@@ -136,6 +137,38 @@ export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' }
         ? parsed.ingredients_structured
         : null
 
+      // PRD-004 Phase C (P0.8): auto-classify ingredients on save so newly added
+      // recipes don't ship to the filter with ingredients_classified === null.
+      // Failure here degrades gracefully — we still save the recipe; the next
+      // backfill run will retry classification.
+      let ingredients_classified = null
+      if (Array.isArray(ingredients_structured) && ingredients_structured.length > 0) {
+        const ingredientNames = ingredients_structured
+          .map(i => i?.name)
+          .filter(n => typeof n === 'string' && n.trim().length > 0)
+          .map(n => n.trim())
+        if (ingredientNames.length > 0) {
+          try {
+            const result = await classifyIngredients({
+              ingredients: ingredientNames,
+              recipeName: (parsed.name || name || '').trim() || 'Untitled recipe',
+              cuisine: parsed.cuisine_type || null,
+              anthropicClient: anthropic,
+            })
+            ingredients_classified = Array.isArray(result?.classifications)
+              ? result.classifications
+              : null
+          } catch (err) {
+            console.error(
+              `[api] ${tag} auto-classify failed:`,
+              err instanceof ClassifyIngredientsError ? 'parse_failed' : '',
+              err?.status || '',
+              err?.message || err
+            )
+          }
+        }
+      }
+
       return res.json({
         components: {
           ...parsed,
@@ -144,6 +177,7 @@ export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' }
           servings_inferred,
           // Explicit to guarantee the field is always present in the response.
           ingredients_structured,
+          ingredients_classified,
         },
       })
     } catch (err) {
