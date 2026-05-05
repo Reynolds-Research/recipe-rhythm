@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-05 against `origin/main` @ `3723175` (PR #84 merged)
+**Last verified:** 2026-05-05 against `origin/main` @ `5294d29` (PR #85 merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -18,9 +18,9 @@
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Pantry staples (P0.2), ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
 | PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + B + C shipped** | Phase D (override UI) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
-| PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.6 shipped** (Bites α + β + Path D1 + truth-hierarchy) | P0.7 / Bite γ — re-parse on edit + wire household scaling into `/api/grocery-list` |
+| PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** | P1 nice-to-haves |
 
-**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (pending).
+**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86).
 
 ---
 
@@ -152,11 +152,10 @@
 - [x] **Phase 2 — Bite β** (PR #77, commit `1e2c518`, P0.4 + P0.5): bulk backfill script (`scripts/backfill-structured-ingredients.mjs`) + household-size preferences UI in Settings. Backfill registered as npm script in PR #79 (commit `610bf9d`): `npm run backfill:structured-ingredients`.
 - [x] **Phase 3 — Path D1** (PR #78, commit `096778d`, P0.6): chip-grounded ingredient re-extraction with explicit `userChips` parameter on `/api/analyze-recipe`. Truth-hierarchy refinement (PR #80, commit `b5af1eb`): explicit ordering in the prompt — recipe URL/name = primary source for ingredients; user chips = authoritative for categorical attributes; never fabricate ingredients to fit a chip.
 
+- [x] **Phase 4 — Bite γ** (PR #86, commit `c688c6e`, P0.7): grocery-list endpoint accepts `householdSize` + per-recipe `servings`; prompt scales quantities by `(householdSize / servings)` per recipe-line and consolidates after scaling. Recipes with `servings IS NULL` fall back to 4. Original Bite γ also covered a re-parse-on-edit trigger; that half was descoped 2026-05-05 (see PRD-006 §6 "Scope changes after authoring") because the assumed `vault.ingredients text[]` column never existed.
+
 ### Pending
 
-- [ ] **Phase 4 — Bite γ (P0.7)**:
-  - (a) Re-parse `ingredients_structured` when `vault.ingredients text[]` is edited via `RecipeForm` save (or programmatic update). Diff-based trigger; failures degrade gracefully (set NULL, retry on next backfill).
-  - (b) Wire household scaling into `/api/grocery-list`: accept `household_size` (computed from `adults + children`) + per-recipe `servings`; scale quantities by `(household_size / servings)`. Recipes with `servings IS NULL` fall back to 4.
 - [ ] All P1 polish (per-ingredient inline editing, reparse latency UX, kid-vs-adult scaling refinement, Path D2+).
 
 ---

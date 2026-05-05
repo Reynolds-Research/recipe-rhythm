@@ -39,14 +39,23 @@ function parseJsonLoose(text) {
   }
 }
 
-function buildUserMessage({ recipes, pantryStaples }) {
+function buildUserMessage({ recipes, pantryStaples, householdSize }) {
   const sectionsLine = GROCERY_SECTIONS.join(' | ')
   const staplesLine = pantryStaples.length ? pantryStaples.join(', ') : 'None'
+
+  // Per-recipe block: announce the recipe yield so the model has a
+  // baseline to scale FROM. `servings` is always a positive int here —
+  // null was resolved to DEFAULT_SERVINGS in buildGroceryList before
+  // we built the message.
   const recipeBlocks = recipes
-    .map(r => `- ${r.name}\n  Ingredients: ${r.ingredients.join(', ')}`)
+    .map(r =>
+      `- ${r.name} (yields ${r.servings} servings)\n  Ingredients: ${r.ingredients.join(', ')}`,
+    )
     .join('\n')
 
   return `Generate a consolidated grocery shopping list for the recipes below.
+
+The household has ${householdSize} eaters. Each recipe lists its yield (the number of servings it produces). For each recipe, scale the quantity of every ingredient by (${householdSize} / yield). Then consolidate across recipes.
 
 Recipes:
 ${recipeBlocks}
@@ -54,24 +63,45 @@ ${recipeBlocks}
 Pantry staples the user already has — EXCLUDE any matching ingredient entirely (case-insensitive substring match): ${staplesLine}
 
 Instructions:
-1. Consolidate identical or near-identical ingredients across recipes into a single line item. If olive oil appears in three recipes, it must appear ONCE in the output.
-2. Estimate a reasonable quantity for a household of 4 as a free-text string (e.g. "2 lbs", "1 bunch", "3 cloves", "1 dozen"). If you cannot reasonably estimate, return null for that item's quantity.
-3. Categorize each item into exactly one of these grocery store sections: ${sectionsLine}. Use exactly the spelling shown — do not invent new sections.
-4. Skip any ingredient that matches a pantry staple by case-insensitive substring.
+1. Scale each recipe's ingredient quantities by (household_size / yield) — e.g. a recipe that yields 4 servings, in a 6-person household, scales every quantity by 1.5.
+2. Consolidate identical or near-identical ingredients across recipes into a single line item AFTER scaling. If olive oil appears in three recipes, it must appear ONCE in the output, with quantities summed.
+3. Express each consolidated quantity as a free-text string (e.g. "3 lbs", "2 bunches", "5 cloves", "1 dozen"). If you cannot reasonably estimate, return null for that item's quantity.
+4. Categorize each item into exactly one of these grocery store sections: ${sectionsLine}. Use exactly the spelling shown — do not invent new sections.
+5. Skip any ingredient that matches a pantry staple by case-insensitive substring.
 
 Respond with valid JSON ONLY — no prose, no markdown fences, no explanation:
 {"items": [{"name": "<ingredient name>", "quantity": "<free-text quantity or null>", "section": "<one of the sections>"}, ...]}`
 }
 
 /**
+ * Default household size when the caller doesn't supply one. Matches the
+ * `household_preferences.adults` default (2) plus `.children` default (0)
+ * — the same effective default a brand-new user would get if they generated
+ * a list before opening Settings.
+ */
+const DEFAULT_HOUSEHOLD_SIZE = 2
+
+/**
+ * Default per-recipe yield when `servings` is null on a vault row. Matches
+ * the PRD-006 P0.3 fallback chain (AI → caller default → 4).
+ */
+const DEFAULT_SERVINGS = 4
+
+/**
  * Build a consolidated grocery list from a set of recipes.
  *
  * @param {object}   args
- * @param {Array<{name: string, ingredients: string[]}>} args.recipes
+ * @param {Array<{name: string, ingredients: string[], servings?: number|null}>} args.recipes
  *                                          Recipes to combine. Required, non-empty.
+ *                                          `servings` is the per-recipe yield; null /
+ *                                          missing / non-positive falls back to 4.
  * @param {string[]} [args.pantryStaples]   Items the user already has; excluded
  *                                          from the output (case-insensitive
  *                                          substring match). Default [].
+ * @param {number}   [args.householdSize]   Total eaters in the household
+ *                                          (adults + children). Positive integer.
+ *                                          Default 2 — matches the
+ *                                          household_preferences defaults.
  * @param {object}   args.anthropicClient   Instantiated Anthropic SDK client.
  *
  * @returns {Promise<{items: Array<{name: string, quantity: string|null, section: string}>}>}
@@ -82,6 +112,7 @@ Respond with valid JSON ONLY — no prose, no markdown fences, no explanation:
 export async function buildGroceryList({
   recipes,
   pantryStaples = [],
+  householdSize = DEFAULT_HOUSEHOLD_SIZE,
   anthropicClient,
 }) {
   if (!Array.isArray(recipes) || recipes.length === 0) {
@@ -90,11 +121,24 @@ export async function buildGroceryList({
   if (!Array.isArray(pantryStaples)) {
     throw new TypeError('buildGroceryList: `pantryStaples` must be an array (may be empty)')
   }
+  if (!Number.isInteger(householdSize) || householdSize < 1) {
+    throw new TypeError('buildGroceryList: `householdSize` must be a positive integer')
+  }
   if (!anthropicClient || typeof anthropicClient.messages?.create !== 'function') {
     throw new TypeError('buildGroceryList: `anthropicClient` must be an Anthropic SDK client')
   }
 
-  const userMessage = buildUserMessage({ recipes, pantryStaples })
+  // Resolve per-recipe servings now so the prompt has a clean baseline.
+  // Anything non-positive or non-integer falls through to DEFAULT_SERVINGS.
+  const resolvedRecipes = recipes.map(r => ({
+    name: r.name,
+    ingredients: r.ingredients,
+    servings: Number.isInteger(r.servings) && r.servings > 0
+      ? r.servings
+      : DEFAULT_SERVINGS,
+  }))
+
+  const userMessage = buildUserMessage({ recipes: resolvedRecipes, pantryStaples, householdSize })
 
   // Token budget: ~25 tokens per ingredient covers {name, quantity, section}.
   // Floor at 400 for the JSON envelope; cap at 2000 to bound runaway input.

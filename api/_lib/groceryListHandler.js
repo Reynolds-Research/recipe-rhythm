@@ -19,30 +19,35 @@ function isNonEmptyString(v) {
 }
 
 function isValidRecipe(r) {
-  return r
-    && typeof r === 'object'
-    && isNonEmptyString(r.name)
-    && Array.isArray(r.ingredients)
-    && r.ingredients.length > 0
-    && r.ingredients.every(isNonEmptyString)
+  if (!r || typeof r !== 'object') return false
+  if (!isNonEmptyString(r.name)) return false
+  if (!Array.isArray(r.ingredients) || r.ingredients.length === 0) return false
+  if (!r.ingredients.every(isNonEmptyString)) return false
+  // servings is optional; if present, must be a positive integer.
+  // Null is allowed and represents "the vault row has no AI-extracted servings"
+  // — buildGroceryList falls back to the default in that case.
+  if (r.servings !== undefined && r.servings !== null) {
+    if (!Number.isInteger(r.servings) || r.servings < 1) return false
+  }
+  return true
 }
 
 export function createGroceryListHandler({ anthropic, buildImpl = buildGroceryList, tag = 'grocery-list' } = {}) {
   return async function groceryListHandler(req, res) {
     if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
-    const { recipes, pantryStaples = [] } = req.body || {}
+    const { recipes, pantryStaples = [], householdSize } = req.body || {}
 
     if (!Array.isArray(recipes) || recipes.length === 0) {
       return res.status(400).json({
         error: 'invalid_recipes',
-        message: '`recipes` must be a non-empty array of {name, ingredients[]}',
+        message: '`recipes` must be a non-empty array of {name, ingredients[], servings?}',
       })
     }
     if (!recipes.every(isValidRecipe)) {
       return res.status(400).json({
         error: 'invalid_recipes',
-        message: '`recipes` entries must be {name, ingredients[]} where both name and every ingredient are non-empty strings',
+        message: '`recipes` entries must be {name, ingredients[], servings?} where name and every ingredient are non-empty strings, and servings (if present) is a positive integer or null',
       })
     }
     if (!Array.isArray(pantryStaples) || !pantryStaples.every(s => typeof s === 'string')) {
@@ -51,14 +56,27 @@ export function createGroceryListHandler({ anthropic, buildImpl = buildGroceryLi
         message: '`pantryStaples` must be an array of strings (may be empty)',
       })
     }
+    // householdSize is optional at the HTTP layer — buildGroceryList applies
+    // the default when undefined. If the caller does send it, it must be a
+    // positive integer.
+    if (householdSize !== undefined) {
+      if (!Number.isInteger(householdSize) || householdSize < 1) {
+        return res.status(400).json({
+          error: 'invalid_household_size',
+          message: '`householdSize`, if present, must be a positive integer',
+        })
+      }
+    }
 
     try {
       const result = await buildImpl({
         recipes: recipes.map(r => ({
           name: r.name.trim(),
           ingredients: r.ingredients.map(s => s.trim()).filter(Boolean),
+          servings: r.servings ?? null,
         })),
         pantryStaples: pantryStaples.map(s => s.trim()).filter(Boolean),
+        householdSize,
         anthropicClient: anthropic,
       })
       return res.status(200).json(result)
