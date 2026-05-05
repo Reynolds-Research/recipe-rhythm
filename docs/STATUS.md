@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-04 against `origin/main` @ `24eb870` (PR #80 merged)
+**Last verified:** 2026-05-05 against `origin/main` @ `3723175` (PR #84 merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -16,7 +16,7 @@
 | PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 shipped** (v1.0) | P1.2–P1.6 nice-to-haves; not blocking anything |
 | PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Pantry staples (P0.2), ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
-| PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + Phase B shipped** | Phase C (filter behavior change) — the user-visible flip |
+| PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + B + C shipped** | Phase D (override UI) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
 | PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.6 shipped** (Bites α + β + Path D1 + truth-hierarchy) | P0.7 / Bite γ — re-parse on edit + wire household scaling into `/api/grocery-list` |
 
@@ -98,17 +98,17 @@
 
 ## PRD-004 — Smarter Ingredient Filtering
 
-[`docs/prds/PRD-004-smarter-ingredient-filtering.md`](./prds/PRD-004-smarter-ingredient-filtering.md) · **Draft** · 🟡 Phases A + B shipped, Phase C pending
+[`docs/prds/PRD-004-smarter-ingredient-filtering.md`](./prds/PRD-004-smarter-ingredient-filtering.md) · **Draft** · 🟡 Phases A + B + C shipped, Phase D pending
 
 ### Shipped
 
 - [x] **Phase A — Foundation** (PR #54, commit `78b2f9c`): `vault.ingredients_classified jsonb` column, `/api/classify-ingredients` Haiku 4.5 endpoint, bulk backfill script (P0.1 + P0.2 + P0.3).
 - [x] **Phase B — Validation gate** (PR #56 + #59, commits `5d860a0`, `5c6c22b`, `281fdd0`): ground-truth fixture, accuracy eval script, prompt tuning loop (P0.4 + P0.5 + P0.6).
 - [x] **ADR-003 — Implied-meat dish-name filter** (commit `5732c8f`): app-layer dish-name keyword check in `passesPreferences` for vegetarian / vegan / pescatarian. (Adjacent to PRD-004, not on the phase plan; doesn't block Phase C.)
+- [x] **Phase C — Filter behavior change** (PR #85, commit `d43260b`, P0.7 + P0.8 + P0.9): `passesPreferences` gates excluded-ingredient matches on `essentiality === 'essential'`; `/api/analyze-recipe` auto-classifies on save so new recipes never have `NULL` `ingredients_classified`; Preferences UI explains the new behavior.
 
 ### Pending
 
-- [ ] **Phase C — Filter behavior change** (P0.7 + P0.8 + P0.9): update `passesPreferences` to gate on `essentiality === 'essential'`, auto-classify on `/api/analyze-recipe` save, update Preferences UI disclaimer copy. **This is the user-visible flip — the cheeseburger problem stays until this ships.**
 - [ ] **Phase D — Override UI** (P0.10 + P0.11 + P0.12): per-recipe essentiality display, override toggle, re-classification respects overrides.
 - [ ] All P1 polish (override review surface, override-frequency analytics, AI confidence score, periodic re-classification cron).
 

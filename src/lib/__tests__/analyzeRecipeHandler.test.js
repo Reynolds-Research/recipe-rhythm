@@ -18,6 +18,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createAnalyzeRecipeHandler } from '../../../api/_lib/analyzeRecipeHandler.js'
 
+// PRD-004 Phase C (P0.8): the handler now calls classifyIngredients after
+// structured-ingredient extraction. Mock the module so existing tests are
+// unaffected and Phase C tests can control the classify behaviour.
+vi.mock('../classifyIngredients.js', () => ({
+  classifyIngredients: vi.fn().mockResolvedValue({
+    classifications: [{ name: 'chicken breasts', essentiality: 'omittable', source: 'ai' }],
+  }),
+  ClassifyIngredientsError: class ClassifyIngredientsError extends Error {
+    constructor(message, opts) {
+      super(message)
+      this.name = 'ClassifyIngredientsError'
+      this.rawResponse = opts?.rawResponse ?? null
+    }
+  },
+}))
+import { classifyIngredients, ClassifyIngredientsError } from '../classifyIngredients.js'
+
 // ---------- helpers ----------
 
 function mockRes() {
@@ -427,5 +444,91 @@ describe('createAnalyzeRecipeHandler — prompt contract', () => {
       : String(textContent)
     expect(textBlock).toContain('ingredients_structured')
     expect(textBlock).toContain('servings')
+  })
+})
+
+// ─── PRD-004 Phase C (P0.8) ───────────────────────────────────────────────────
+// Auto-classify chain: the handler calls classifyIngredients() after extracting
+// ingredients_structured so newly saved recipes never have
+// ingredients_classified === null.
+
+describe('createAnalyzeRecipeHandler — Phase C: auto-classify chain (P0.8)', () => {
+  let errSpy
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(classifyIngredients).mockResolvedValue({
+      classifications: [
+        { name: 'chicken breasts', essentiality: 'omittable', source: 'ai' },
+        { name: 'pasta', essentiality: 'essential', source: 'ai' },
+      ],
+    })
+  })
+  afterEach(() => {
+    errSpy?.mockRestore()
+  })
+
+  it('successful chain → response includes ingredients_classified array', async () => {
+    const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    const res = mockRes()
+
+    await handler({ body: { name: 'Chicken Pasta' } }, res)
+
+    expect(res.statusCode).toBe(200)
+    const { ingredients_classified } = res.body.components
+    expect(Array.isArray(ingredients_classified)).toBe(true)
+    expect(ingredients_classified).toHaveLength(2)
+    expect(ingredients_classified[0]).toMatchObject({ essentiality: 'omittable', source: 'ai' })
+    expect(ingredients_classified[1]).toMatchObject({ essentiality: 'essential', source: 'ai' })
+  })
+
+  it('classify call fails → response succeeds with ingredients_classified: null', async () => {
+    vi.mocked(classifyIngredients).mockRejectedValueOnce(
+      new ClassifyIngredientsError('parse_failed', { rawResponse: 'bad json' }),
+    )
+    errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const client = fakeAnthropic(JSON.stringify(FULL_AI_RESPONSE))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    const res = mockRes()
+
+    await handler({ body: { name: 'Chicken Pasta' } }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body.components.ingredients_classified).toBeNull()
+    // The recipe save itself is not blocked.
+    expect(res.body.components.ingredients_structured).not.toBeNull()
+  })
+
+  it('analyze returns no structured ingredients → no classify call attempted', async () => {
+    const aiResponse = { ...FULL_AI_RESPONSE, ingredients_structured: null }
+    const client = fakeAnthropic(JSON.stringify(aiResponse))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    const res = mockRes()
+
+    await handler({ body: { name: 'Mystery Dish' } }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(vi.mocked(classifyIngredients)).not.toHaveBeenCalled()
+    expect(res.body.components.ingredients_classified).toBeNull()
+  })
+
+  it('analyze returns structured ingredients with all-whitespace names → filtered out; no classify call attempted', async () => {
+    const aiResponse = {
+      ...FULL_AI_RESPONSE,
+      ingredients_structured: [
+        { name: '   ', quantity: null, unit: null, notes: null },
+        { name: '', quantity: null, unit: null, notes: null },
+      ],
+    }
+    const client = fakeAnthropic(JSON.stringify(aiResponse))
+    const handler = createAnalyzeRecipeHandler({ anthropic: client })
+    const res = mockRes()
+
+    await handler({ body: { name: 'Empty Dish' } }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(vi.mocked(classifyIngredients)).not.toHaveBeenCalled()
+    expect(res.body.components.ingredients_classified).toBeNull()
   })
 })

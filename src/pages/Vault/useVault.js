@@ -100,6 +100,7 @@ export function useVault(userId) {
     fruits,
     prepTimeMinutes,
     imageFile,
+    ingredientsClassified,
   }) => {
     const finalName = name.trim()
     if (!finalName) return { ok: false, reason: 'no-name' }
@@ -176,23 +177,24 @@ export function useVault(userId) {
     }
 
     const { error } = await supabase.from('vault').insert({
-      user_id:           userId,
-      name:              finalName,
-      image_url:         publicUrl,
-      cuisine_type:      cuisineType            || null,
-      flavor_profile:    flavorProfile          || null,
-      notes:             notes.trim()           || null,
-      recipe_url:        recipeUrl.trim()       || null,
-      is_wildcard:       false,
-      auto_completed:    false,
-      proteins:          proteins.length        ? proteins        : null,
-      cooking_method:    cookingMethod          || null,
-      main_carb:         mainCarb               || null,
-      dietary_tags:      dietaryTags.length     ? dietaryTags     : null,
-      dairy_components:  dairyComponents.length ? dairyComponents : null,
-      vegetables:        vegetables.length      ? vegetables      : null,
-      fruits:            fruits.length          ? fruits          : null,
-      prep_time_minutes: prepTimeMinutes        ?? null,
+      user_id:                userId,
+      name:                   finalName,
+      image_url:              publicUrl,
+      cuisine_type:           cuisineType            || null,
+      flavor_profile:         flavorProfile          || null,
+      notes:                  notes.trim()           || null,
+      recipe_url:             recipeUrl.trim()       || null,
+      is_wildcard:            false,
+      auto_completed:         false,
+      proteins:               proteins.length        ? proteins        : null,
+      cooking_method:         cookingMethod          || null,
+      main_carb:              mainCarb               || null,
+      dietary_tags:           dietaryTags.length     ? dietaryTags     : null,
+      dairy_components:       dairyComponents.length ? dairyComponents : null,
+      vegetables:             vegetables.length      ? vegetables      : null,
+      fruits:                 fruits.length          ? fruits          : null,
+      prep_time_minutes:      prepTimeMinutes        ?? null,
+      ingredients_classified: ingredientsClassified  ?? null,
     })
 
     if (error) return { ok: false, reason: 'insert-failed', error }
@@ -204,20 +206,21 @@ export function useVault(userId) {
   const addSuggestion = async (suggestionName) => {
     const analysis = await analyzeRecipe(suggestionName)
     await supabase.from('vault').insert({
-      user_id:           userId,
-      name:              suggestionName,
-      is_wildcard:       false,
-      auto_completed:    true,
-      cuisine_type:      analysis?.cuisine_type      ?? null,
-      flavor_profile:    analysis?.flavor_profile    ?? null,
-      proteins:          analysis?.proteins          ?? [],
-      cooking_method:    analysis?.cooking_method    ?? null,
-      main_carb:         analysis?.main_carb         ?? null,
-      dietary_tags:      analysis?.dietary_tags      ?? [],
-      dairy_components:  analysis?.dairy_components  ?? [],
-      vegetables:        analysis?.vegetables        ?? [],
-      fruits:            analysis?.fruits            ?? [],
-      prep_time_minutes: analysis?.prep_time_minutes ?? null,
+      user_id:                userId,
+      name:                   suggestionName,
+      is_wildcard:            false,
+      auto_completed:         true,
+      cuisine_type:           analysis?.cuisine_type           ?? null,
+      flavor_profile:         analysis?.flavor_profile         ?? null,
+      proteins:               analysis?.proteins               ?? [],
+      cooking_method:         analysis?.cooking_method         ?? null,
+      main_carb:              analysis?.main_carb              ?? null,
+      dietary_tags:           analysis?.dietary_tags           ?? [],
+      dairy_components:       analysis?.dairy_components       ?? [],
+      vegetables:             analysis?.vegetables             ?? [],
+      fruits:                 analysis?.fruits                 ?? [],
+      prep_time_minutes:      analysis?.prep_time_minutes      ?? null,
+      ingredients_classified: analysis?.ingredients_classified ?? null,
     })
     await fetchRecipes()
   }
@@ -282,14 +285,15 @@ export function useVault(userId) {
     const update = {
       ingredients_structured: components.ingredients_structured ?? null,
     }
-    if (components.proteins         !== undefined) update.proteins         = components.proteins ?? null
-    if (components.cooking_method   !== undefined) update.cooking_method   = components.cooking_method ?? null
-    if (components.main_carb        !== undefined) update.main_carb        = components.main_carb ?? null
-    if (components.dietary_tags     !== undefined) update.dietary_tags     = components.dietary_tags ?? null
-    if (components.dairy_components !== undefined) update.dairy_components = components.dairy_components ?? null
-    if (components.vegetables       !== undefined) update.vegetables       = components.vegetables ?? null
-    if (components.fruits           !== undefined) update.fruits           = components.fruits ?? null
-    if (components.prep_time_minutes !== undefined) update.prep_time_minutes = components.prep_time_minutes ?? null
+    if (components.proteins              !== undefined) update.proteins              = components.proteins              ?? null
+    if (components.cooking_method        !== undefined) update.cooking_method        = components.cooking_method        ?? null
+    if (components.main_carb             !== undefined) update.main_carb             = components.main_carb             ?? null
+    if (components.dietary_tags          !== undefined) update.dietary_tags          = components.dietary_tags          ?? null
+    if (components.dairy_components      !== undefined) update.dairy_components      = components.dairy_components      ?? null
+    if (components.vegetables            !== undefined) update.vegetables            = components.vegetables            ?? null
+    if (components.fruits                !== undefined) update.fruits                = components.fruits                ?? null
+    if (components.prep_time_minutes     !== undefined) update.prep_time_minutes     = components.prep_time_minutes     ?? null
+    if (components.ingredients_classified !== undefined) update.ingredients_classified = components.ingredients_classified ?? null
 
     const { data, error } = await supabase
       .from('vault')
