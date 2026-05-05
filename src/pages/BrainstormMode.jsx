@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Download, Loader2, Bookmark, BookmarkPlus, Plus, Trash2, ShoppingCart } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Loader2, Bookmark, BookmarkPlus, Plus, Trash2, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
 import Logo from '../components/Logo'
+import GroceryListSheet from '../components/GroceryListSheet'
 import { getRecommendations } from '../lib/recommendations'
 import { buildLastWeekSlots } from '../lib/lastWeekSlots'
 import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
@@ -377,7 +378,7 @@ function ShortlistTab({ items, isServed, onSchedule }) {
   )
 }
 
-export default function BrainstormMode({ userId, onNavigate }) {
+export default function BrainstormMode({ userId }) {
   const [lastWeek, setLastWeek] = useState([])
   const [plan, setPlan] = useState(() => {
     try {
@@ -409,6 +410,7 @@ export default function BrainstormMode({ userId, onNavigate }) {
   const { trigger } = useHaptics()
   const [serveError, setServeError] = useState(null)
   const [justServed, setJustServed] = useState(false)
+  const [groceriesOpen, setGroceriesOpen] = useState(false)
 
   // ADR-001 Phase 4: end-of-period review surface.
   const [loadedPlan, setLoadedPlan] = useState(null)
@@ -1081,59 +1083,6 @@ export default function BrainstormMode({ userId, onNavigate }) {
     }
   }
 
-  const handleDownloadList = () => {
-    const vaultItemsInPlan = plan.map(slot => vault.find(v => v.id === slot.id)).filter(Boolean)
-
-    const categories = {
-      Proteins: new Set(),
-      Carbohydrates: new Set(),
-      Vegetables: new Set(),
-      Dairy: new Set(),
-      Fruits: new Set()
-    }
-
-    vaultItemsInPlan.forEach(item => {
-      if (item.proteins) item.proteins.forEach(p => p !== 'None' && categories.Proteins.add(p))
-      if (item.main_carb && item.main_carb !== 'None') categories.Carbohydrates.add(item.main_carb)
-      if (item.vegetables) item.vegetables.forEach(v => categories.Vegetables.add(v))
-      if (item.dairy_components) item.dairy_components.forEach(v => categories.Dairy.add(v))
-      if (item.fruits) item.fruits.forEach(v => categories.Fruits.add(v))
-    })
-
-    let text = `GROCERY LIST\nFor My Wife — Meal Plan\n\n[ MEALS ]\n`
-    plan.forEach(slot => {
-      text += `- ${shortDateLabel(slot.scheduled_date)}: ${slot.name}\n`
-    })
-
-    const catsToPrint = [
-      { name: 'PROTEINS', set: categories.Proteins },
-      { name: 'CARBOHYDRATES', set: categories.Carbohydrates },
-      { name: 'VEGETABLES', set: categories.Vegetables },
-      { name: 'DAIRY', set: categories.Dairy },
-      { name: 'FRUITS', set: categories.Fruits }
-    ]
-
-    catsToPrint.forEach(cat => {
-      if (cat.set.size > 0) {
-        text += `\n[ ${cat.name} ]\n`
-        Array.from(cat.set).sort().forEach(item => {
-          text += `- ${item}\n`
-        })
-      }
-    })
-
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'GroceryList.txt'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
-
-
   if (loading) {
     return (
       <div className="mobile-screen items-center justify-center pb-28">
@@ -1391,9 +1340,9 @@ export default function BrainstormMode({ userId, onNavigate }) {
             <p className="text-xs text-red-600 text-center">{serveError}</p>
           )}
 
-          {isServed && justServed && onNavigate && (
+          {isServed && justServed && (
             <button
-              onClick={() => { setJustServed(false); onNavigate('grocery') }}
+              onClick={() => { setJustServed(false); setGroceriesOpen(true) }}
               className="btn-primary flex items-center justify-center gap-2"
             >
               <ShoppingCart size={16} />
@@ -1416,12 +1365,12 @@ export default function BrainstormMode({ userId, onNavigate }) {
               {sharing ? 'Sharing…' : 'Share plan via text'}
             </button>
             <button
-              onClick={handleDownloadList}
+              onClick={() => setGroceriesOpen(true)}
               disabled={!isServed}
               title={!isServed ? 'Finalize plan first' : undefined}
               className="btn-secondary flex-1 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Download size={16} />
+              <ShoppingCart size={16} />
               Groceries
             </button>
           </div>
@@ -1600,6 +1549,12 @@ export default function BrainstormMode({ userId, onNavigate }) {
         </Sheet.Container>
         <Sheet.Backdrop onClick={() => !resetting && setShowResetConfirm(false)} />
       </Sheet>
+
+      <GroceryListSheet
+        isOpen={groceriesOpen}
+        userId={userId}
+        onClose={() => setGroceriesOpen(false)}
+      />
 
     </div>
   )
