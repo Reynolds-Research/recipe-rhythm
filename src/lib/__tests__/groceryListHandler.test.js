@@ -574,7 +574,35 @@ describe('Bite γ — buildGroceryList scaling (prompt)', () => {
     const prompt = client.messages.create.mock.calls[0][0].messages[0].content
     expect(prompt).toContain('household has 2 eaters')
   })
+})
 
+// ---------- Bite δ — provided-quantities prompt ----------
+
+describe('Bite δ — provided-quantities prompt', () => {
+  it('prompt instruction tells the AI to honor provided quantities', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'X', ingredients: ['olive oil: 2 tbsp'], servings: 4 }],
+      householdSize: 6,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('use that quantity as the baseline for scaling')
+  })
+
+  it('provided ingredient strings flow through to the user message unchanged', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'X', ingredients: ['olive oil: 2 tbsp'], servings: 4 }],
+      householdSize: 6,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('olive oil: 2 tbsp')
+  })
+})
+
+describe('Bite γ — buildGroceryList scaling (prompt) — continued', () => {
   it('throws TypeError when householdSize is 0', async () => {
     const client = fakeAnthropic(JSON.stringify({ items: [] }))
     await expect(

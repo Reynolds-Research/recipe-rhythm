@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-05 against `origin/main` @ `fc44a7b` (PR #87 merged)
+**Last verified:** 2026-05-05 against `origin/main` @ `9603701` (PR #88 merged; PR #89 Bite δ pending merge)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -18,9 +18,9 @@
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Pantry staples (P0.2), ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
 | PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + B + C shipped** | Phase D (override UI) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
-| PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** | P1 nice-to-haves |
+| PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
 
-**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86).
+**PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86). P0.8 / Bite δ wires structured-ingredient quantities through to the grocery-list prompt (PR #89).
 
 ---
 
@@ -159,7 +159,7 @@ Nav simplification work that doesn't belong to any one PRD.
 
 ## PRD-006 — Structured Ingredients & Household Scaling
 
-[`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md) · **Draft v0.1** · 🟡 P0.1–P0.6 shipped, P0.7 (Bite γ) pending
+[`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md) · **Draft v0.2** · 🟡 P0.1–P0.7 shipped, P0.8 (Bite δ) in PR #89
 
 ### Shipped
 
@@ -169,6 +169,7 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Phase 3 — Path D1** (PR #78, commit `096778d`, P0.6): chip-grounded ingredient re-extraction with explicit `userChips` parameter on `/api/analyze-recipe`. Truth-hierarchy refinement (PR #80, commit `b5af1eb`): explicit ordering in the prompt — recipe URL/name = primary source for ingredients; user chips = authoritative for categorical attributes; never fabricate ingredients to fit a chip.
 
 - [x] **Phase 4 — Bite γ** (PR #86, commit `c688c6e`, P0.7): grocery-list endpoint accepts `householdSize` + per-recipe `servings`; prompt scales quantities by `(householdSize / servings)` per recipe-line and consolidates after scaling. Recipes with `servings IS NULL` fall back to 4. Original Bite γ also covered a re-parse-on-edit trigger; that half was descoped 2026-05-05 (see PRD-006 §6 "Scope changes after authoring") because the assumed `vault.ingredients text[]` column never existed.
+- [x] **Phase 5 — Bite δ** (PR #89, commit `31c8fe8`, P0.8): grocery-list page formats each ingredient string with the AI-extracted quantity inline (`"olive oil: 2 tbsp"`) when `vault.ingredients_structured` is populated, falling through to `ingredients_classified` names and then chip arrays. Prompt updated to use provided quantities as the scaling baseline. Also fixes a latent bug where `main_carb` (a single string) was spread into characters in the chip-fallback path. No API contract change.
 
 ### Pending
 
