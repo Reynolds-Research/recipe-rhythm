@@ -90,7 +90,11 @@ PRD-006 introduces the structured-ingredients foundation that PRD-003 P2.1 defer
 | P0.4 | **Bulk backfill script** | `scripts/backfill-structured-ingredients.mjs` iterates `vault` rows where `ingredients_structured IS NULL AND deleted_at IS NULL`. Calls Haiku 4.5 (cheaper than Sonnet for already-categorized rows) with a backfill-specific prompt that returns *only* `servings` + `ingredients_structured` (other fields already populated). Idempotent — re-runs retry only unfinished rows. Per-row failures log + continue; three consecutive 5xx Anthropic responses trigger hard stop (signal: API outage; re-run later). Service-role key (`SUPABASE_SERVICE_ROLE_KEY`) reads cross-user; never imported by browser code. Registered as `npm run backfill:structured-ingredients`. | ✅ Shipped (PR #77 + #79; backfill body PR #77, npm script wiring PR #79) |
 | P0.5 | **Household-size preferences UI** | Settings page (`Preferences/index.jsx`) adds two numeric inputs for `adults` (default 2) and `children` (default 0). Persists to `household_preferences.adults` / `.children`. The `(adults + children)` total drives the `default_servings` parameter passed to `/api/analyze-recipe` for new recipe saves. | ✅ Shipped (PR #77) |
 | P0.6 | **Chip-grounded re-extraction with truth-hierarchy prompt (Path D1)** | When `userChips` is supplied to `/api/analyze-recipe`, the prompt prepends a `USER-CONFIRMED CHIPS:` block and follows it with an explicit truth hierarchy: (1) **recipe URL/name = primary source** for what dish is being made and what its ingredients should be; (2) **user chips = authoritative for categorical attributes** (`protein`, `cooking_method`, `main_carb`, `dairy_components`, `vegetables`, `fruit`, `dietary_tags`, `prep_time`); (3) **never fabricate ingredients to fit a chip** — extract accurately from the URL/name, ignore the chip if it doesn't usefully constrain. When `userChips` is absent / empty, the prompt is byte-for-byte identical to the pre-D1 form (zero behavior change for first-time analysis). | ✅ Shipped (PR #78 for D1 mechanism, PR #80 for explicit truth-hierarchy refinement) |
-| P0.7 | **Bite γ — re-parse on edit + wire household scaling into `/api/grocery-list`** | **Two parts.** **(a) Re-parse on edit:** when a vault recipe's `ingredients text[]` field changes via `RecipeForm` save (or programmatic update), the post-save flow calls `/api/analyze-recipe` (or a slimmer dedicated re-parse endpoint) to refresh `ingredients_structured`. Trigger condition: the `ingredients` array changed since last save. Failures degrade gracefully — the human-readable save still succeeds even if the re-parse 5xxs; `ingredients_structured` becomes `NULL` and gets retried by the next backfill run. **(b) Grocery-list scaling:** `/api/grocery-list` accepts `household_size` (computed as `adults + children` from `household_preferences`) and per-recipe `servings`. The prompt instructs the model to scale quantities by `(household_size / servings)` per recipe-line so a 5-day plan for a 3-person household produces appropriately-sized totals. Recipes with `servings IS NULL` fall back to the hardcoded 4 (same chain as P0.3). | ⏳ Pending |
+| P0.7 | **Bite γ — wire household scaling into `/api/grocery-list`** | The endpoint accepts `householdSize` (computed as `adults + children` from `household_preferences`) + per-recipe `servings`. The prompt instructs the model to scale quantities by `(household_size / servings)` per recipe-line so a 5-day plan for a 3-person household produces appropriately-sized totals. Recipes with `servings IS NULL` fall back to the hardcoded 4 (same chain as P0.3). | ⏳ Pending |
+
+### Scope changes after authoring
+
+- **2026-05-05** — P0.7's "(a) Re-parse `ingredients_structured` when `vault.ingredients text[]` is edited" was descoped after Cowork planning surfaced that `vault.ingredients text[]` does not exist as a column (PRD §1's reference to it was aspirational; no migration ever added it, and no UI field captures free-text ingredients — chip pickers + recipe URL/name are the only ingredient-related inputs). The chip-driven re-extract path that already ships via Path D1 (`reExtractIngredients` in `useVault.js`, fired from `Vault/index.jsx`'s `handleSaveEdit` whenever structural chips change) covers the practical re-sync need today. A successor edit-trigger is queued behind P1.1 (per-ingredient inline editing) and will earn its own phase or PRD if/when that ships.
 
 ### P1 — Nice to have
 
@@ -160,9 +164,9 @@ Document each in `docs/schema.md` (already done). Pair with `verify_<timestamp>.
 - Accept optional `userChips` (Path D1) — when present, prepend a chip-block + truth-hierarchy preamble to the prompt.
 - Return `components.ingredients_structured` and `components.servings` + `components.servings_inferred` alongside existing categorical fields.
 
-**`/api/grocery-list`** (Haiku 4.5) — pending (Bite γ b):
-- Will accept `household_size` and per-recipe `servings`.
-- Prompt will be extended to scale quantities by `(household_size / servings)` per recipe-line.
+**`/api/grocery-list`** (Haiku 4.5) — updated in Bite γ (P0.7):
+- Accepts `householdSize` (optional; defaults to 2 = household_preferences defaults) and per-recipe `servings` (optional; null falls back to 4).
+- Prompt scales quantities by `(householdSize / servings)` per recipe-line, then consolidates across recipes.
 
 Both endpoints retain the existing pattern: Express route in `api-server.mjs` and Vercel mirror in `api/<endpoint>.js` delegate to a shared handler in `api/_lib/`.
 
@@ -199,7 +203,7 @@ No external deadlines.
 - **Phase 1 — Bite α (P0.1, P0.2, P0.3):** schema migration + shared analyze-recipe handler + servings fallback chain. Foundation. Shipped 2026-05-03 (PR #75) + the `cooking_method` scope tightening (PR #76, commit `cd25f99`) and backfill-script category-array selection fix (commit `dfc3a12`) that surfaced during Bite α investigation.
 - **Phase 2 — Bite β (P0.4, P0.5):** backfill script + household-size preferences UI. Shipped 2026-05-04 (PR #77) + npm script wiring (PR #79).
 - **Phase 3 — Path D1 (P0.6):** chip-grounded re-extraction + truth-hierarchy prompt refinement. Shipped 2026-05-04 (PR #78 mechanism, PR #80 truth-hierarchy).
-- **Phase 4 — Bite γ (P0.7) — PENDING.** Re-parse on edit + grocery-list scaling consumer. The user-visible payoff: grocery lists scaled to actual household. Estimated 1–2 sittings.
+- **Phase 4 — Bite γ (P0.7) — PENDING.** Grocery-list scaling consumer. The user-visible payoff: grocery lists scaled to actual household. (The original Bite γ also included a re-parse-on-edit half; that was descoped on 2026-05-05 — see "Scope changes after authoring" in §6.) Estimated 1 sitting.
 
 After Bite γ, this PRD closes out at v1.0. Successor work (per-ingredient editing, scaling refinements, Path D2+) lives in P1 and graduates only on demand.
 
@@ -209,12 +213,12 @@ Most of this PRD is shipped; the testing burden falls on Bite γ. For shipped ph
 
 **For Bite γ (P0.7):**
 
-| Sub-requirement | Test file | Test cases |
+| Requirement | Test file | Test cases |
 |---|---|---|
-| (a) Re-parse on edit | `src/pages/Vault/__tests__/RecipeForm.reparse.test.jsx` (new) | Editing `ingredients` triggers `/api/analyze-recipe` call; editing other fields does NOT trigger reparse; reparse failure leaves human-readable save successful + `ingredients_structured = null`. |
-| (a) Diff-based trigger | extend reparse test | Saving with the same ingredients array does not call reparse. |
-| (b) Grocery-list scaling | `api/_lib/__tests__/groceryListHandler.scaling.test.js` (new) | Household of 4 + recipe `servings = 4` → quantities unchanged. Household of 6 + recipe `servings = 4` → quantities × 1.5. Recipe `servings = null` → falls back to 4. |
-| (b) End-to-end Playwright | extend `e2e/grocery-list.spec.ts` | Set household to 2 adults + 1 child → generate grocery list → quantities reflect 3-person household, not 4. |
+| Grocery-list scaling — handler validation | `src/lib/__tests__/groceryListHandler.test.js` — "Bite γ — household scaling (handler)" describe block | Accepts valid `householdSize`; rejects negative / non-integer; accepts missing `householdSize`; accepts `servings: null`; rejects `servings: 0`; accepts missing `servings` (passes null). |
+| Grocery-list scaling — prompt interpolation | `src/lib/__tests__/groceryListHandler.test.js` — "Bite γ — buildGroceryList scaling (prompt)" describe block | `householdSize` interpolated into prompt; `servings: null` falls back to 4; `servings: 0` falls back to 4; default `householdSize = 2` when omitted; throws on `householdSize: 0`. |
+| Grocery-list page wiring | `src/pages/GroceryList/__tests__/GroceryList.test.jsx` | Page passes `householdSize = adults + children` and per-recipe `servings` to `/api/grocery-list`; null `vault.servings` propagates as null (no client-side fallback). |
+| End-to-end Playwright | extend `e2e/grocery-list.spec.ts` | Set household to 2 adults + 1 child → generate grocery list → quantities reflect 3-person household, not 4. |
 
 ## 13. Revision History
 

@@ -3,6 +3,7 @@ import { Loader2, ShoppingCart, X } from 'lucide-react'
 import Logo from '../../components/Logo'
 import { supabase } from '../../lib/supabase'
 import { fetchMostRecentPlan } from '../../lib/mealPlanReader'
+import { getPreferences } from '../../lib/preferences'
 import { GROCERY_SECTIONS } from '../../lib/constants'
 
 export default function GroceryList({ userId }) {
@@ -67,11 +68,18 @@ export default function GroceryList({ userId }) {
       //    ingredients_classified hasn't been populated yet.
       const { data: planItems, error: piErr } = await supabase
         .from('meal_plan_items')
-        .select('name, vault_id, vault(name, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
+        .select('name, vault_id, vault(name, servings, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
         .eq('meal_plan_id', activePlan.id)
         .eq('is_shortlisted', false)
         .not('vault_id', 'is', null)
       if (piErr) throw piErr
+
+      // PRD-006 Bite γ: household size drives quantity scaling. getPreferences
+      // returns the row defaults (adults=2, children=0) when the user has never
+      // opened Settings — see src/lib/preferences.js.
+      const prefs = await getPreferences(userId, supabase)
+      const householdSize = (prefs?.adults ?? 2) + (prefs?.children ?? 0)
+      const safeHouseholdSize = Math.max(1, householdSize)
 
       // 2. Build recipes array.
       //    Primary source: ingredients_classified (AI-analysed essentiality list).
@@ -102,7 +110,7 @@ export default function GroceryList({ userId }) {
           console.warn('[GroceryList] no ingredient data for vault recipe:', v.name)
           continue
         }
-        recipes.push({ name: v.name, ingredients })
+        recipes.push({ name: v.name, ingredients, servings: v.servings ?? null })
       }
       if (skippedNoVault.length) {
         console.warn('[GroceryList] skipped (no vault row):', skippedNoVault)
@@ -117,7 +125,7 @@ export default function GroceryList({ userId }) {
       const res = await fetch('/api/grocery-list', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ recipes, pantryStaples: [] }),
+        body: JSON.stringify({ recipes, pantryStaples: [], householdSize: safeHouseholdSize }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))

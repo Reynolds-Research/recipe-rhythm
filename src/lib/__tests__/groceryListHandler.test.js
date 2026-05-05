@@ -175,11 +175,12 @@ describe('createGroceryListHandler — happy path', () => {
     expect(res.body).toEqual(fakeOutput)
 
     // Trims whitespace from names, ingredients, and staples before delegating.
+    // servings defaults to null when omitted from the request body.
     expect(buildImpl).toHaveBeenCalledWith(
       expect.objectContaining({
         recipes: [
-          { name: 'Chicken Tacos',   ingredients: ['chicken thighs', 'lime'] },
-          { name: 'Pasta Carbonara', ingredients: ['spaghetti', 'eggs'] },
+          { name: 'Chicken Tacos',   ingredients: ['chicken thighs', 'lime'], servings: null },
+          { name: 'Pasta Carbonara', ingredients: ['spaghetti', 'eggs'],      servings: null },
         ],
         pantryStaples: ['olive oil', 'salt'],
         anthropicClient: okClient,
@@ -429,6 +430,159 @@ describe('buildGroceryList — failure modes', () => {
     ).rejects.toBeInstanceOf(TypeError)
     await expect(
       buildGroceryList({ recipes: [{ name: 'X', ingredients: ['a'] }], pantryStaples: [], anthropicClient: null }),
+    ).rejects.toBeInstanceOf(TypeError)
+  })
+})
+
+// ---------- Bite γ — handler validation for householdSize + per-recipe servings ----------
+
+describe('Bite γ — household scaling (handler)', () => {
+  it('accepts a valid householdSize and passes it to buildImpl', async () => {
+    const buildImpl = vi.fn().mockResolvedValue({ items: [] })
+    const handler = createGroceryListHandler({ anthropic: okClient, buildImpl })
+    const res = mockRes()
+    await handler({
+      body: {
+        recipes: [{ name: 'Tacos', ingredients: ['chicken'], servings: 4 }],
+        householdSize: 6,
+      },
+    }, res)
+    expect(res.statusCode).toBe(200)
+    expect(buildImpl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        householdSize: 6,
+        recipes: [{ name: 'Tacos', ingredients: ['chicken'], servings: 4 }],
+      }),
+    )
+  })
+
+  it('rejects negative householdSize with 400', async () => {
+    const handler = createGroceryListHandler({ anthropic: okClient })
+    const res = mockRes()
+    await handler({
+      body: { recipes: validBody().recipes, householdSize: -1 },
+    }, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body.error).toBe('invalid_household_size')
+  })
+
+  it('rejects non-integer householdSize with 400', async () => {
+    const handler = createGroceryListHandler({ anthropic: okClient })
+    const res = mockRes()
+    await handler({
+      body: { recipes: validBody().recipes, householdSize: 2.5 },
+    }, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body.error).toBe('invalid_household_size')
+  })
+
+  it('accepts missing householdSize and passes undefined to buildImpl', async () => {
+    const buildImpl = vi.fn().mockResolvedValue({ items: [] })
+    const handler = createGroceryListHandler({ anthropic: okClient, buildImpl })
+    const res = mockRes()
+    await handler({ body: validBody() }, res)
+    expect(res.statusCode).toBe(200)
+    expect(buildImpl).toHaveBeenCalledWith(
+      expect.objectContaining({ householdSize: undefined }),
+    )
+  })
+
+  it('accepts servings: null on a recipe', async () => {
+    const buildImpl = vi.fn().mockResolvedValue({ items: [] })
+    const handler = createGroceryListHandler({ anthropic: okClient, buildImpl })
+    const res = mockRes()
+    await handler({
+      body: { recipes: [{ name: 'X', ingredients: ['a'], servings: null }] },
+    }, res)
+    expect(res.statusCode).toBe(200)
+    expect(buildImpl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipes: [{ name: 'X', ingredients: ['a'], servings: null }],
+      }),
+    )
+  })
+
+  it('rejects servings: 0 with 400 invalid_recipes', async () => {
+    const handler = createGroceryListHandler({ anthropic: okClient })
+    const res = mockRes()
+    await handler({
+      body: { recipes: [{ name: 'X', ingredients: ['a'], servings: 0 }] },
+    }, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body.error).toBe('invalid_recipes')
+  })
+
+  it('accepts a recipe with no servings field and passes servings: null to buildImpl', async () => {
+    const buildImpl = vi.fn().mockResolvedValue({ items: [] })
+    const handler = createGroceryListHandler({ anthropic: okClient, buildImpl })
+    const res = mockRes()
+    await handler({
+      body: { recipes: [{ name: 'X', ingredients: ['a'] }] },
+    }, res)
+    expect(res.statusCode).toBe(200)
+    expect(buildImpl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipes: [{ name: 'X', ingredients: ['a'], servings: null }],
+      }),
+    )
+  })
+})
+
+// ---------- Bite γ — buildGroceryList prompt interpolation ----------
+
+describe('Bite γ — buildGroceryList scaling (prompt)', () => {
+  it('interpolates householdSize and servings into the prompt', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Pasta', ingredients: ['spaghetti'], servings: 4 }],
+      householdSize: 6,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('household has 6 eaters')
+    expect(prompt).toContain('yields 4 servings')
+  })
+
+  it('servings: null falls back to 4 in the prompt', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Pasta', ingredients: ['spaghetti'], servings: null }],
+      householdSize: 2,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('yields 4 servings')
+  })
+
+  it('servings: 0 falls back to 4 in the prompt', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Pasta', ingredients: ['spaghetti'], servings: 0 }],
+      householdSize: 2,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('yields 4 servings')
+  })
+
+  it('defaults to householdSize=2 when caller omits it', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Pasta', ingredients: ['spaghetti'] }],
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('household has 2 eaters')
+  })
+
+  it('throws TypeError when householdSize is 0', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await expect(
+      buildGroceryList({
+        recipes: [{ name: 'Pasta', ingredients: ['spaghetti'] }],
+        householdSize: 0,
+        anthropicClient: client,
+      }),
     ).rejects.toBeInstanceOf(TypeError)
   })
 })

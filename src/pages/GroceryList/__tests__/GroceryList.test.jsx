@@ -13,8 +13,13 @@ vi.mock('../../../lib/mealPlanReader', () => ({
   fetchMostRecentPlan: vi.fn(),
 }))
 
+vi.mock('../../../lib/preferences', () => ({
+  getPreferences: vi.fn(),
+}))
+
 import { supabase } from '../../../lib/supabase'
 import { fetchMostRecentPlan } from '../../../lib/mealPlanReader'
+import { getPreferences } from '../../../lib/preferences'
 
 // Helpers — each returns a minimal chain for a specific query pattern.
 
@@ -83,6 +88,8 @@ describe('GroceryList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn())
+    // Default household preferences — overridden in specific tests.
+    getPreferences.mockResolvedValue({ adults: 2, children: 0 })
   })
 
   // 1. No active plan
@@ -187,6 +194,7 @@ describe('GroceryList', () => {
         vault_id: 'v-1',
         vault: {
           name: 'Pasta Carbonara',
+          servings: 4,
           ingredients_classified: [
             { name: 'spaghetti', essentiality: 'essential' },
             { name: 'eggs',      essentiality: 'essential' },
@@ -241,12 +249,107 @@ describe('GroceryList', () => {
     const body = JSON.parse(opts.body)
     expect(body.recipes[0].name).toBe('Pasta Carbonara')
     expect(body.recipes[0].ingredients).toContain('spaghetti')
+    expect(body.recipes[0].servings).toBe(4)
     expect(body.pantryStaples).toEqual([])
+    // Default household: adults=2 + children=0 = 2
+    expect(body.householdSize).toBe(2)
 
     // Supabase insert was called for the new list row
     await waitFor(() => expect(insertListMock.insert).toHaveBeenCalled())
 
     // After generate, items appear in the DOM
     await waitFor(() => expect(screen.getByText('spaghetti')).toBeInTheDocument())
+  })
+
+  // 6. Bite γ — household size computed from preferences and passed through
+  it('Bite γ: passes householdSize = adults + children to /api/grocery-list', async () => {
+    getPreferences.mockResolvedValue({ adults: 2, children: 1 })
+    fetchMostRecentPlan.mockResolvedValue({ plan: { id: 'plan-1' } })
+
+    const mockPlanItems = [
+      {
+        name: 'Tacos',
+        vault_id: 'v-1',
+        vault: {
+          name: 'Chicken Tacos',
+          servings: 4,
+          ingredients_classified: [{ name: 'chicken thighs', essentiality: 'essential' }],
+        },
+      },
+    ]
+
+    const insertListMock = insertListChain({ data: { id: 'list-new' }, error: null })
+
+    supabase.from
+      .mockReturnValueOnce(listRowChain({ data: null, error: null }))
+      .mockReturnValueOnce(planItemsChain({ data: mockPlanItems, error: null }))
+      .mockReturnValueOnce(upsertCheckChain({ data: null, error: null }))
+      .mockReturnValueOnce(insertListMock)
+      .mockReturnValueOnce(deleteChain())
+      .mockReturnValueOnce(insertItemsChain())
+      .mockReturnValueOnce(listRowChain({ data: { id: 'list-new', created_at: '2026-05-05' }, error: null }))
+      .mockReturnValueOnce(itemRowsChain({ data: [], error: null }))
+
+    // Return a non-empty items list so the insertItemsChain mock is consumed
+    // and the queue is clean for the next test.
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [{ name: 'chicken thighs', quantity: '1 lb', section: 'Meat & Seafood' }],
+      }),
+    })
+
+    render(<GroceryList userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body)
+    expect(body.householdSize).toBe(3)
+    expect(body.recipes[0].servings).toBe(4)
+  })
+
+  // 7. Bite γ — vault row with servings: null sends null (no client-side fallback to 4)
+  it('Bite γ: vault row with null servings sends servings: null in POST body', async () => {
+    fetchMostRecentPlan.mockResolvedValue({ plan: { id: 'plan-1' } })
+
+    const mockPlanItems = [
+      {
+        name: 'Mystery Dish',
+        vault_id: 'v-2',
+        vault: {
+          name: 'Mystery Dish',
+          servings: null,
+          ingredients_classified: [{ name: 'tofu', essentiality: 'essential' }],
+        },
+      },
+    ]
+
+    const insertListMock = insertListChain({ data: { id: 'list-new' }, error: null })
+
+    supabase.from
+      .mockReturnValueOnce(listRowChain({ data: null, error: null }))
+      .mockReturnValueOnce(planItemsChain({ data: mockPlanItems, error: null }))
+      .mockReturnValueOnce(upsertCheckChain({ data: null, error: null }))
+      .mockReturnValueOnce(insertListMock)
+      .mockReturnValueOnce(deleteChain())
+      .mockReturnValueOnce(insertItemsChain())
+      .mockReturnValueOnce(listRowChain({ data: { id: 'list-new', created_at: '2026-05-05' }, error: null }))
+      .mockReturnValueOnce(itemRowsChain({ data: [], error: null }))
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        items: [{ name: 'tofu', quantity: '1 block', section: 'Produce' }],
+      }),
+    })
+
+    render(<GroceryList userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1].body)
+    expect(body.recipes[0].servings).toBeNull()
   })
 })
