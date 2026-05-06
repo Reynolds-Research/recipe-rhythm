@@ -354,7 +354,9 @@ export function useVault(userId) {
     if (error) {
       console.error('[Vault] setIngredientEssentiality failed:', error.message)
       await fetchRecipes()
+      return { ok: false }
     }
+    return { ok: true }
   }
 
   /**

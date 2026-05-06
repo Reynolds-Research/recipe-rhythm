@@ -53,7 +53,8 @@ export default function Vault({ userId }) {
 
   const [showForm, setShowForm]     = useState(false)
   const [saving, setSaving]         = useState(false)
-  const [expandedId, setExpandedId]       = useState(null)
+  // Persist expanded card across tab switches (sessionStorage cleared on browser close).
+  const [expandedId, setExpandedId] = useState(() => sessionStorage.getItem('vault-expanded-id') ?? null)
   const [addingSuggestion, setAddingSuggestion] = useState(null) // name string while in-flight
   const [editingId, setEditingId]         = useState(null)
   const [editFields, setEditFields]       = useState({})
@@ -61,6 +62,9 @@ export default function Vault({ userId }) {
   // PRD-006 D1: status banner for chip-driven ingredient re-extraction. Shape:
   // { kind: 'progress' | 'success' | 'error', message: string } | null.
   const [reExtractStatus, setReExtractStatus] = useState(null)
+  // PRD-004 Phase D: inline save notice for ingredient essentiality toggle.
+  // Shape: { recipeId: string, kind: 'saved' | 'error' } | null.
+  const [ingredientSaveNotice, setIngredientSaveNotice] = useState(null)
   const { trigger } = useHaptics()
 
   // Form-submit handler bridges the form's onSubmit callback to the data
@@ -89,7 +93,12 @@ export default function Vault({ userId }) {
 
   const toggleExpand = (id) => {
     trigger('light')
-    setExpandedId(prev => prev === id ? null : id)
+    setExpandedId(prev => {
+      const next = prev === id ? null : id
+      if (next) sessionStorage.setItem('vault-expanded-id', next)
+      else sessionStorage.removeItem('vault-expanded-id')
+      return next
+    })
     setEditingId(null)
     setEditFields({})
   }
@@ -165,6 +174,19 @@ export default function Vault({ userId }) {
   const handleRatingChange = async (recipeId, newRating) => {
     trigger('light')
     await setRating(recipeId, newRating)
+  }
+
+  const handleIngredientEssentialityChange = async (recipeId, ingredientName, newEssentiality) => {
+    trigger('light')
+    const { ok } = await setIngredientEssentiality(recipeId, ingredientName, newEssentiality)
+    setIngredientSaveNotice({ recipeId, kind: ok ? 'saved' : 'error' })
+    if (ok) {
+      setTimeout(() => {
+        setIngredientSaveNotice(prev =>
+          prev?.recipeId === recipeId && prev?.kind === 'saved' ? null : prev
+        )
+      }, 1500)
+    }
   }
 
   if (loading) {
@@ -275,7 +297,8 @@ export default function Vault({ userId }) {
             onSaveEdit={handleSaveEdit}
             onDelete={handleDelete}
             onRatingChange={handleRatingChange}
-            onIngredientEssentialityChange={setIngredientEssentiality}
+            onIngredientEssentialityChange={handleIngredientEssentialityChange}
+            ingredientSaveNotice={ingredientSaveNotice?.recipeId === recipe.id ? ingredientSaveNotice.kind : null}
           />
         ))}
 

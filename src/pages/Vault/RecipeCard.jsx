@@ -117,12 +117,20 @@ function StarRating({ value, onChange, size = 18, label = 'Family rating' }) {
  * Empty state: when the recipe has no ingredients_classified the section
  * doesn't render at all (legacy rows the Phase A backfill missed).
  */
-function IngredientClassificationList({ classifications, onChange, recipeName }) {
+function IngredientClassificationList({ classifications, onChange, recipeName, saveNotice }) {
   if (!Array.isArray(classifications) || classifications.length === 0) return null
 
   return (
     <div className="space-y-2">
-      <p className="section-heading">Ingredients (tap to override)</p>
+      <div className="flex items-center gap-2">
+        <p className="section-heading">Ingredients (tap to override)</p>
+        {saveNotice === 'saved' && (
+          <span className="text-xs font-medium text-emerald-600">✓ Saved</span>
+        )}
+        {saveNotice === 'error' && (
+          <span className="text-xs font-medium text-red-500">Save failed</span>
+        )}
+      </div>
       <div className="flex flex-wrap gap-2" role="list">
         {classifications.map(c => {
           if (!c || typeof c.name !== 'string') return null
@@ -182,6 +190,7 @@ export default function RecipeCard({
   onDelete,
   onRatingChange,
   onIngredientEssentialityChange,
+  ingredientSaveNotice,
   source,
 }) {
   // PRD-002 P0.9: AI-suggested candidates render with a "New" badge so the
@@ -341,6 +350,7 @@ export default function RecipeCard({
                 classifications={recipe.ingredients_classified}
                 onChange={(name, next) => onIngredientEssentialityChange?.(recipe.id, name, next)}
                 recipeName={recipe.name}
+                saveNotice={ingredientSaveNotice}
               />
 
               <ComponentRow label="Protein"  values={recipe.proteins} />
