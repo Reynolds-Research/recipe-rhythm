@@ -47,6 +47,7 @@ export default function Vault({ userId }) {
     deleteRecipe,
     updateRecipe,
     setRating,
+    setIngredientEssentiality,
     reExtractIngredients,
   } = useVault(userId)
 
@@ -274,6 +275,7 @@ export default function Vault({ userId }) {
             onSaveEdit={handleSaveEdit}
             onDelete={handleDelete}
             onRatingChange={handleRatingChange}
+            onIngredientEssentialityChange={setIngredientEssentiality}
           />
         ))}
 

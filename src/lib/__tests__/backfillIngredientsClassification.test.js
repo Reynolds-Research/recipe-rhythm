@@ -10,11 +10,16 @@ import {
   processRow,
 } from '../../../scripts/backfill-ingredients-classification.js'
 
-function makeSupabaseMock({ updateError = null } = {}) {
-  const eq = vi.fn().mockResolvedValue({ data: null, error: updateError })
-  const update = vi.fn().mockReturnValue({ eq })
-  const from = vi.fn().mockReturnValue({ update })
-  return { from, _spies: { from, update, eq } }
+function makeSupabaseMock({ updateError = null, existingClassified = null } = {}) {
+  // select chain: supabase.from('vault').select(...).eq(...).single()
+  const single = vi.fn().mockResolvedValue({ data: { ingredients_classified: existingClassified }, error: null })
+  const selectEq = vi.fn().mockReturnValue({ single })
+  const select = vi.fn().mockReturnValue({ eq: selectEq })
+  // update chain: supabase.from('vault').update(...).eq(...)
+  const updateEq = vi.fn().mockResolvedValue({ data: null, error: updateError })
+  const update = vi.fn().mockReturnValue({ eq: updateEq })
+  const from = vi.fn().mockReturnValue({ select, update })
+  return { from, _spies: { from, update, eq: updateEq } }
 }
 
 const silentLogger = { log: vi.fn(), error: vi.fn() }

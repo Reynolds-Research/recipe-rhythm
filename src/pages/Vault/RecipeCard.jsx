@@ -106,6 +106,66 @@ function StarRating({ value, onChange, size = 18, label = 'Family rating' }) {
   )
 }
 
+/**
+ * PRD-004 Phase D (P0.10 + P0.11) — per-recipe essentiality badges.
+ *
+ * Renders each classified ingredient as a tappable chip. Tap to flip
+ * essentiality. Color-coded: solid brand = essential, outlined = optional.
+ * A small dot inside the chip indicates provenance: solid = AI, outline =
+ * user-overridden. The dot trains itself — no tooltip needed.
+ *
+ * Empty state: when the recipe has no ingredients_classified the section
+ * doesn't render at all (legacy rows the Phase A backfill missed).
+ */
+function IngredientClassificationList({ classifications, onChange, recipeName }) {
+  if (!Array.isArray(classifications) || classifications.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      <p className="section-heading">Ingredients (tap to override)</p>
+      <div className="flex flex-wrap gap-2" role="list">
+        {classifications.map(c => {
+          if (!c || typeof c.name !== 'string') return null
+          const isEssential = c.essentiality === 'essential'
+          const isUserOverride = c.source === 'user'
+          const next = isEssential ? 'omittable' : 'essential'
+
+          return (
+            <button
+              key={c.name}
+              type="button"
+              role="listitem"
+              onClick={(e) => {
+                e.stopPropagation()
+                onChange?.(c.name, next)
+              }}
+              aria-label={`${c.name}: ${c.essentiality}${isUserOverride ? ' (you set this)' : ''}. Tap to mark ${next}.`}
+              aria-pressed={isEssential}
+              className={`chip ${isEssential ? 'chip-selected' : ''}`}
+            >
+              <span
+                aria-hidden="true"
+                className={`inline-block w-2 h-2 rounded-full ${
+                  isUserOverride
+                    ? (isEssential ? 'border border-white' : 'border border-gray-500')
+                    : (isEssential ? 'bg-white' : 'bg-gray-500')
+                }`}
+              />
+              <span>{c.name}</span>
+              <span className="text-xs uppercase tracking-wide opacity-80">
+                {isEssential ? 'essential' : 'optional'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <p className="helper-text italic">
+        "Essential" means excluding this ingredient hides {recipeName}. "Optional" means it doesn't.
+      </p>
+    </div>
+  )
+}
+
 export default function RecipeCard({
   recipe,
   expanded,
@@ -121,6 +181,7 @@ export default function RecipeCard({
   onSaveEdit,
   onDelete,
   onRatingChange,
+  onIngredientEssentialityChange,
   source,
 }) {
   // PRD-002 P0.9: AI-suggested candidates render with a "New" badge so the
@@ -275,6 +336,13 @@ export default function RecipeCard({
             </>
           ) : (
             <>
+              {/* PRD-004 Phase D (P0.10 + P0.11) */}
+              <IngredientClassificationList
+                classifications={recipe.ingredients_classified}
+                onChange={(name, next) => onIngredientEssentialityChange?.(recipe.id, name, next)}
+                recipeName={recipe.name}
+              />
+
               <ComponentRow label="Protein"  values={recipe.proteins} />
               <ComponentRow label="Carb"     values={recipe.main_carb ? [recipe.main_carb] : []} />
               <ComponentRow label="Method"   values={recipe.cooking_method ? [recipe.cooking_method] : []} />
