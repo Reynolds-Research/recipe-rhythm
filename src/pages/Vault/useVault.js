@@ -6,6 +6,7 @@ import {
   addVaultOption,
   migrateLocalStorageExtras,
 } from '../../lib/vaultOptions'
+import { mergeWithUserOverrides, applyOverride } from '../../lib/classificationOverrides'
 
 /**
  * useVault — the data layer for the vault page. Owns Supabase fetches and
@@ -36,7 +37,7 @@ export function useVault(userId) {
     // still resolve.
     const { data, error } = await supabase
       .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
       .eq('user_id', userId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -293,7 +294,16 @@ export function useVault(userId) {
     if (components.vegetables            !== undefined) update.vegetables            = components.vegetables            ?? null
     if (components.fruits                !== undefined) update.fruits                = components.fruits                ?? null
     if (components.prep_time_minutes     !== undefined) update.prep_time_minutes     = components.prep_time_minutes     ?? null
-    if (components.ingredients_classified !== undefined) update.ingredients_classified = components.ingredients_classified ?? null
+    // PRD-004 Phase D (P0.12): preserve user overrides across re-classification.
+    // The fresh AI run is authoritative about WHICH ingredients exist; user
+    // overrides override the essentiality call for matching names only.
+    if (components.ingredients_classified !== undefined) {
+      const merged = mergeWithUserOverrides(
+        components.ingredients_classified ?? [],
+        recipe.ingredients_classified,
+      )
+      update.ingredients_classified = merged.length > 0 ? merged : null
+    }
 
     const { data, error } = await supabase
       .from('vault')
@@ -307,6 +317,46 @@ export function useVault(userId) {
 
     setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...update } : r))
     return data
+  }
+
+  /**
+   * PRD-004 Phase D (P0.11) — Toggle a single ingredient's essentiality.
+   *
+   * Reads the current `ingredients_classified` array from local cache, flips
+   * the named ingredient via applyOverride (which stamps source='user'), then
+   * writes the whole array back to Supabase.
+   *
+   * Optimistic: local state updates immediately so the badge color flips
+   * before the network round-trip. On error, refetch authoritative state to
+   * roll back.
+   */
+  const setIngredientEssentiality = async (recipeId, ingredientName, newEssentiality) => {
+    const recipe = recipes.find(r => r.id === recipeId)
+    if (!recipe) return
+    const current = Array.isArray(recipe.ingredients_classified)
+      ? recipe.ingredients_classified
+      : null
+    if (!current) return
+
+    const next = applyOverride(current, ingredientName, newEssentiality)
+    if (next === current) return
+
+    setRecipes(prev =>
+      prev.map(r => r.id === recipeId ? { ...r, ingredients_classified: next } : r)
+    )
+
+    const { error } = await supabase
+      .from('vault')
+      .update({ ingredients_classified: next })
+      .eq('id', recipeId)
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('[Vault] setIngredientEssentiality failed:', error.message)
+      await fetchRecipes()
+      return { ok: false }
+    }
+    return { ok: true }
   }
 
   /**
@@ -343,6 +393,7 @@ export function useVault(userId) {
     deleteRecipe,
     updateRecipe,
     setRating,
+    setIngredientEssentiality,
     reExtractIngredients,
   }
 }

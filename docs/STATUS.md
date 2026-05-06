@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-06 against `origin/main` @ `0399dda` (PR #90 PRD-003 P0.2 pantry staples merged)
+**Last verified:** 2026-05-06 against `origin/main` @ `6584272` (PR #92 PRD-004 Phase D override UI)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -16,7 +16,7 @@
 | PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 shipped** (v1.0) | P1.2–P1.6 nice-to-haves; not blocking anything |
 | PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Share-link infra (P0.9–P0.11) |
-| PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + B + C shipped** | Phase D (override UI) |
+| PRD-004 | Smarter Ingredient Filtering | ✅ **All P0 shipped** | P1 nice-to-haves (override review surface, frequency analytics, AI confidence, periodic re-classification) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
 | PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
 
@@ -114,7 +114,7 @@ Nav simplification work that doesn't belong to any one PRD.
 
 ## PRD-004 — Smarter Ingredient Filtering
 
-[`docs/prds/PRD-004-smarter-ingredient-filtering.md`](./prds/PRD-004-smarter-ingredient-filtering.md) · **Draft** · 🟡 Phases A + B + C shipped, Phase D pending
+[`docs/prds/PRD-004-smarter-ingredient-filtering.md`](./prds/PRD-004-smarter-ingredient-filtering.md) · **Draft** · ✅ All P0 shipped
 
 ### Shipped
 
@@ -123,9 +123,10 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **ADR-003 — Implied-meat dish-name filter** (commit `5732c8f`): app-layer dish-name keyword check in `passesPreferences` for vegetarian / vegan / pescatarian. (Adjacent to PRD-004, not on the phase plan; doesn't block Phase C.)
 - [x] **Phase C — Filter behavior change** (PR #85, commit `d43260b`, P0.7 + P0.8 + P0.9): `passesPreferences` gates excluded-ingredient matches on `essentiality === 'essential'`; `/api/analyze-recipe` auto-classifies on save so new recipes never have `NULL` `ingredients_classified`; Preferences UI explains the new behavior.
 
+- [x] **Phase D — Override UI** (PR #92, P0.10 + P0.11 + P0.12): expanded recipe cards now render every classified ingredient as a tappable essentiality badge. Tap flips essentiality and stamps `source: 'user'`. The `useVault.reExtractIngredients` path and the bulk backfill script both merge fresh AI classifications with existing user overrides via `src/lib/classificationOverrides.js` so user overrides survive re-classification.
+
 ### Pending
 
-- [ ] **Phase D — Override UI** (P0.10 + P0.11 + P0.12): per-recipe essentiality display, override toggle, re-classification respects overrides.
 - [ ] All P1 polish (override review surface, override-frequency analytics, AI confidence score, periodic re-classification cron).
 
 ---

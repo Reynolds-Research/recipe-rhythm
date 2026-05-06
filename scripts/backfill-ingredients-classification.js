@@ -28,6 +28,7 @@ import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
 import Anthropic from '@anthropic-ai/sdk'
 import { classifyIngredients } from '../src/lib/classifyIngredients.js'
+import { mergeWithUserOverrides } from '../src/lib/classificationOverrides.js'
 
 const VAULT_INGREDIENT_FIELDS = ['proteins', 'main_carb', 'vegetables', 'fruits', 'dairy_components']
 
@@ -105,16 +106,32 @@ export async function processRow({
     return { ok: false, reason: 'classify', error: err, status: err?.status }
   }
 
+  // PRD-004 Phase D (P0.12): defensive merge with user overrides. Today the
+  // outer query excludes rows where ingredients_classified IS NOT NULL, so
+  // `existingRow` will be null in normal runs and the merge is a no-op. The
+  // merge becomes load-bearing if/when this script gains a --force flag
+  // (P1.4 periodic re-classification).
+  const { data: existingRow } = await supabase
+    .from('vault')
+    .select('ingredients_classified')
+    .eq('id', row.id)
+    .single()
+
+  const merged = mergeWithUserOverrides(
+    classifications,
+    existingRow?.ingredients_classified ?? null,
+  )
+
   const { error } = await supabase
     .from('vault')
-    .update({ ingredients_classified: classifications })
+    .update({ ingredients_classified: merged })
     .eq('id', row.id)
   if (error) {
     logger.error(`[FAIL] ${row.id} ${row.name} update: ${error.message || error}`)
     return { ok: false, reason: 'update', error }
   }
-  logger.log(`[OK] ${row.id} ${row.name} (${classifications.length} ingredients classified)`)
-  return { ok: true, count: classifications.length }
+  logger.log(`[OK] ${row.id} ${row.name} (${merged.length} ingredients classified)`)
+  return { ok: true, count: merged.length }
 }
 
 async function main() {
