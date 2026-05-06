@@ -40,6 +40,9 @@ export default function GroceryListBody({ userId }) {
   const [error, setError]           = useState(null)
   const [activePlan, setActivePlan] = useState(null)
   const [items, setItems]           = useState([])
+  const [listId, setListId]         = useState(null)
+  const [adhocDraft, setAdhocDraft] = useState('')
+  const [addingAdhoc, setAddingAdhoc] = useState(false)
 
   async function loadList(planId) {
     const { data: listRow, error: listErr } = await supabase
@@ -52,8 +55,11 @@ export default function GroceryListBody({ userId }) {
 
     if (!listRow) {
       setItems([])
+      setListId(null)
       return
     }
+
+    setListId(listRow.id)
 
     const { data: itemRows, error: itemErr } = await supabase
       .from('grocery_list_items')
@@ -223,6 +229,48 @@ export default function GroceryListBody({ userId }) {
     }
   }
 
+  async function handleAddAdhoc() {
+    const name = adhocDraft.trim()
+    if (!name) return
+    if (!listId) {
+      setError('Generate a list first, then add custom items.')
+      return
+    }
+    if (addingAdhoc) return
+
+    setAddingAdhoc(true)
+    setError(null)
+
+    try {
+      const { error: insertErr } = await supabase
+        .from('grocery_list_items')
+        .insert({
+          list_id:   listId,
+          name,
+          quantity:  null,
+          section:   'Other',
+          is_bought: false,
+          is_adhoc:  true,
+        })
+      if (insertErr) throw insertErr
+
+      setAdhocDraft('')
+      await loadList(activePlan.id)
+    } catch (err) {
+      console.error('[GroceryList] handleAddAdhoc:', err)
+      setError('Could not add item. Please try again.')
+    } finally {
+      setAddingAdhoc(false)
+    }
+  }
+
+  function onAdhocKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddAdhoc()
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -314,6 +362,33 @@ export default function GroceryListBody({ userId }) {
               </section>
             )
           })}
+
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleAddAdhoc() }}
+            className="flex gap-2 pt-2 border-t border-cream-200"
+            aria-label="Add a custom grocery item"
+          >
+            <input
+              type="text"
+              value={adhocDraft}
+              onChange={(e) => setAdhocDraft(e.target.value)}
+              onKeyDown={onAdhocKeyDown}
+              placeholder="Add an item…"
+              aria-label="Custom grocery item"
+              disabled={addingAdhoc}
+              className="input-base flex-1"
+            />
+            <button
+              type="submit"
+              disabled={addingAdhoc || !adhocDraft.trim()}
+              className="btn-primary w-auto shrink-0 px-5"
+            >
+              {addingAdhoc
+                ? <Loader2 size={16} className="animate-spin" />
+                : 'Add'
+              }
+            </button>
+          </form>
 
         </div>
       )}

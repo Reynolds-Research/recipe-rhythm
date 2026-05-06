@@ -15,7 +15,7 @@
 |---|---|---|---|
 | PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 shipped** (v1.0) | P1.2–P1.6 nice-to-haves; not blocking anything |
 | PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
-| PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Ad-hoc add (P0.7), share-link infra (P0.9–P0.11) |
+| PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Share-link infra (P0.9–P0.11) |
 | PRD-004 | Smarter Ingredient Filtering | 🟡 **Phase A + B + C shipped** | Phase D (override UI) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
 | PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
@@ -99,10 +99,10 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **P0.6** (assumed, surface in `GroceryList` page): section grouping + canonical section enum. *Confirm this is fully implemented before declaring done.*
 - [x] **P0.8** (assumed, basic toggle in `GroceryList` page): mark item bought toggle. *Confirm.*
 - [x] **P0.2** (PR #90, commit `b8881ec`): `household_preferences.pantry_staples text[]` column + Settings UI section + grocery-list wiring. Lists generated after a staple is added skip any line item matching by case-insensitive substring.
+- [x] **P0.7** (PR #91, commit `c1b83eb`): ad-hoc grocery-item add. Text input pinned to the bottom of the grocery list inserts a row with `is_adhoc=true`, `section='Other'`, `quantity=null`. Renders alongside AI-generated items in the Other section. Frontend-only — `is_adhoc` column already in place from P0.1 migration.
 
 ### In progress / pending
 
-- [ ] **P0.7** — Ad-hoc add input
 - [ ] **P0.9** — Share-link infrastructure (token + public route)
 - [ ] **P0.10** — Revoke share link
 - [ ] **P0.11** — Routing decision (introduce `react-router-dom` + `/share/grocery/:token` route) — **architectural prerequisite for P0.9**
