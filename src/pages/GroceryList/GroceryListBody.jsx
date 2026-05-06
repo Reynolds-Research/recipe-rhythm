@@ -381,7 +381,7 @@ export default function GroceryListBody({ userId }) {
             <button
               type="submit"
               disabled={addingAdhoc || !adhocDraft.trim()}
-              className="btn-primary shrink-0"
+              className="btn-primary w-auto shrink-0 px-5"
             >
               {addingAdhoc
                 ? <Loader2 size={16} className="animate-spin" />
