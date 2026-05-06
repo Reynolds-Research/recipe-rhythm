@@ -293,3 +293,159 @@ describe('Bite δ — structured-ingredient formatting', () => {
     warnSpy.mockRestore()
   })
 })
+
+// ---- PRD-003 P0.7 — ad-hoc add ----
+
+describe('PRD-003 P0.7 — ad-hoc add', () => {
+  function setupExistingList(items = []) {
+    supabase.from
+      .mockReturnValueOnce(listRowChain({
+        data: { id: 'list-1', created_at: '2026-05-05' },
+        error: null,
+      }))
+      .mockReturnValueOnce(itemRowsChain({ data: items, error: null }))
+  }
+
+  function adhocInsertChain(result = { error: null }) {
+    return { insert: vi.fn().mockResolvedValue(result) }
+  }
+
+  it('renders the ad-hoc input only when items exist', async () => {
+    setupExistingList([
+      { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+    ])
+    render(<GroceryListBody userId="user-1" />)
+
+    await waitFor(() => screen.getByText('Carrots'))
+    expect(screen.getByPlaceholderText('Add an item…')).toBeInTheDocument()
+  })
+
+  it('does NOT render the ad-hoc input when there is no list yet', async () => {
+    supabase.from.mockReturnValueOnce(listRowChain({ data: null, error: null }))
+    render(<GroceryListBody userId="user-1" />)
+
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    expect(screen.queryByPlaceholderText('Add an item…')).not.toBeInTheDocument()
+  })
+
+  it('submitting via Enter inserts a row with section=Other and is_adhoc=true', async () => {
+    setupExistingList([
+      { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+    ])
+    const insertChain = adhocInsertChain()
+    supabase.from
+      .mockReturnValueOnce(insertChain)
+      .mockReturnValueOnce(listRowChain({
+        data: { id: 'list-1', created_at: '2026-05-05' }, error: null,
+      }))
+      .mockReturnValueOnce(itemRowsChain({
+        data: [
+          { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+          { id: 'i-2', name: 'Milk',    quantity: null, section: 'Other' },
+        ],
+        error: null,
+      }))
+
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    const input = await screen.findByPlaceholderText('Add an item…')
+
+    await user.type(input, 'Milk')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(insertChain.insert).toHaveBeenCalledOnce())
+    expect(insertChain.insert).toHaveBeenCalledWith({
+      list_id:   'list-1',
+      name:      'Milk',
+      quantity:  null,
+      section:   'Other',
+      is_bought: false,
+      is_adhoc:  true,
+    })
+
+    await waitFor(() => screen.getByText('Milk'))
+  })
+
+  it('submitting via the Add button does the same thing as Enter', async () => {
+    setupExistingList([
+      { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+    ])
+    const insertChain = adhocInsertChain()
+    supabase.from
+      .mockReturnValueOnce(insertChain)
+      .mockReturnValueOnce(listRowChain({
+        data: { id: 'list-1', created_at: '2026-05-05' }, error: null,
+      }))
+      .mockReturnValueOnce(itemRowsChain({ data: [], error: null }))
+
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    const input = await screen.findByPlaceholderText('Add an item…')
+    await user.type(input, 'Milk')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(insertChain.insert).toHaveBeenCalledOnce())
+  })
+
+  it('whitespace-only input is ignored (no insert, no error)', async () => {
+    setupExistingList([
+      { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+    ])
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    const input = await screen.findByPlaceholderText('Add an item…')
+    await user.type(input, '   ')
+
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+
+    await user.keyboard('{Enter}')
+    expect(supabase.from).toHaveBeenCalledTimes(2) // just the initial loadList chain
+  })
+
+  it('input is cleared after a successful add', async () => {
+    setupExistingList([
+      { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+    ])
+    supabase.from
+      .mockReturnValueOnce(adhocInsertChain())
+      .mockReturnValueOnce(listRowChain({
+        data: { id: 'list-1', created_at: '2026-05-05' }, error: null,
+      }))
+      // Must return items so the form stays mounted and the input ref stays valid
+      .mockReturnValueOnce(itemRowsChain({
+        data: [
+          { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+          { id: 'i-2', name: 'Milk',    quantity: null, section: 'Other' },
+        ],
+        error: null,
+      }))
+
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    const input = await screen.findByPlaceholderText('Add an item…')
+    await user.type(input, 'Milk')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => expect(input).toHaveValue(''))
+  })
+
+  it('insert error surfaces a friendly message and leaves input intact', async () => {
+    setupExistingList([
+      { id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' },
+    ])
+    supabase.from.mockReturnValueOnce(
+      adhocInsertChain({ error: { message: 'boom' } })
+    )
+
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    const input = await screen.findByPlaceholderText('Add an item…')
+    await user.type(input, 'Milk')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() =>
+      expect(screen.getByText(/Could not add item/i)).toBeInTheDocument()
+    )
+    expect(input).toHaveValue('Milk')
+  })
+})
