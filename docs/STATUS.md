@@ -99,7 +99,7 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **P0.6** (assumed, surface in `GroceryList` page): section grouping + canonical section enum. *Confirm this is fully implemented before declaring done.*
 - [x] **P0.8** (assumed, basic toggle in `GroceryList` page): mark item bought toggle. *Confirm.*
 - [x] **P0.2** (PR #90, commit `b8881ec`): `household_preferences.pantry_staples text[]` column + Settings UI section + grocery-list wiring. Lists generated after a staple is added skip any line item matching by case-insensitive substring.
-- [x] **P0.7** (PR #TBD, commit `TBD`): ad-hoc grocery-item add. Text input pinned to the bottom of the grocery list inserts a row with `is_adhoc=true`, `section='Other'`, `quantity=null`. Renders alongside AI-generated items in the Other section. Frontend-only — `is_adhoc` column already in place from P0.1 migration.
+- [x] **P0.7** (PR #91, commit `c1b83eb`): ad-hoc grocery-item add. Text input pinned to the bottom of the grocery list inserts a row with `is_adhoc=true`, `section='Other'`, `quantity=null`. Renders alongside AI-generated items in the Other section. Frontend-only — `is_adhoc` column already in place from P0.1 migration.
 
 ### In progress / pending
 
