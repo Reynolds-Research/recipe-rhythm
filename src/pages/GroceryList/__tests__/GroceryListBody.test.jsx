@@ -449,3 +449,77 @@ describe('PRD-003 P0.7 — ad-hoc add', () => {
     expect(input).toHaveValue('Milk')
   })
 })
+
+// ---- PRD-003 P0.9 / P0.10 — share + revoke ----
+
+describe('PRD-003 P0.9 / P0.10 — share + revoke', () => {
+  function setupExistingListWithToken(token, items = []) {
+    supabase.from
+      .mockReturnValueOnce(listRowChain({
+        data: { id: 'list-1', created_at: '2026-05-05', share_token: token },
+        error: null,
+      }))
+      .mockReturnValueOnce(itemRowsChain({ data: items, error: null }))
+  }
+
+  function updateChain(result = { error: null }) {
+    const eq = vi.fn().mockResolvedValue(result)
+    const update = vi.fn().mockReturnValue({ eq })
+    return { update, _eq: eq }
+  }
+
+  const ONE_ITEM = [{ id: 'i-1', name: 'Carrots', quantity: '2', section: 'Produce' }]
+
+  it('Share button shows "Share with…" when no token, opens sheet to a Generate CTA', async () => {
+    setupExistingListWithToken(null, ONE_ITEM)
+    render(<GroceryListBody userId="user-1" />)
+
+    const shareBtn = await screen.findByRole('button', { name: /Share with/i })
+    await userEvent.setup().click(shareBtn)
+
+    expect(screen.getByRole('button', { name: /Generate share link/i })).toBeInTheDocument()
+  })
+
+  it('Share button shows "Share link active" when a token exists, opens sheet to Copy + Revoke', async () => {
+    setupExistingListWithToken('abc123', ONE_ITEM)
+    render(<GroceryListBody userId="user-1" />)
+
+    const shareBtn = await screen.findByRole('button', { name: /Share link active/i })
+    await userEvent.setup().click(shareBtn)
+
+    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Revoke/i })).toBeInTheDocument()
+  })
+
+  it('Generate share link writes a UUID to share_token and updates state', async () => {
+    setupExistingListWithToken(null, ONE_ITEM)
+    const upd = updateChain()
+    supabase.from.mockReturnValueOnce(upd)
+
+    const stubbed = vi.spyOn(crypto, 'randomUUID').mockReturnValue('test-uuid-1234')
+
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /Share with/i }))
+    await user.click(screen.getByRole('button', { name: /Generate share link/i }))
+
+    await waitFor(() => expect(upd.update).toHaveBeenCalledWith({ share_token: 'test-uuid-1234' }))
+    expect(screen.getByRole('button', { name: /Copy link/i })).toBeInTheDocument()
+
+    stubbed.mockRestore()
+  })
+
+  it('Revoke nulls share_token and returns the sheet to the Generate state', async () => {
+    setupExistingListWithToken('abc123', ONE_ITEM)
+    const upd = updateChain()
+    supabase.from.mockReturnValueOnce(upd)
+
+    render(<GroceryListBody userId="user-1" />)
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: /Share link active/i }))
+    await user.click(screen.getByRole('button', { name: /Revoke/i }))
+
+    await waitFor(() => expect(upd.update).toHaveBeenCalledWith({ share_token: null }))
+    expect(screen.getByRole('button', { name: /Generate share link/i })).toBeInTheDocument()
+  })
+})

@@ -82,12 +82,12 @@ export default function App() {
         {page === 'grocery' && (
           <GroceryList userId={userId} />
         )}
-        {/* TODO: Convert to /settings/preferences route when PRD-003 P0.11 ships react-router. */}
+        {/* TODO (post-PRD-003): convert page-state routing to <NavLink> + <Route>. PRD-003 P0.11 introduced react-router for the public share route only. */}
         {page === 'settings' && (
           <Preferences userId={userId} />
         )}
       </main>
-      {/* TODO: Convert nav entries to <NavLink> when PRD-003 P0.11 ships react-router. */}
+      {/* TODO (post-PRD-003): convert nav entries to <NavLink>. PRD-003 P0.11 introduced react-router for the public share route only. */}
       <nav className="max-w-md mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },

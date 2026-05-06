@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-06 against `origin/main` @ `6584272` (PR #92 PRD-004 Phase D override UI)
+**Last verified:** 2026-05-06 against `origin/main` @ `c575c33` (PR #93 PRD-003 share-link infra)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 shipped** (v1.0) | P1.2–P1.6 nice-to-haves; not blocking anything |
 | PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
-| PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | Share-link infra (P0.9–P0.11) |
+| PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | P1 polish (auto-regenerate prompt, individual-item edit, plain-text export, custom section order, source-recipe captions, staple override) |
 | PRD-004 | Smarter Ingredient Filtering | ✅ **All P0 shipped** | P1 nice-to-haves (override review surface, frequency analytics, AI confidence, periodic re-classification) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
 | PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
@@ -101,11 +101,10 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **P0.2** (PR #90, commit `b8881ec`): `household_preferences.pantry_staples text[]` column + Settings UI section + grocery-list wiring. Lists generated after a staple is added skip any line item matching by case-insensitive substring.
 - [x] **P0.7** (PR #91, commit `c1b83eb`): ad-hoc grocery-item add. Text input pinned to the bottom of the grocery list inserts a row with `is_adhoc=true`, `section='Other'`, `quantity=null`. Renders alongside AI-generated items in the Other section. Frontend-only — `is_adhoc` column already in place from P0.1 migration.
 
+- [x] **P0.11 + P0.9 + P0.10** (PR #93): added `react-router-dom` v7 with two routes — `/` (existing App, page-state routing inside it preserved) and `/share/grocery/:token` (public read-only view). Share button on the grocery list opens a bottom sheet that generates a `crypto.randomUUID()` token, stores it on `grocery_lists.share_token`, and offers copy / revoke. Public route uses the same supabase client (anon key + existing public-share RLS policies from P0.1) and persists spouse-side check-offs in localStorage keyed by token. Vercel SPA rewrite added so non-API paths fall through to `/index.html`. Bottom-nav-to-NavLink conversion deferred — out of scope for this PR.
+
 ### In progress / pending
 
-- [ ] **P0.9** — Share-link infrastructure (token + public route)
-- [ ] **P0.10** — Revoke share link
-- [ ] **P0.11** — Routing decision (introduce `react-router-dom` + `/share/grocery/:token` route) — **architectural prerequisite for P0.9**
 - [ ] All P1 polish (auto-regenerate prompt, individual-item edit, plain-text export, custom section order, source-recipe captions, staple override)
 
 > ⚠️ **Verification needed:** the "Bite C-1" naming in commit `af9479d` implies more bites are coming for Phase 1. Check whether P0.6 / P0.8 are fully shipped or partial before relying on this status.
