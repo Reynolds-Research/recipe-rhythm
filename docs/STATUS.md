@@ -13,7 +13,7 @@
 
 | PRD | Title | Overall status | Next thing to plan |
 |---|---|---|---|
-| PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 shipped** (v1.0) | P1.2–P1.6 nice-to-haves; not blocking anything |
+| PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 + P1.3 shipped** (v1.0) | P1.2 + P1.4–P1.6 nice-to-haves; not blocking anything |
 | PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | P1 polish (auto-regenerate prompt, individual-item edit, plain-text export, custom section order, source-recipe captions, staple override) |
 | PRD-004 | Smarter Ingredient Filtering | ✅ **All P0 shipped** | P1 nice-to-haves (override review surface, frequency analytics, AI confidence, periodic re-classification) |
@@ -51,10 +51,13 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Phase 2** (PRs #30, #32, #33, P0.5–P0.7): vault soft-delete via `deleted_at`, centralized enum lists in `src/lib/constants.js`, `vault_options` table replacing `vault_extra_*` localStorage.
 - [x] **Phase 3** (PRs #35, #36, P0.8–P0.9): Spoonacular cleanup; wildcards now sourced from `/api/swap-suggestions`. `Vault.jsx` decomposed into `Vault/{index, RecipeForm, RecipeCard, ChipPicker}.jsx` + `useVault.js`.
 
+### Shipped (P1.x)
+
+- [x] **P1.3** (PR #TBD, commit `TBD`): "Last cooked" badge on Vault cards. Single batched `meals` query joined client-side to vault rows in `useVault.fetchRecipes`. New `formatLastCooked` helper in `dateUtils.js` renders the relative phrase (today / yesterday / N days / N weeks / N months / over a year ago). Recipes never cooked render no badge — silence is the right default for "no signal."
+
 ### Pending
 
 - [ ] P1.2 — Per-meal note prompt nudge ("How was it?")
-- [ ] P1.3 — "Last cooked" badge on Vault cards
 - [ ] P1.4 — Voice dictation in Vault entry
 - [ ] P1.5 — Bulk-link cleanup tool (retroactive fuzzy-match for old `meals.vault_id IS NULL` rows)
 - [ ] P1.6 — API rate limiting + auth on `/api/*` endpoints

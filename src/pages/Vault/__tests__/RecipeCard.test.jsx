@@ -158,3 +158,72 @@ describe('RecipeCard — ingredient essentiality (PRD-004 Phase D)', () => {
     expect(onToggleExpand).not.toHaveBeenCalled()
   })
 })
+
+describe('RecipeCard — last-cooked badge (PRD-001 P1.3)', () => {
+  it('renders "Last cooked X days ago" when last_cooked_on is set', () => {
+    const today = new Date()
+    const fiveDaysAgo = new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000)
+    const y = fiveDaysAgo.getFullYear()
+    const m = String(fiveDaysAgo.getMonth() + 1).padStart(2, '0')
+    const d = String(fiveDaysAgo.getDate()).padStart(2, '0')
+    const eatenOn = `${y}-${m}-${d}`
+
+    render(
+      <RecipeCard
+        recipe={{ ...baseRecipe, last_cooked_on: eatenOn }}
+        {...baseProps}
+      />
+    )
+    expect(screen.getByText(/Last cooked 5 days ago/i)).toBeInTheDocument()
+  })
+
+  it('renders nothing when last_cooked_on is null', () => {
+    render(
+      <RecipeCard
+        recipe={{ ...baseRecipe, last_cooked_on: null }}
+        {...baseProps}
+      />
+    )
+    expect(screen.queryByText(/Last cooked/i)).not.toBeInTheDocument()
+  })
+
+  it('renders nothing when last_cooked_on is missing entirely', () => {
+    render(<RecipeCard recipe={baseRecipe} {...baseProps} />)
+    expect(screen.queryByText(/Last cooked/i)).not.toBeInTheDocument()
+  })
+
+  it('renders nothing when last_cooked_on is a future date (defensive)', () => {
+    const today = new Date()
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+    const y = tomorrow.getFullYear()
+    const m = String(tomorrow.getMonth() + 1).padStart(2, '0')
+    const d = String(tomorrow.getDate()).padStart(2, '0')
+    const eatenOn = `${y}-${m}-${d}`
+
+    render(
+      <RecipeCard
+        recipe={{ ...baseRecipe, last_cooked_on: eatenOn }}
+        {...baseProps}
+      />
+    )
+    expect(screen.queryByText(/Last cooked/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the badge in the collapsed card (always visible at a glance)', () => {
+    const today = new Date()
+    const yesterday = new Date(today.getTime() - 1 * 24 * 60 * 60 * 1000)
+    const y = yesterday.getFullYear()
+    const m = String(yesterday.getMonth() + 1).padStart(2, '0')
+    const d = String(yesterday.getDate()).padStart(2, '0')
+    const eatenOn = `${y}-${m}-${d}`
+
+    render(
+      <RecipeCard
+        recipe={{ ...baseRecipe, last_cooked_on: eatenOn }}
+        expanded={false}
+        {...baseProps}
+      />
+    )
+    expect(screen.getByText(/Last cooked yesterday/i)).toBeInTheDocument()
+  })
+})

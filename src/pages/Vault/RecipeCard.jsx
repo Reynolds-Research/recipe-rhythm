@@ -1,4 +1,5 @@
 import { Trash2, ChevronDown, ChevronUp, ExternalLink, Star, Sparkles } from 'lucide-react'
+import { formatLastCooked } from '../../lib/dateUtils'
 import ChipPicker from './ChipPicker'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
@@ -248,6 +249,18 @@ export default function RecipeCard({
               size={14}
             />
           </div>
+
+          {/* PRD-001 P1.3 — last-cooked recency. Renders only when there's a
+              matched meal log; absence = "never cooked" by design. */}
+          {(() => {
+            const phrase = formatLastCooked(recipe.last_cooked_on)
+            if (!phrase) return null
+            return (
+              <p className="helper-text mt-1">
+                Last cooked {phrase}
+              </p>
+            )
+          })()}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 text-gray-500 group-hover:text-brand-700 transition-colors">
           {expanded

@@ -31,19 +31,57 @@ export function useVault(userId) {
 
   const fetchRecipes = async () => {
     setLoading(true)
-    // PRD-001 P0.5: filter soft-deleted rows. The vault list never shows
-    // recipes the user has deleted; the underlying rows are preserved so
-    // historical references in meals.vault_id and meal_plan_items.vault_id
-    // still resolve.
-    const { data, error } = await supabase
-      .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
-      .eq('user_id', userId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
 
-    if (error) console.error('[Vault] fetchRecipes failed:', error.message)
-    if (!error && data) setRecipes(data)
+    // Two independent queries, run in parallel:
+    //   1. The vault rows (existing).
+    //   2. The most-recent eaten_on per vault_id (PRD-001 P1.3).
+    // The merge happens client-side after both resolve. Each query is
+    // independently RLS-scoped to the authenticated user.
+    const [vaultRes, lastCookedRes] = await Promise.all([
+      supabase
+        .from('vault')
+        .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false }),
+
+      // PRD-001 P1.3: max(eaten_on) per vault_id. The (user_id, vault_id)
+      // index covers this query. NULL vault_ids are skipped — they're meal
+      // logs that never matched a cookbook recipe.
+      supabase
+        .from('meals')
+        .select('vault_id, eaten_on')
+        .eq('user_id', userId)
+        .not('vault_id', 'is', null)
+        .order('eaten_on', { ascending: false }),
+    ])
+
+    if (vaultRes.error) {
+      console.error('[Vault] fetchRecipes failed:', vaultRes.error.message)
+      setLoading(false)
+      return
+    }
+    if (lastCookedRes.error) {
+      // Non-fatal — the page still renders without last-cooked badges.
+      console.error('[Vault] last-cooked fetch failed:', lastCookedRes.error.message)
+    }
+
+    // Build a Map<vault_id, latest eaten_on string>. The query is already
+    // ordered DESC by eaten_on, so the FIRST row for each vault_id is the
+    // most recent — using Map.set keeps the first value seen.
+    const lastCookedByVaultId = new Map()
+    for (const row of lastCookedRes.data ?? []) {
+      if (!row.vault_id) continue
+      if (lastCookedByVaultId.has(row.vault_id)) continue
+      lastCookedByVaultId.set(row.vault_id, row.eaten_on)
+    }
+
+    const merged = (vaultRes.data ?? []).map(r => ({
+      ...r,
+      last_cooked_on: lastCookedByVaultId.get(r.id) ?? null,
+    }))
+
+    setRecipes(merged)
     setLoading(false)
   }
 
