@@ -53,7 +53,7 @@ Nav simplification work that doesn't belong to any one PRD.
 
 ### Shipped (P1.x)
 
-- [x] **P1.3** (PR #TBD, commit `TBD`): "Last cooked" badge on Vault cards. Single batched `meals` query joined client-side to vault rows in `useVault.fetchRecipes`. New `formatLastCooked` helper in `dateUtils.js` renders the relative phrase (today / yesterday / N days / N weeks / N months / over a year ago). Recipes never cooked render no badge — silence is the right default for "no signal."
+- [x] **P1.3** (PR #94, commit `e948642`): "Last cooked" badge on Vault cards. Single batched `meals` query joined client-side to vault rows in `useVault.fetchRecipes`. New `formatLastCooked` helper in `dateUtils.js` renders the relative phrase (today / yesterday / N days / N weeks / N months / over a year ago). Recipes never cooked render no badge — silence is the right default for "no signal."
 
 ### Pending
 
