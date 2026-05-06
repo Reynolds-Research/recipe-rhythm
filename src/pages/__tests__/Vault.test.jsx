@@ -40,10 +40,14 @@ describe('Vault Component', () => {
 
   it('renders loading state initially', () => {
     // PRD-001 P0.5: fetchRecipes chain is now .eq().is().order(). Mock
-    // mirrors that shape.
+    // mirrors that shape. PRD-001 P1.3: also support .eq().not().order() for
+    // the parallel meals query.
     const mockOrder = vi.fn().mockResolvedValue({ data: [], error: null })
     supabase.from.mockImplementation(() => ({
-      select: () => ({ eq: () => ({ is: () => ({ order: mockOrder }) }) }),
+      select: () => ({ eq: () => ({
+        is:  () => ({ order: mockOrder }),
+        not: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
+      }) }),
     }))
 
     render(<Vault userId="test-user" />)
@@ -56,7 +60,10 @@ describe('Vault Component', () => {
     ]
     const mockOrder = vi.fn().mockResolvedValue({ data: mockData, error: null })
     supabase.from.mockImplementation(() => ({
-      select: () => ({ eq: () => ({ is: () => ({ order: mockOrder }) }) }),
+      select: () => ({ eq: () => ({
+        is:  () => ({ order: mockOrder }),
+        not: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
+      }) }),
     }))
 
     render(<Vault userId="test-user" />)
@@ -93,6 +100,12 @@ function buildVaultFromMock({ recipes = [], duplicateRows = [], onUpdate = () =>
     ilike: vi.fn(() => ({ limit: vi.fn(() => limitResolved) })),
   }))
 
+  // PRD-001 P1.3: fetchRecipes now also runs a meals query using .not() instead
+  // of .is(). Both need to be available on the object returned by .eq().
+  const notSpy = vi.fn(() => ({
+    order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+  }))
+
   const updateSpy = vi.fn((payload) => ({
     eq: vi.fn(() => ({
       eq: vi.fn(() => {
@@ -113,7 +126,7 @@ function buildVaultFromMock({ recipes = [], duplicateRows = [], onUpdate = () =>
 
   const fromImpl = () => ({
     select: vi.fn(() => ({
-      eq: vi.fn(() => ({ is: isSpy })),
+      eq: vi.fn(() => ({ is: isSpy, not: notSpy })),
     })),
     update: updateSpy,
     insert: vi.fn(() => Promise.resolve({ error: null })),
@@ -131,15 +144,18 @@ describe('Vault — PRD-001 P1.1 family rating', () => {
   it('SELECTs family_rating from the vault table', async () => {
     // Capture the column-list string the component passes to .select().
     let capturedSelect = null
-    supabase.from.mockImplementation(() => ({
+    // PRD-001 P1.3: fetchRecipes now calls from('vault') AND from('meals') in
+    // parallel. Only capture the vault column-list so the assertion below
+    // checks the right select string (the meals select is 'vault_id, eaten_on').
+    supabase.from.mockImplementation((table) => ({
       select: (cols) => {
-        capturedSelect = cols
+        if (table === 'vault') capturedSelect = cols
         return {
           eq: () => ({
             // PRD-001 P0.5 added .is('deleted_at', null) to the chain.
-            is: () => ({
-              order: () => Promise.resolve({ data: [], error: null }),
-            }),
+            // PRD-001 P1.3 added the parallel meals query via .not().
+            is:  () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
+            not: () => ({ order: () => Promise.resolve({ data: [], error: null }) }),
           }),
         }
       },
