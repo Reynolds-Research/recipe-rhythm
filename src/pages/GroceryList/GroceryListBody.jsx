@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Loader2, ShoppingCart, X } from 'lucide-react'
+import { Sheet } from 'react-modal-sheet'
 import { supabase } from '../../lib/supabase'
 import { fetchMostRecentPlan } from '../../lib/mealPlanReader'
 import { getPreferences } from '../../lib/preferences'
@@ -40,14 +41,17 @@ export default function GroceryListBody({ userId }) {
   const [error, setError]           = useState(null)
   const [activePlan, setActivePlan] = useState(null)
   const [items, setItems]           = useState([])
-  const [listId, setListId]         = useState(null)
-  const [adhocDraft, setAdhocDraft] = useState('')
-  const [addingAdhoc, setAddingAdhoc] = useState(false)
+  const [listId, setListId]               = useState(null)
+  const [shareToken, setShareToken]       = useState(null)
+  const [shareSheetOpen, setShareSheetOpen] = useState(false)
+  const [shareBusy, setShareBusy]         = useState(false)
+  const [adhocDraft, setAdhocDraft]       = useState('')
+  const [addingAdhoc, setAddingAdhoc]     = useState(false)
 
   async function loadList(planId) {
     const { data: listRow, error: listErr } = await supabase
       .from('grocery_lists')
-      .select('id, created_at')
+      .select('id, created_at, share_token')
       .eq('user_id', userId)
       .eq('meal_plan_id', planId)
       .maybeSingle()
@@ -56,10 +60,12 @@ export default function GroceryListBody({ userId }) {
     if (!listRow) {
       setItems([])
       setListId(null)
+      setShareToken(null)
       return
     }
 
     setListId(listRow.id)
+    setShareToken(listRow.share_token ?? null)
 
     const { data: itemRows, error: itemErr } = await supabase
       .from('grocery_list_items')
@@ -271,6 +277,61 @@ export default function GroceryListBody({ userId }) {
     }
   }
 
+  const shareUrl = shareToken
+    ? `${window.location.origin}/share/grocery/${shareToken}`
+    : null
+
+  async function handleGenerateShareLink() {
+    if (!listId || shareBusy) return
+    setShareBusy(true)
+    setError(null)
+    try {
+      const newToken = crypto.randomUUID()
+      const { error: updErr } = await supabase
+        .from('grocery_lists')
+        .update({ share_token: newToken })
+        .eq('id', listId)
+      if (updErr) throw updErr
+      setShareToken(newToken)
+    } catch (err) {
+      console.error('[GroceryList] handleGenerateShareLink:', err)
+      setError('Could not create share link. Please try again.')
+    } finally {
+      setShareBusy(false)
+    }
+  }
+
+  async function handleRevokeShareLink() {
+    if (!listId || shareBusy) return
+    setShareBusy(true)
+    setError(null)
+    try {
+      const { error: updErr } = await supabase
+        .from('grocery_lists')
+        .update({ share_token: null })
+        .eq('id', listId)
+      if (updErr) throw updErr
+      setShareToken(null)
+    } catch (err) {
+      console.error('[GroceryList] handleRevokeShareLink:', err)
+      setError('Could not revoke share link. Please try again.')
+    } finally {
+      setShareBusy(false)
+    }
+  }
+
+  async function handleCopyLink() {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+    } catch {
+      // Some browsers (older Safari, embedded webviews) reject clipboard
+      // writes outside a user-initiated context. The URL is visible in the
+      // read-only input — the user can long-press to copy manually.
+      console.warn('[GroceryList] clipboard write blocked')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -322,20 +383,28 @@ export default function GroceryListBody({ userId }) {
       {items.length > 0 && (
         <div className="space-y-5">
 
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="btn-secondary"
-          >
-            {generating
-              ? (
-                <span className="flex items-center justify-center gap-2">
-                  <Loader2 size={16} className="animate-spin" /> Generating…
-                </span>
-              )
-              : 'Regenerate'
-            }
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="btn-secondary flex-1"
+            >
+              {generating
+                ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 size={16} className="animate-spin" /> Generating…
+                  </span>
+                )
+                : 'Regenerate'
+              }
+            </button>
+            <button
+              onClick={() => setShareSheetOpen(true)}
+              className="btn-primary flex-1"
+            >
+              {shareToken ? 'Share link active' : 'Share with…'}
+            </button>
+          </div>
 
           {GROCERY_SECTIONS.map(section => {
             const sectionItems = items.filter(i => i.section === section)
@@ -392,6 +461,66 @@ export default function GroceryListBody({ userId }) {
 
         </div>
       )}
+
+      <Sheet
+        isOpen={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        detent="content-height"
+      >
+        <Sheet.Container>
+          <Sheet.Header />
+          <Sheet.Content>
+            <div className="px-5 pb-8 space-y-4">
+              <p className="section-heading">Share this list</p>
+
+              {shareToken ? (
+                <>
+                  <p className="helper-text">
+                    Anyone with this link can see the list and check items off (just for them, not synced back).
+                  </p>
+                  <input
+                    type="text"
+                    value={shareUrl ?? ''}
+                    readOnly
+                    onFocus={(e) => e.target.select()}
+                    aria-label="Share link"
+                    className="input-base"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleCopyLink} className="btn-primary flex-1">
+                      Copy link
+                    </button>
+                    <button
+                      onClick={handleRevokeShareLink}
+                      disabled={shareBusy}
+                      className="btn-secondary flex-1"
+                    >
+                      {shareBusy ? <Loader2 size={16} className="animate-spin" /> : 'Revoke'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="helper-text">
+                    Generate a link to share this list. They'll see a read-only version — no login required.
+                  </p>
+                  <button
+                    onClick={handleGenerateShareLink}
+                    disabled={shareBusy}
+                    className="btn-primary"
+                  >
+                    {shareBusy
+                      ? <span className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" /> Creating…</span>
+                      : 'Generate share link'
+                    }
+                  </button>
+                </>
+              )}
+            </div>
+          </Sheet.Content>
+        </Sheet.Container>
+        <Sheet.Backdrop onTap={() => setShareSheetOpen(false)} />
+      </Sheet>
     </>
   )
 }
