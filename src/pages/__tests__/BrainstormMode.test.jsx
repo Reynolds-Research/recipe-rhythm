@@ -925,6 +925,33 @@ describe('BrainstormMode', () => {
       })
     })
 
+    it('shows an error and does NOT reload when resetCurrentPlan returns deleted:false', async () => {
+      mockActivePlan()
+      resetCurrentPlan.mockResolvedValueOnce({ deleted: false })
+
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      const initialFetchCalls = fetchMostRecentPlan.mock.calls.length
+
+      fireEvent.click(screen.getByRole('button', { name: /Reset this plan/i }))
+      fireEvent.click(await screen.findByRole('button', { name: /^Reset plan$/i }))
+
+      await waitFor(() => {
+        expect(resetCurrentPlan).toHaveBeenCalledTimes(1)
+      })
+
+      // An inline error message appears.
+      expect(
+        screen.getAllByText(/Could not reset plan/i).length,
+      ).toBeGreaterThan(0)
+
+      // loadData is NOT re-invoked — the plan stays in its current state.
+      expect(fetchMostRecentPlan.mock.calls.length).toBe(initialFetchCalls)
+    })
+
     it('surfaces an error message when resetCurrentPlan throws', async () => {
       mockActivePlan()
       resetCurrentPlan.mockRejectedValueOnce(

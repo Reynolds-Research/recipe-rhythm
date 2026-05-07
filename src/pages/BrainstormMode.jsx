@@ -774,9 +774,18 @@ export default function BrainstormMode({ userId }) {
     setResetting(true)
     setResetError(null)
     try {
-      await resetCurrentPlan(supabase, loadedPlan.id)
+      const { deleted } = await resetCurrentPlan(supabase, loadedPlan.id)
+      if (!deleted) {
+        setResetError('Could not reset plan (it may already be locked). Try refreshing.')
+        return
+      }
       trigger('success')
       setShowResetConfirm(false)
+      // Eagerly clear served state before loadData so the UI doesn't flash
+      // back to the "Served on…" banner if the reload finds an older plan.
+      setIsServed(false)
+      setServedAt(null)
+      setLoadedPlan(null)
       // Wipe local-storage seeds so the post-reset page starts from a true
       // clean slate (no stale draft plan or selected dates).
       localStorage.removeItem('brainstorm_plan')
