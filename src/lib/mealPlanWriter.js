@@ -63,7 +63,7 @@ function isPeriodOverlap(err) {
  *   - 'items_insert_failed'  — meal_plan_items insert failed (cleanup ran)
  *   The original supabase error object is attached as `.cause`.
  */
-export async function createServedPlan(supabase, userId, items) {
+export async function createServedPlan(supabase, userId, items, opts = {}) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('createServedPlan: items must be a non-empty array')
   }
@@ -82,7 +82,7 @@ export async function createServedPlan(supabase, userId, items) {
 
   const { data: planRow, error: planError } = await supabase
     .from('meal_plans')
-    .insert({ user_id: userId, period_start, period_end })
+    .insert({ user_id: userId, period_start, period_end, served_feedback: opts.feedback ?? null })
     .select('id, served_at, period_start, period_end')
     .single()
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import BrainstormMode from '../BrainstormMode'
 
 // --- Module mocks ---------------------------------------------------------
@@ -233,22 +233,29 @@ describe('BrainstormMode', () => {
     expect(localStorage.getItem('brainstorm_plan_days')).toBeNull()
   })
 
-  it('serving calls createServedPlan with the items array shape', async () => {
+  it('serving calls createServedPlan with the items array shape (via sheet)', async () => {
     render(<BrainstormMode userId="user-1" />)
 
     await waitFor(() => {
       expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
     })
 
+    // Click "Serve This Plan" — opens the confirmation sheet
     const serveBtn = await screen.findByRole('button', {
       name: /Serve This Plan/i,
     })
     fireEvent.click(serveBtn)
 
+    // Sheet is now open; click "Looks great" to commit with positive feedback
+    const looksGreatBtn = await screen.findByRole('button', {
+      name: /Looks great/i,
+    })
+    fireEvent.click(looksGreatBtn)
+
     await waitFor(() => {
       expect(createServedPlan).toHaveBeenCalledTimes(1)
     })
-    const [, userIdArg, items] = createServedPlan.mock.calls[0]
+    const [, userIdArg, items, opts] = createServedPlan.mock.calls[0]
     expect(userIdArg).toBe('user-1')
     expect(Array.isArray(items)).toBe(true)
     expect(items).toHaveLength(5)
@@ -272,6 +279,7 @@ describe('BrainstormMode', () => {
       'Curry',
       'Pizza',
     ])
+    expect(opts).toEqual({ feedback: 'positive' })
   })
 
   it("planState === 'gap' routes to GapDayView (regression guard)", async () => {
@@ -971,5 +979,57 @@ describe('BrainstormMode', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Groceries$/i }))
 
     expect(screen.getByTestId('grocery-list-sheet')).toBeInTheDocument()
+  })
+
+  // ---------------------------------------------------------------------------
+  // PRD-002 P1.2 — serve confirmation sheet
+  // ---------------------------------------------------------------------------
+
+  describe('serve confirmation sheet (PRD-002 P1.2)', () => {
+    async function renderAndOpenSheet() {
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+      fireEvent.click(screen.getByRole('button', { name: /Serve This Plan/i }))
+    }
+
+    it('clicking "Serve This Plan" opens the confirmation sheet without calling createServedPlan', async () => {
+      await renderAndOpenSheet()
+      expect(screen.getByText(/Lock in this plan/i)).toBeInTheDocument()
+      expect(createServedPlan).not.toHaveBeenCalled()
+    })
+
+    it('sheet shows all planned meal names', async () => {
+      await renderAndOpenSheet()
+      // Scope to the sheet container — meal names also appear in the plan list.
+      const sheet = screen.getByTestId('mock-sheet-container')
+      expect(within(sheet).getByText('Roast')).toBeInTheDocument()
+      expect(within(sheet).getByText('Tacos')).toBeInTheDocument()
+      expect(within(sheet).getByText('Pizza')).toBeInTheDocument()
+    })
+
+    it('"Looks great" commits with feedback="positive"', async () => {
+      await renderAndOpenSheet()
+      fireEvent.click(screen.getByRole('button', { name: /Looks great/i }))
+      await waitFor(() => expect(createServedPlan).toHaveBeenCalledTimes(1))
+      const [, , , opts] = createServedPlan.mock.calls[0]
+      expect(opts).toEqual({ feedback: 'positive' })
+    })
+
+    it('"Lock in anyway" commits with feedback="negative"', async () => {
+      await renderAndOpenSheet()
+      fireEvent.click(screen.getByRole('button', { name: /Lock in anyway/i }))
+      await waitFor(() => expect(createServedPlan).toHaveBeenCalledTimes(1))
+      const [, , , opts] = createServedPlan.mock.calls[0]
+      expect(opts).toEqual({ feedback: 'negative' })
+    })
+
+    it('"Let me adjust" dismisses the sheet without calling createServedPlan', async () => {
+      await renderAndOpenSheet()
+      fireEvent.click(screen.getByRole('button', { name: /Let me adjust/i }))
+      expect(screen.queryByText(/Lock in this plan/i)).not.toBeInTheDocument()
+      expect(createServedPlan).not.toHaveBeenCalled()
+    })
   })
 })

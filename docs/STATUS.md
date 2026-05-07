@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-06 against `origin/main` @ `c575c33` (PR #93 PRD-003 share-link infra)
+**Last verified:** 2026-05-06 against `origin/main` @ `1d28e56` (PR #94 PRD-001 P1.3 last-cooked badge)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -14,7 +14,7 @@
 | PRD | Title | Overall status | Next thing to plan |
 |---|---|---|---|
 | PRD-001 | Recipe Vault & Cooking Record | ✅ **All P0 + P1.1 + P1.3 shipped** (v1.0) | P1.2 + P1.4–P1.6 nice-to-haves; not blocking anything |
-| PRD-002 | Meal Planning | ✅ **All P0 shipped** | P1 nice-to-haves |
+| PRD-002 | Meal Planning | ✅ **All P0 + P1.2 shipped** | P1.1 + P1.3 nice-to-haves |
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | P1 polish (auto-regenerate prompt, individual-item edit, plain-text export, custom section order, source-recipe captions, staple override) |
 | PRD-004 | Smarter Ingredient Filtering | ✅ **All P0 shipped** | P1 nice-to-haves (override review surface, frequency analytics, AI confidence, periodic re-classification) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
@@ -76,10 +76,13 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Phase 3** (PRs #50–#53, P0.1 + P0.2 + P0.3 + P0.12): `household_preferences` table + data layer, preferences settings page, recommender hard-filters by preferences, warn-on-conflicts when prefs invalidate active-period meals.
 - [x] **Phase 4** (PRs #45 + #47, P0.6 + P0.7): "Maybe" / shortlist state on `meal_plan_items`, tap-a-day → bottom-sheet picker.
 
+### Shipped (P1)
+
+- [x] **P1.2** (PR #TBD, commit `TBD`): Lock-in feedback after Serve. "Serve This Plan" now opens a confirmation bottom sheet showing a compact plan summary and three actions: 👍 Looks great (commits with `served_feedback='positive'`), 👎 Lock in anyway (commits with `served_feedback='negative'`), ✏️ Let me adjust (dismisses sheet, no commit). Haptic trigger moved from sheet-open to actual commit. Migration `20260506000002` adds `meal_plans.served_feedback text CHECK (IN ('positive','negative'))`.
+
 ### Pending
 
 - [ ] P1.1 — Per-day filter chips in candidate sheet
-- [ ] P1.2 — Lock-in feedback after Serve (thumbs/edit prompt)
 - [ ] P1.3 — Pantry-aware nudge lite (leftover protein bonus)
 - [ ] P1.4 — Maybe tray sort options
 - [ ] P1.5 — Preference presets ("Vegetarian Tuesday")

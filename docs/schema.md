@@ -121,6 +121,7 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 | `week_label` | `text` | ⚠️ **Deprecated by ADR-001.** Display string like `"Sun–Thu"`. Will be dropped in ADR Phase 7 cleanup. |
 | `days` | `text[]` / `jsonb` | ⚠️ **Deprecated by ADR-001.** Weekday strings like `['Sun','Mon','Tue','Wed','Thu']` — NOT real dates. Replaced by `meal_plan_items.scheduled_date`. Will be dropped in ADR Phase 7. |
 | `items` | `jsonb` | ⚠️ **Deprecated by ADR-001.** Array of `{day, name, vault_id, is_wildcard, source_url}`. Replaced by the normalized `meal_plan_items` table. Backfill on 2026-04-19 unpacked existing rows into `meal_plan_items` and marked them `cooked = true`. Will be dropped in ADR Phase 7. |
+| `served_feedback` | `text` nullable | **Added PRD-002 P1.2.** User sentiment captured via the serve confirmation sheet. Allowed: `'positive'`, `'negative'`, or NULL (no feedback given). Enforced by `meal_plans_served_feedback_check`. |
 | `created_at` | `timestamptz` | Default `now()` (assumed). |
 
 **Constraint:** `meal_plans_no_period_overlap` — `EXCLUDE USING gist (user_id WITH =, daterange(period_start, period_end, '[]') WITH &&) WHERE (period_start IS NOT NULL AND period_end IS NOT NULL)`. Prevents two periods belonging to the same user from overlapping. Requires the `btree_gist` extension (also added by the migration).
@@ -284,6 +285,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260503.sql`](../supabase/migrations/verify_20260503.sql) | 2026-05-03 | Read-only verification queries for the structured-ingredients migration: column shapes for all four new columns, CHECK constraint existence, behavioral CHECK rejection test (adults = 0 → rolls back), smoke check that existing vault rows have `NULL` for the new columns, smoke check that existing preference rows have the expected defaults. |
 | [`20260506000001_household_preferences_pantry_staples.sql`](../supabase/migrations/20260506000001_household_preferences_pantry_staples.sql) | 2026-05-06 | PRD-003 P0.2: adds `household_preferences.pantry_staples` (`text[]` NOT NULL DEFAULT `'{}'`). Existing owner-scoped RLS policies cover the new column. |
 | [`verify_20260506_pantry_staples.sql`](../supabase/migrations/verify_20260506_pantry_staples.sql) | 2026-05-06 | Read-only verification queries: column shape, default applied to existing rows. |
+| [`20260506000002_meal_plans_served_feedback.sql`](../supabase/migrations/20260506000002_meal_plans_served_feedback.sql) | 2026-05-06 | PRD-002 P1.2: adds `meal_plans.served_feedback` (`text` nullable, CHECK `IN ('positive','negative')`). Captures user sentiment from the serve confirmation sheet. |
+| [`verify_20260506000002.sql`](../supabase/migrations/verify_20260506000002.sql) | 2026-05-06 | Verify: column shape, CHECK constraint existence, behavioral test (allowed values succeed, invalid value raises check_violation). |
 
 ## Related audit items + ADRs
 
