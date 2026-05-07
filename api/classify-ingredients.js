@@ -5,9 +5,13 @@
  * place. See ADR-002 / PRD-004 Phase A.
  */
 import { anthropic } from './_lib/anthropic.js'
+import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { createClassifyIngredientsHandler } from './_lib/classifyHandler.js'
 
-const handle = createClassifyIngredientsHandler({ anthropic })
+// ADR-004: pass Supabase service-role client so the handler reaches
+// classifyIngredientsCached with cache I/O enabled. Null env ⇒ uncached
+// pass-through.
+const handle = createClassifyIngredientsHandler({ anthropic, supabase: supabaseAdmin })
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

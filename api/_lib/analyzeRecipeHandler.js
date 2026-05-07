@@ -14,7 +14,8 @@
  */
 import { parseJsonLoose } from './anthropic.js'
 import { buildAnalyzeRecipePromptBlock } from '../../src/lib/constants.js'
-import { classifyIngredients, ClassifyIngredientsError } from '../../src/lib/classifyIngredients.js'
+import { ClassifyIngredientsError } from '../../src/lib/classifyIngredients.js'
+import { classifyIngredientsCached } from './classifyIngredientsCached.js'
 
 // When the AI can't infer servings and the caller didn't supply a default,
 // fall back to 4 (a reasonable single-household serving count).
@@ -64,7 +65,7 @@ function buildUserChipsBlock(userChips) {
   )
 }
 
-export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' } = {}) {
+export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = 'analyze-recipe' } = {}) {
   return async function analyzeRecipeHandler(req, res) {
     if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
@@ -149,11 +150,16 @@ export function createAnalyzeRecipeHandler({ anthropic, tag = 'analyze-recipe' }
           .map(n => n.trim())
         if (ingredientNames.length > 0) {
           try {
-            const result = await classifyIngredients({
+            // ADR-004: classifyIngredientsCached transparently consults the
+            // ingredient_classifications_cache table before calling Anthropic;
+            // misses are written back. With supabase=null this is a pure
+            // pass-through to classifyIngredients.
+            const result = await classifyIngredientsCached({
               ingredients: ingredientNames,
               recipeName: (parsed.name || name || '').trim() || 'Untitled recipe',
               cuisine: parsed.cuisine_type || null,
               anthropicClient: anthropic,
+              supabaseClient: supabase,
             })
             ingredients_classified = Array.isArray(result?.classifications)
               ? result.classifications

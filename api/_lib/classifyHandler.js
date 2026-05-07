@@ -12,13 +12,14 @@
  * Method-not-allowed handling stays in the Vercel mirror (Express dispatches
  * by method already via app.post).
  */
-import { classifyIngredients, ClassifyIngredientsError } from '../../src/lib/classifyIngredients.js'
+import { ClassifyIngredientsError } from '../../src/lib/classifyIngredients.js'
+import { classifyIngredientsCached } from './classifyIngredientsCached.js'
 
 function isNonEmptyString(v) {
   return typeof v === 'string' && v.trim().length > 0
 }
 
-export function createClassifyIngredientsHandler({ anthropic, classifyImpl = classifyIngredients, tag = 'classify-ingredients' } = {}) {
+export function createClassifyIngredientsHandler({ anthropic, supabase = null, classifyImpl = classifyIngredientsCached, tag = 'classify-ingredients' } = {}) {
   return async function classifyIngredientsHandler(req, res) {
     if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
@@ -38,11 +39,16 @@ export function createClassifyIngredientsHandler({ anthropic, classifyImpl = cla
     }
 
     try {
+      // ADR-004: classifyImpl defaults to classifyIngredientsCached, which
+      // consults ingredient_classifications_cache before calling Anthropic.
+      // Tests can inject a mock via classifyImpl. supabase=null falls
+      // through to the uncached path automatically.
       const result = await classifyImpl({
         ingredients: ingredients.map(s => s.trim()),
         recipeName: recipeName.trim(),
         cuisine: cuisine == null ? null : cuisine.trim() || null,
         anthropicClient: anthropic,
+        supabaseClient: supabase,
       })
       return res.status(200).json(result)
     } catch (err) {

@@ -6,9 +6,14 @@
  * file and api-server.mjs stay in lockstep automatically.
  */
 import { anthropic } from './_lib/anthropic.js'
+import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { createAnalyzeRecipeHandler } from './_lib/analyzeRecipeHandler.js'
 
-const handler = createAnalyzeRecipeHandler({ anthropic })
+// ADR-004: pass the Supabase service-role client so analyze-recipe's
+// internal call to classifyIngredientsCached can read/write the cross-user
+// classification cache. Null when env vars aren't set ⇒ caching disabled,
+// AI still works.
+const handler = createAnalyzeRecipeHandler({ anthropic, supabase: supabaseAdmin })
 
 export default async function analyzeRecipeServerless(req, res) {
   if (req.method !== 'POST') {

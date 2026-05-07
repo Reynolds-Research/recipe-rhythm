@@ -55,6 +55,7 @@ ADRs:
 - **ADR-001 — Planning Period Save State** — [`docs/adr/ADR-001-planning-period-save-state.md`](docs/adr/ADR-001-planning-period-save-state.md). Schema decisions for date-ranged planning periods, leftovers, end-of-period review.
 - **ADR-002 — Ingredient Classification** — [`docs/adr/ADR-002-ingredient-classification.md`](docs/adr/ADR-002-ingredient-classification.md). Rationale for the AI-classifier approach in PRD-004.
 - **ADR-003 — Implied-Meat Dish-Name Filter** — [`docs/adr/ADR-003-implied-meat-dish-name-filter.md`](docs/adr/ADR-003-implied-meat-dish-name-filter.md). App-layer dish-name keyword filter for vegetarian/vegan/pescatarian preferences; companion to PRD-004's essentiality classifier.
+- **ADR-004 — Server-side AI Response Cache** — [`docs/adr/ADR-004-server-side-ai-response-cache.md`](docs/adr/ADR-004-server-side-ai-response-cache.md). Two cross-user shared cache tables (`ingredient_classifications_cache`, `meal_name_normalizations_cache`) backing `/api/classify-ingredients` and `/api/normalize-meal-name`. First-answer-wins; SELECT open to anon+authenticated; writes service-role-only. Adds Supabase coupling to the API server (new env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — same vars already used by backfill scripts).
 
 ## Workflow conventions
 
