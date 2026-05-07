@@ -78,7 +78,7 @@ Nav simplification work that doesn't belong to any one PRD.
 
 ### Shipped (P1)
 
-- [x] **P1.2** (PR #TBD, commit `TBD`): Lock-in feedback after Serve. "Serve This Plan" now opens a confirmation bottom sheet showing a compact plan summary and three actions: 👍 Looks great (commits with `served_feedback='positive'`), 👎 Lock in anyway (commits with `served_feedback='negative'`), ✏️ Let me adjust (dismisses sheet, no commit). Haptic trigger moved from sheet-open to actual commit. Migration `20260506000002` adds `meal_plans.served_feedback text CHECK (IN ('positive','negative'))`.
+- [x] **P1.2** (PR #95, commit `a842fe1`): Lock-in feedback after Serve. "Serve This Plan" now opens a confirmation bottom sheet showing a compact plan summary and three actions: 👍 Looks great (commits with `served_feedback='positive'`), 👎 Lock in anyway (commits with `served_feedback='negative'`), ✏️ Let me adjust (dismisses sheet, no commit). Haptic trigger moved from sheet-open to actual commit. Migration `20260506000002` adds `meal_plans.served_feedback text CHECK (IN ('positive','negative'))`.
 
 ### Pending
 
