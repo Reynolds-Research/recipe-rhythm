@@ -25,6 +25,8 @@ _Last verified: **2026-04-19** via [`supabase/audits/c3_rls_verification.sql`](.
 | `household_preferences` | ✅ true | ✅ `household_preferences_select_own` — `USING (auth.uid() = user_id)`, role `authenticated` | ✅ `household_preferences_insert_own` — `WITH CHECK (auth.uid() = user_id)` | ✅ `household_preferences_update_own` — USING + WITH CHECK both `(auth.uid() = user_id)` | ✅ `household_preferences_delete_own` — `USING (auth.uid() = user_id)` | Added 2026-04-27 via [PRD-002 P0.1 migration](../supabase/migrations/20260427000003_household_preferences.sql). Mirrors the `meal_plan_items` policy pattern. RLS-enabled; per-operation policies. The Row-Level-Security Status header above was last live-verified 2026-04-19 — re-run [`supabase/audits/c3_rls_verification.sql`](../supabase/audits/c3_rls_verification.sql) when convenient to refresh. |
 | `grocery_lists` | ✅ true | ✅ `grocery_lists_select_own` — `USING (auth.uid() = user_id)`, role `authenticated`; PLUS `grocery_lists_public_share` — `USING (share_token IS NOT NULL)`, role `anon` | ✅ `grocery_lists_insert_own` — `WITH CHECK (auth.uid() = user_id)` | ✅ `grocery_lists_update_own` — USING + WITH CHECK both `(auth.uid() = user_id)` | ✅ `grocery_lists_delete_own` — `USING (auth.uid() = user_id)` | Added 2026-05-02 via [PRD-003 P0.1 migration](../supabase/migrations/20260502000001_grocery_lists_schema.sql). Owner-scoped per-operation policies (role `authenticated`) + a public share SELECT policy (role `anon`, `USING (share_token IS NOT NULL)`). The anon policy is a no-op until Phase 3 populates `share_token`. |
 | `grocery_list_items` | ✅ true | ✅ `grocery_list_items_select_own` — join via `list_id → grocery_lists.user_id`, role `authenticated`; PLUS `grocery_list_items_public_share` — join via `list_id → grocery_lists.share_token IS NOT NULL`, role `anon` | ✅ `grocery_list_items_insert_own` — join-based WITH CHECK | ✅ `grocery_list_items_update_own` — join-based USING + WITH CHECK | ✅ `grocery_list_items_delete_own` — join-based USING | Added 2026-05-02 via [PRD-003 P0.1 migration](../supabase/migrations/20260502000001_grocery_lists_schema.sql). No `user_id` column — ownership derived by subquery joining to `grocery_lists`. |
+| `ingredient_classifications_cache` | ✅ true | ✅ `ingredient_classifications_cache_select_all` — `USING (true)`, roles `authenticated, anon` | ❌ no policy (service-role-only writes; anon/authenticated INSERT blocked by design) | ❌ no policy (service-role-only) | ❌ no policy (service-role-only) | Added 2026-05-06 via [ADR-004 migration](../supabase/migrations/20260506000002_ai_response_caches.sql). **Cross-user shared cache** — non-sensitive AI classifications (recipe + ingredient → essentiality). Open SELECT is intentional. The deliberate absence of write policies enforces the security boundary: only the API server (using `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS) can write. Anyone with the public anon key can read but cannot poison the cache. |
+| `meal_name_normalizations_cache` | ✅ true | ✅ `meal_name_normalizations_cache_select_all` — `USING (true)`, roles `authenticated, anon` | ❌ no policy (service-role-only writes) | ❌ no policy (service-role-only) | ❌ no policy (service-role-only) | Added 2026-05-06 via [ADR-004 migration](../supabase/migrations/20260506000002_ai_response_caches.sql). Same security model as `ingredient_classifications_cache`. Stores normalized user-input → AI-corrected meal name pairs. |
 | `profiles` | ❌ **false — but empty (0 rows)** | N/A (RLS off) | N/A (RLS off) | N/A (RLS off) | N/A (RLS off) | Not referenced anywhere in `src/` and contains 0 rows. Confirmed as a starter-template remnant. Recommended action: drop the table — see [`supabase/audits/c3_remediation_drop_profiles.sql`](../supabase/audits/c3_remediation_drop_profiles.sql). |
 
 Legend for each policy column: write either the policy name (if present)
@@ -223,6 +225,43 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 - `grocery_list_items_select_own` / `insert_own` / `update_own` / `delete_own` — owner-scoped, role `authenticated`, `USING/WITH CHECK (list_id IN (SELECT id FROM grocery_lists WHERE user_id = auth.uid()))`. Uses the IN-subquery form rather than EXISTS — keeps the policy column reference (`list_id`) outside the subquery so PostgreSQL unambiguously resolves it to the policy table's column.
 - `grocery_list_items_public_share` — SELECT only, role `anon`, `USING (list_id IN (SELECT id FROM grocery_lists WHERE share_token IS NOT NULL))`
 
+### `public.ingredient_classifications_cache`
+**Added 2026-05-06** via [ADR-004 migration](../supabase/migrations/20260506000002_ai_response_caches.sql). Cross-user shared cache of AI ingredient classifications. Backs `/api/classify-ingredients` (called internally by `/api/analyze-recipe` on save, plus admin scripts). Keyed on `(recipe_name_norm, ingredient_name_norm)` — both lowercased + whitespace-trimmed. First-answer-wins via `INSERT … ON CONFLICT DO NOTHING`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` NOT NULL | PK, `DEFAULT gen_random_uuid()`. |
+| `recipe_name_norm` | `text` NOT NULL | Lowercased + trimmed recipe name. Half of the cache key. |
+| `ingredient_name_norm` | `text` NOT NULL | Lowercased + trimmed ingredient name. Compound forms like `"onion/garlic"` are preserved verbatim per the classifier prompt — they are NOT split on the slash. |
+| `essentiality` | `text` NOT NULL | One of `'essential'` or `'omittable'`. CHECK-enforced. |
+| `created_at` | `timestamptz` NOT NULL | Default `now()`. |
+
+**Constraints:**
+- `ingredient_classifications_cache_essentiality_valid` — `CHECK (essentiality IN ('essential', 'omittable'))`
+- `ingredient_classifications_cache_key_unique` — `UNIQUE (recipe_name_norm, ingredient_name_norm)`. Backs the lookup index AND the `ON CONFLICT` target for first-answer-wins.
+
+**Index:** the UNIQUE constraint above creates a btree on `(recipe_name_norm, ingredient_name_norm)`. Postgres uses it for both the equality on `recipe_name_norm` and the `IN`/`= ANY` on `ingredient_name_norm`. No additional index needed.
+
+**RLS:** one policy:
+- `ingredient_classifications_cache_select_all` — SELECT, roles `authenticated, anon`, `USING (true)`. Open read is intentional (non-sensitive shared cache).
+- **No INSERT/UPDATE/DELETE policies.** Writes only via `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS. This is the security boundary preventing cache poisoning by anon-key holders.
+
+### `public.meal_name_normalizations_cache`
+**Added 2026-05-06** via [ADR-004 migration](../supabase/migrations/20260506000002_ai_response_caches.sql). Cross-user shared cache of `/api/normalize-meal-name` answers. One row per unique normalized input.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` NOT NULL | PK, `DEFAULT gen_random_uuid()`. |
+| `input_norm` | `text` NOT NULL | Lowercased + trimmed user input. UNIQUE (the cache key). |
+| `corrected` | `text` NOT NULL | Title-cased + spell-corrected output as returned by Haiku. Stored verbatim with capitalization preserved. |
+| `created_at` | `timestamptz` NOT NULL | Default `now()`. |
+
+**Constraint:** UNIQUE on `input_norm` (auto-named by Postgres as `meal_name_normalizations_cache_input_norm_key`). Backs both the lookup index and first-answer-wins.
+
+**RLS:** one policy:
+- `meal_name_normalizations_cache_select_all` — SELECT, roles `authenticated, anon`, `USING (true)`.
+- **No INSERT/UPDATE/DELETE policies** (same service-role-only-writes pattern as `ingredient_classifications_cache`).
+
 ## Views
 
 ### `public.current_leftovers`
@@ -287,6 +326,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260506_pantry_staples.sql`](../supabase/migrations/verify_20260506_pantry_staples.sql) | 2026-05-06 | Read-only verification queries: column shape, default applied to existing rows. |
 | [`20260506000002_meal_plans_served_feedback.sql`](../supabase/migrations/20260506000002_meal_plans_served_feedback.sql) | 2026-05-06 | PRD-002 P1.2: adds `meal_plans.served_feedback` (`text` nullable, CHECK `IN ('positive','negative')`). Captures user sentiment from the serve confirmation sheet. |
 | [`verify_20260506000002.sql`](../supabase/migrations/verify_20260506000002.sql) | 2026-05-06 | Verify: column shape, CHECK constraint existence, behavioral test (allowed values succeed, invalid value raises check_violation). |
+| [`20260506000003_ai_response_caches.sql`](../supabase/migrations/20260506000003_ai_response_caches.sql) | 2026-05-06 | [ADR-004](../adr/ADR-004-server-side-ai-response-cache.md): creates `public.ingredient_classifications_cache` and `public.meal_name_normalizations_cache`. Cross-user shared caches for `/api/classify-ingredients` and `/api/normalize-meal-name`. UNIQUE constraints back first-answer-wins via `ON CONFLICT DO NOTHING`. RLS: open SELECT to `authenticated, anon`; NO INSERT/UPDATE/DELETE policies — writes are service-role-only by design. |
+| [`verify_20260506000003_ai_response_caches.sql`](../supabase/migrations/verify_20260506000003_ai_response_caches.sql) | 2026-05-06 | Read-only verification queries for the AI cache migration: columns, CHECK + UNIQUE constraints, RLS-enabled bits, exactly-one-SELECT-policy assertion (catches accidental write-policy regressions), empty-row smoke counts. |
 
 ## Related audit items + ADRs
 

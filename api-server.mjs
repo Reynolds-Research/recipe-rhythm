@@ -22,6 +22,10 @@ import 'dotenv/config'
 import { createAnalyzeRecipeHandler } from './api/_lib/analyzeRecipeHandler.js'
 import { createClassifyIngredientsHandler } from './api/_lib/classifyHandler.js'
 import { createGroceryListHandler } from './api/_lib/groceryListHandler.js'
+import { createNormalizeMealNameHandler } from './api/_lib/normalizeMealNameHandler.js'
+// ADR-004: server-side AI response cache. Null when SUPABASE_* env vars
+// aren't set — endpoints still work; they just skip cache reads/writes.
+import { supabaseAdmin } from './api/_lib/supabaseAdmin.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 const API_PORT = Number(process.env.API_PORT || 3001)
@@ -73,7 +77,7 @@ app.get('/health', (req, res) => {
 
 // PRD-006 P0.2: logic lives in api/_lib/analyzeRecipeHandler.js so this route
 // and the Vercel mirror in api/analyze-recipe.js stay in lockstep.
-app.post('/api/analyze-recipe', createAnalyzeRecipeHandler({ anthropic }))
+app.post('/api/analyze-recipe', createAnalyzeRecipeHandler({ anthropic, supabase: supabaseAdmin }))
 
 // PRD-002 P0.3: render the household preferences as a structured prompt block.
 // Returns '' when the field is missing or every sub-list is empty/null, so the
@@ -171,7 +175,7 @@ ${excludeBullets}${preferencesBlock}
 // Validation + prompt + parse logic lives in api/_lib/classifyHandler.js so
 // this route + the Vercel mirror in api/classify-ingredients.js stay in
 // lockstep. Reuses the module-scoped `anthropic` client.
-app.post('/api/classify-ingredients', createClassifyIngredientsHandler({ anthropic }))
+app.post('/api/classify-ingredients', createClassifyIngredientsHandler({ anthropic, supabase: supabaseAdmin }))
 
 // PRD-003 P0.3 (Bite B): /api/grocery-list (Haiku 4.5). Validation + prompt
 // + parse logic lives in api/_lib/groceryListHandler.js so this route + the
@@ -180,43 +184,11 @@ app.post('/api/grocery-list', createGroceryListHandler({ anthropic }))
 
 // Spell-check + title-case a single meal/recipe name. Used by Vault add and
 // LogMode save to standardize names before they're persisted. Haiku 4.5 —
-// cheap, fast, and good enough for this kind of light correction. MUST stay
-// in lockstep with api/normalize-meal-name.js.
-app.post('/api/normalize-meal-name', async (req, res) => {
-  if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
-
-  const raw = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
-  if (!raw) return res.status(400).json({ error: 'name_required' })
-  if (raw.length > 200) return res.status(400).json({ error: 'name_too_long' })
-
-  const prompt = `You normalize meal/recipe names. Given the user's input, return ONLY a JSON object of the form {"corrected": "<name>"} with no markdown, no commentary.
-
-Rules:
-1. Fix obvious spelling mistakes (e.g. "spagheti" -> "spaghetti", "carbonera" -> "carbonara"). Preserve the user's intended dish; do not invent a different dish.
-2. Apply Title Case: capitalize the first letter of each word, except keep articles/conjunctions/short prepositions lowercase mid-name (a, an, and, as, at, but, by, for, if, in, of, on, or, the, to, vs, via, with). Always capitalize the first and last word.
-3. Preserve well-known acronyms in caps (BBQ, BLT, NY, LA).
-4. Preserve proper nouns that name cuisines, regions, or people (Thai, Italian, Cajun, Caesar, Alfredo).
-5. Do NOT add ingredients, descriptors, or punctuation that weren't in the input. Only fix typos and casing.
-6. If the input is already correct, return it unchanged (still in Title Case).
-
-Input: "${raw}"`
-
-  try {
-    const msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 100,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = msg.content?.[0]?.text ?? ''
-    const parsed = parseJsonLoose(text, /\{[\s\S]*\}/)
-    if (!parsed || typeof parsed.corrected !== 'string' || !parsed.corrected.trim()) {
-      return res.status(502).json({ error: 'parse_failed' })
-    }
-    return res.json({ corrected: parsed.corrected.trim() })
-  } catch (err) {
-    return sendUpstreamError(res, err, 'normalize-meal-name')
-  }
-})
+// cheap, fast, and good enough for this kind of light correction. Validation
+// + prompt + cache logic live in api/_lib/normalizeMealNameHandler.js so
+// this route + the Vercel mirror in api/normalize-meal-name.js stay in
+// lockstep automatically.
+app.post('/api/normalize-meal-name', createNormalizeMealNameHandler({ anthropic, supabase: supabaseAdmin }))
 
 app.listen(API_PORT, () => {
   console.log(`[api-server] listening on :${API_PORT} (CORS origin: ${corsOrigin})`)
