@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Loader2, Bookmark, BookmarkPlus, Plus, Trash2, ShoppingCart } from 'lucide-react'
+import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Loader2, Bookmark, BookmarkPlus, Plus, Trash2, ShoppingCart, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../hooks/useHaptics'
@@ -404,12 +404,13 @@ export default function BrainstormMode({ userId }) {
   const [disabledDates, setDisabledDates] = useState(() => new Set())
 
   // Serve state
-  const [isServed, setIsServed]     = useState(false)
-  const [servedAt, setServedAt]     = useState(null)
-  const [servingPlan, setServingPlan]   = useState(false)
+  const [isServed, setIsServed]       = useState(false)
+  const [servedAt, setServedAt]       = useState(null)
+  const [servingPlan, setServingPlan] = useState(false)
   const { trigger } = useHaptics()
-  const [serveError, setServeError] = useState(null)
-  const [justServed, setJustServed] = useState(false)
+  const [serveError, setServeError]   = useState(null)
+  const [justServed, setJustServed]   = useState(false)
+  const [serveSheetOpen, setServeSheetOpen] = useState(false)
   const [groceriesOpen, setGroceriesOpen] = useState(false)
 
   // ADR-001 Phase 4: end-of-period review surface.
@@ -773,9 +774,18 @@ export default function BrainstormMode({ userId }) {
     setResetting(true)
     setResetError(null)
     try {
-      await resetCurrentPlan(supabase, loadedPlan.id)
+      const { deleted } = await resetCurrentPlan(supabase, loadedPlan.id)
+      if (!deleted) {
+        setResetError('Could not reset plan (it may already be locked). Try refreshing.')
+        return
+      }
       trigger('success')
       setShowResetConfirm(false)
+      // Eagerly clear served state before loadData so the UI doesn't flash
+      // back to the "Served on…" banner if the reload finds an older plan.
+      setIsServed(false)
+      setServedAt(null)
+      setLoadedPlan(null)
       // Wipe local-storage seeds so the post-reset page starts from a true
       // clean slate (no stale draft plan or selected dates).
       localStorage.removeItem('brainstorm_plan')
@@ -961,10 +971,15 @@ export default function BrainstormMode({ userId }) {
     return map
   }, [plan])
 
-  const handleServe = async () => {
+  const handleServe = () => {
     if (isServed || servingPlan || !canServe) return
-    trigger('success')
+    setServeSheetOpen(true)
+  }
+
+  const commitServe = async (feedback) => {
+    setServeSheetOpen(false)
     setServingPlan(true)
+    trigger('success')
 
     try {
       const items = plan.map((slot) => ({
@@ -974,7 +989,7 @@ export default function BrainstormMode({ userId }) {
         is_wildcard: slot.is_wildcard,
         source_url: slot.source_url,
       }))
-      const { served_at } = await createServedPlan(supabase, userId, items)
+      const { served_at } = await createServedPlan(supabase, userId, items, { feedback })
       setServedAt(served_at)
       setIsServed(true)
       setJustServed(true)
@@ -1548,6 +1563,64 @@ export default function BrainstormMode({ userId }) {
           </Sheet.Content>
         </Sheet.Container>
         <Sheet.Backdrop onClick={() => !resetting && setShowResetConfirm(false)} />
+      </Sheet>
+
+      {/* PRD-002 P1.2: Serve confirmation sheet — feedback before commit. */}
+      <Sheet
+        isOpen={serveSheetOpen}
+        onClose={() => setServeSheetOpen(false)}
+      >
+        <Sheet.Container className="!rounded-t-3xl !bg-cream-50 shadow-2xl border-t border-cream-200">
+          <Sheet.Header />
+          <Sheet.Content>
+            <div className="px-6 py-2 pb-safe">
+              <p className="section-heading text-brand-700 mb-1">
+                Lock in this plan?
+              </p>
+
+              <ul className="divide-y divide-gray-100 mb-6 max-h-48 overflow-y-auto">
+                {plan.map((slot) => (
+                  <li key={slot.id ?? slot.scheduled_date} className="py-2 flex items-baseline justify-between gap-2">
+                    <span className="text-base font-serif italic text-gray-900 truncate">
+                      {slot.name}
+                    </span>
+                    <span className="helper-text shrink-0">
+                      {slot.scheduled_date}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="space-y-2">
+                <button
+                  onClick={() => commitServe('positive')}
+                  disabled={servingPlan}
+                  className="btn-primary flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  <ThumbsUp size={16} />
+                  Looks great
+                </button>
+                <button
+                  onClick={() => commitServe('negative')}
+                  disabled={servingPlan}
+                  className="w-full py-3 min-h-[44px] rounded-2xl border border-gray-200 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <ThumbsDown size={16} />
+                  Lock in anyway
+                </button>
+                <button
+                  onClick={() => setServeSheetOpen(false)}
+                  disabled={servingPlan}
+                  className="btn-secondary disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  <Pencil size={16} />
+                  Let me adjust
+                </button>
+              </div>
+            </div>
+          </Sheet.Content>
+        </Sheet.Container>
+        <Sheet.Backdrop onClick={() => !servingPlan && setServeSheetOpen(false)} />
       </Sheet>
 
       <GroceryListSheet

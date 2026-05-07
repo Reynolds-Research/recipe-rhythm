@@ -137,6 +137,7 @@ describe('createServedPlan', () => {
       user_id: 'user-1',
       period_start: '2026-04-19',
       period_end: '2026-04-23',
+      served_feedback: null,
     })
     // Guard against accidental writes to deprecated columns.
     expect(plansCall.payload).not.toHaveProperty('week_label')
@@ -200,6 +201,7 @@ describe('createServedPlan', () => {
       user_id: 'user-1',
       period_start: '2026-04-19',
       period_end: '2026-04-25',
+      served_feedback: null,
     })
     expect(itemsCall.payload).toHaveLength(3)
   })
@@ -341,6 +343,54 @@ describe('createServedPlan', () => {
     const itemsCall = supabase.calls.find((c) => c.table === 'meal_plan_items')
     expect(itemsCall.payload[0].vault_id).toBeNull()
     expect(itemsCall.payload[0].is_wildcard).toBe(true)
+  })
+
+  it('passes served_feedback="positive" when opts.feedback is "positive"', async () => {
+    const supabase = makeSupabase()
+    const items = [
+      { scheduled_date: '2026-04-19', name: 'Roast', id: UUID_A, is_wildcard: false, source_url: null },
+    ]
+
+    await createServedPlan(supabase, 'user-1', items, { feedback: 'positive' })
+
+    const plansCall = supabase.calls.find((c) => c.table === 'meal_plans')
+    expect(plansCall.payload.served_feedback).toBe('positive')
+  })
+
+  it('passes served_feedback="negative" when opts.feedback is "negative"', async () => {
+    const supabase = makeSupabase()
+    const items = [
+      { scheduled_date: '2026-04-19', name: 'Roast', id: UUID_A, is_wildcard: false, source_url: null },
+    ]
+
+    await createServedPlan(supabase, 'user-1', items, { feedback: 'negative' })
+
+    const plansCall = supabase.calls.find((c) => c.table === 'meal_plans')
+    expect(plansCall.payload.served_feedback).toBe('negative')
+  })
+
+  it('defaults served_feedback to null when opts is omitted', async () => {
+    const supabase = makeSupabase()
+    const items = [
+      { scheduled_date: '2026-04-19', name: 'Roast', id: UUID_A, is_wildcard: false, source_url: null },
+    ]
+
+    await createServedPlan(supabase, 'user-1', items)
+
+    const plansCall = supabase.calls.find((c) => c.table === 'meal_plans')
+    expect(plansCall.payload.served_feedback).toBeNull()
+  })
+
+  it('defaults served_feedback to null when opts.feedback is undefined', async () => {
+    const supabase = makeSupabase()
+    const items = [
+      { scheduled_date: '2026-04-19', name: 'Roast', id: UUID_A, is_wildcard: false, source_url: null },
+    ]
+
+    await createServedPlan(supabase, 'user-1', items, {})
+
+    const plansCall = supabase.calls.find((c) => c.table === 'meal_plans')
+    expect(plansCall.payload.served_feedback).toBeNull()
   })
 })
 
