@@ -79,7 +79,7 @@ export default function Vault({ userId }) {
   }
 
   const handleDelete = async (id) => {
-    trigger('error')
+    trigger('medium')
     await deleteRecipe(id)
   }
 
@@ -172,7 +172,7 @@ export default function Vault({ userId }) {
   }
 
   const handleRatingChange = async (recipeId, newRating) => {
-    trigger('light')
+    trigger('selection')
     await setRating(recipeId, newRating)
   }
 

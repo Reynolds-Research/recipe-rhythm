@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Heart } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { formatLocalDate } from '../lib/dateUtils'
+import { useHaptics } from '../hooks/useHaptics'
 
 // TODO: replace before Mother's Day
 export const MOTHERS_DAY_MESSAGE =
@@ -18,6 +19,7 @@ const animProps = motion?.div
   : {}
 
 export default function MothersDayCard() {
+  const { trigger } = useHaptics()
   const [visible, setVisible] = useState(
     () =>
       formatLocalDate(new Date()) === TARGET_DATE &&
@@ -27,6 +29,7 @@ export default function MothersDayCard() {
   if (!visible) return null
 
   function dismiss() {
+    trigger('light')
     localStorage.setItem(STORAGE_KEY, 'true')
     setVisible(false)
   }
