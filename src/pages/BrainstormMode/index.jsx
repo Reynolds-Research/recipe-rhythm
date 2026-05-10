@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Share2, RefreshCw, GripVertical, Sparkles, ExternalLink, Check, Loader2, Bookmark, BookmarkPlus, Plus, Trash2, ShoppingCart, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
-import { supabase } from '../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
-import { useHaptics } from '../hooks/useHaptics'
-import Logo from '../components/Logo'
-import GroceryListSheet from '../components/GroceryListSheet'
-import { getRecommendations } from '../lib/recommendations'
-import { buildLastWeekSlots } from '../lib/lastWeekSlots'
-import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../lib/mealPlanReader'
-import { getPreferences } from '../lib/preferences'
+import { useHaptics } from '../../hooks/useHaptics'
+import Logo from '../../components/Logo'
+import GroceryListSheet from '../../components/GroceryListSheet'
+import { getRecommendations } from '../../lib/recommendations'
+import { buildLastWeekSlots } from '../../lib/lastWeekSlots'
+import { fetchMostRecentPlan, fetchCurrentLeftovers, classifyPlanState, listUserPeriods } from '../../lib/mealPlanReader'
+import { getPreferences } from '../../lib/preferences'
 import {
   createServedPlan,
   setItemCooked,
@@ -18,14 +18,14 @@ import {
   moveItemToShortlist,
   deleteMealPlanItem,
   resetCurrentPlan,
-} from '../lib/mealPlanWriter'
-import { AI_CANDIDATE_COUNT } from '../lib/constants'
-import PeriodReview from './PeriodReview'
-import GapDayView from '../components/GapDayView'
-import DateRangePicker from '../components/DateRangePicker'
-import LeftoverPicker from '../components/LeftoverPicker'
-import DateStripPicker from '../components/DateStripPicker'
-import DayPicker from '../components/Brainstorm/DayPicker'
+} from '../../lib/mealPlanWriter'
+import { AI_CANDIDATE_COUNT } from '../../lib/constants'
+import PeriodReview from '../PeriodReview'
+import GapDayView from '../../components/GapDayView'
+import DateRangePicker from '../../components/DateRangePicker'
+import LeftoverPicker from '../../components/LeftoverPicker'
+import DateStripPicker from '../../components/DateStripPicker'
+import DayPicker from '../../components/Brainstorm/DayPicker'
 import {
   DndContext,
   closestCenter,

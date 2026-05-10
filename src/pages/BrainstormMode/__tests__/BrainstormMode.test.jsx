@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
-import BrainstormMode from '../BrainstormMode'
+import BrainstormMode from '../'
 
 // --- Module mocks ---------------------------------------------------------
 
@@ -19,18 +19,18 @@ const supabaseChain = {
   then: vi.fn((cb) => cb({ data: [], error: null })),
 }
 
-vi.mock('../../lib/supabase', () => ({
+vi.mock('../../../lib/supabase', () => ({
   supabase: { from: vi.fn(() => supabaseChain) },
 }))
 
-vi.mock('../../lib/mealPlanReader', () => ({
+vi.mock('../../../lib/mealPlanReader', () => ({
   fetchMostRecentPlan: vi.fn(),
   fetchCurrentLeftovers: vi.fn(),
   classifyPlanState: vi.fn(),
   listUserPeriods: vi.fn(),
 }))
 
-vi.mock('../../lib/mealPlanWriter', () => ({
+vi.mock('../../../lib/mealPlanWriter', () => ({
   createServedPlan: vi.fn(),
   setItemCooked: vi.fn(),
   finalizePlan: vi.fn(),
@@ -43,15 +43,15 @@ vi.mock('../../lib/mealPlanWriter', () => ({
   resetCurrentPlan: vi.fn(),
 }))
 
-vi.mock('../../lib/recommendations', () => ({
+vi.mock('../../../lib/recommendations', () => ({
   getRecommendations: vi.fn(),
 }))
 
-vi.mock('../../lib/preferences', () => ({
+vi.mock('../../../lib/preferences', () => ({
   getPreferences: vi.fn(),
 }))
 
-vi.mock('../../components/GroceryListSheet', () => ({
+vi.mock('../../../components/GroceryListSheet', () => ({
   default: ({ isOpen, onClose }) =>
     isOpen
       ? <div data-testid="grocery-list-sheet"><button onClick={onClose}>Close</button></div>
@@ -95,7 +95,7 @@ import {
   fetchCurrentLeftovers,
   classifyPlanState,
   listUserPeriods,
-} from '../../lib/mealPlanReader'
+} from '../../../lib/mealPlanReader'
 import {
   createServedPlan,
   addScheduledItem,
@@ -103,9 +103,9 @@ import {
   scheduleShortlistItem,
   moveItemToShortlist,
   resetCurrentPlan,
-} from '../../lib/mealPlanWriter'
-import { getRecommendations } from '../../lib/recommendations'
-import { getPreferences } from '../../lib/preferences'
+} from '../../../lib/mealPlanWriter'
+import { getRecommendations } from '../../../lib/recommendations'
+import { getPreferences } from '../../../lib/preferences'
 
 // --- Time control ---------------------------------------------------------
 
