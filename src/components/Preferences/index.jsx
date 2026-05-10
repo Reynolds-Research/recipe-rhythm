@@ -15,6 +15,7 @@ import {
 import { analyzeRecipe } from '../../lib/analyzeRecipe'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 import Logo from '../Logo'
+import { useHaptics } from '../../hooks/useHaptics'
 
 /**
  * Preferences page (PRD-002 P0.2). Per-section auto-save: each chip toggle,
@@ -42,6 +43,7 @@ function bucketIdForMinutes(minutes) {
 }
 
 export default function Preferences({ userId, onOpenAbout }) {
+  const { trigger } = useHaptics()
   const [prefs, setPrefs] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -194,6 +196,7 @@ export default function Preferences({ userId, onOpenAbout }) {
       setIngredientDraft('')
       return
     }
+    trigger('selection')
     const next = [...excludedIngredients, raw]
     setIngredientDraft('')
     saveField('excluded_ingredients', next, excludedIngredients)
@@ -207,6 +210,7 @@ export default function Preferences({ userId, onOpenAbout }) {
   }
 
   const removeIngredient = (ing) => {
+    trigger('selection')
     const next = excludedIngredients.filter(v => v !== ing)
     saveField('excluded_ingredients', next, excludedIngredients)
   }
@@ -218,6 +222,7 @@ export default function Preferences({ userId, onOpenAbout }) {
       setStapleDraft('')
       return
     }
+    trigger('selection')
     const next = [...pantryStaples, raw]
     setStapleDraft('')
     saveField('pantry_staples', next, pantryStaples)
@@ -231,6 +236,7 @@ export default function Preferences({ userId, onOpenAbout }) {
   }
 
   const removeStaple = (item) => {
+    trigger('selection')
     const next = pantryStaples.filter(v => v !== item)
     saveField('pantry_staples', next, pantryStaples)
   }
@@ -248,6 +254,7 @@ export default function Preferences({ userId, onOpenAbout }) {
       return
     }
     if (next === (prefs.adults ?? 2)) return
+    trigger('selection')
     saveField('adults', next, prefs.adults ?? 2)
   }
 
@@ -258,6 +265,7 @@ export default function Preferences({ userId, onOpenAbout }) {
       return
     }
     if (next === (prefs.children ?? 0)) return
+    trigger('selection')
     saveField('children', next, prefs.children ?? 0)
   }
 

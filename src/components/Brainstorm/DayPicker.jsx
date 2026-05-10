@@ -9,6 +9,7 @@ import {
   scheduleShortlistItem,
 } from '../../lib/mealPlanWriter'
 import { AI_CANDIDATE_COUNT, PICKER_VAULT_COUNT } from '../../lib/constants'
+import { useHaptics } from '../../hooks/useHaptics'
 
 /**
  * PRD-002 P0.7 — tap-a-day → bottom-sheet picker.
@@ -63,6 +64,7 @@ export default function DayPicker({
   const [candidates, setCandidates] = useState({ maybe: [], vault: [], ai: [] })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const { trigger } = useHaptics()
 
   const scheduledNames = plan.map((p) => p.name).filter(Boolean)
   const shortlistedNames = shortlist.map((s) => s.name).filter(Boolean)
@@ -152,6 +154,7 @@ export default function DayPicker({
 
   const handleRegenerate = async () => {
     if (loading) return
+    trigger('light')
     const justShownNames = [
       ...candidates.vault.map((v) => v.name),
       ...candidates.ai.map((a) => a.name),
@@ -163,6 +166,7 @@ export default function DayPicker({
 
   const handleSelectMaybe = async (item) => {
     if (!item?.item_id || !date) return
+    trigger('selection')
     setError(null)
     try {
       await scheduleShortlistItem(supabase, item.item_id, date)
@@ -173,6 +177,7 @@ export default function DayPicker({
   }
 
   const handleSelectScheduled = async (item) => {
+    trigger('selection')
     if (!planId || !date) {
       // Pre-serve: hand the pick back to the parent to update local plan state.
       onScheduled?.(item)
@@ -197,6 +202,7 @@ export default function DayPicker({
       setError('Serve the plan first to shortlist.')
       return
     }
+    trigger('light')
     setError(null)
     try {
       await addShortlistItem(supabase, userId, planId, {

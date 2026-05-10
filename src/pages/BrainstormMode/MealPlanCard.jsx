@@ -4,6 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import DateStripPicker from '../../components/DateStripPicker'
 import SortableMealItem from './SortableMealItem'
 import { shortWeekday, shortDateLabel } from './useBrainstorm'
+import { useHaptics } from '../../hooks/useHaptics'
 
 // PRD-002 P0.7: a single day's worth of the grid.
 //   - 0 items: the whole cell is a tap-target (placeholder + Plus icon).
@@ -83,12 +84,13 @@ export default function MealPlanCard({
   onToggleCooked,
   onMoveToMaybe,
 }) {
+  const { trigger } = useHaptics()
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
         <p className="section-heading">Your meal plan</p>
         <button
-          onClick={onRegenerate}
+          onClick={() => { trigger('light'); onRegenerate() }}
           disabled={isServed}
           className={`btn-text ${isServed ? 'text-gray-500 cursor-not-allowed pointer-events-none' : ''}`}
         >

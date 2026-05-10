@@ -307,7 +307,6 @@ export function useBrainstorm(userId) {
 
   const loadData = async (forceRegenerate = false) => {
     setLoading(true)
-    trigger('success')
 
     const today = new Date()
     const ninetyDaysAgo = addDays(today, -90)
@@ -466,6 +465,7 @@ export function useBrainstorm(userId) {
 
   // Optimistic cooked-toggle for items in the served plan list.
   const handleToggleCooked = async (itemId, nextCooked) => {
+    trigger('light')
     setPeriodError(null)
     setPlan((prev) =>
       prev.map((slot) =>
@@ -491,7 +491,7 @@ export function useBrainstorm(userId) {
   const handleScheduleFromShortlist = async (item, date) => {
     if (!item?.item_id || !date) return
     setShortlistError(null)
-    trigger('success')
+    trigger('light')
     try {
       await scheduleShortlistItem(supabase, item.item_id, date)
       setScheduleSheetItem(null)
@@ -515,6 +515,7 @@ export function useBrainstorm(userId) {
 
   const handleMoveToMaybe = async (itemId) => {
     if (!itemId) return
+    trigger('light')
     setShortlistError(null)
     try {
       await moveItemToShortlist(supabase, itemId)
@@ -553,7 +554,7 @@ export function useBrainstorm(userId) {
         setResetError('Could not reset plan (it may already be locked). Try refreshing.')
         return
       }
-      trigger('success')
+      trigger('medium')
       setShowResetConfirm(false)
       // Eagerly clear served state before loadData so the UI doesn't flash
       // back to the "Served on…" banner if the reload finds an older plan.
@@ -655,6 +656,7 @@ export function useBrainstorm(userId) {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
+    trigger('light')
     setPlan((items) => {
       const oldIndex = items.findIndex((item) => item.scheduled_date === active.id)
       const newIndex = items.findIndex((item) => item.scheduled_date === over.id)
@@ -691,7 +693,7 @@ export function useBrainstorm(userId) {
   const commitServe = async (feedback) => {
     setServeSheetOpen(false)
     setServingPlan(true)
-    trigger('success')
+    trigger('medium')
 
     try {
       const items = plan.map((slot) => ({

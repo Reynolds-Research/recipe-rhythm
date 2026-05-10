@@ -22,9 +22,10 @@ vi.mock('../../../lib/mealPlanItems', () => ({
 // satisfy a side-effect import.
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }))
 
-// Quiet the haptics import — jsdom has no navigator.vibrate.
+// Capturable trigger so the haptics describe block below can assert on it.
+const { mockTrigger } = vi.hoisted(() => ({ mockTrigger: vi.fn() }))
 vi.mock('../../../hooks/useHaptics', () => ({
-  useHaptics: () => ({ trigger: vi.fn() }),
+  useHaptics: () => ({ trigger: mockTrigger }),
 }))
 
 import Preferences from '../index'
@@ -499,5 +500,33 @@ describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
 
     expect(await screen.findByText('Saved')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent(/Chicken Tacos/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Haptic feedback — Preferences surface
+// ---------------------------------------------------------------------------
+describe('Preferences — haptic feedback', () => {
+  beforeEach(() => {
+    mockTrigger.mockReset()
+    getPreferences.mockResolvedValue({ ...EMPTY_PREFS })
+    upsertPreferences.mockImplementation(async (_userId, patch) => ({
+      ...EMPTY_PREFS,
+      ...patch,
+    }))
+    getActivePeriodItems.mockResolvedValue([])
+    deleteMealPlanItems.mockResolvedValue(0)
+  })
+
+  it('fires the haptic trigger when a dietary chip is toggled', async () => {
+    const user = userEvent.setup()
+    render(<Preferences userId={USER_ID} />)
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /dietary restrictions/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
+
+    expect(mockTrigger).toHaveBeenCalled()
   })
 })

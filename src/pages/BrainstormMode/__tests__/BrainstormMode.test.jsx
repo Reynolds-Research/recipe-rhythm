@@ -4,6 +4,11 @@ import BrainstormMode from '../'
 
 // --- Module mocks ---------------------------------------------------------
 
+const { mockTrigger } = vi.hoisted(() => ({ mockTrigger: vi.fn() }))
+vi.mock('../../../hooks/useHaptics', () => ({
+  useHaptics: () => ({ trigger: mockTrigger }),
+}))
+
 // supabase.from(...).select()...then() — chain that handles every query
 // BrainstormMode issues that isn't routed through the reader/writer mocks
 // below (i.e., the meals + vault queries inside loadData).
@@ -135,6 +140,7 @@ function addDays(d, n) {
 describe('BrainstormMode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockTrigger.mockReset()
     localStorage.clear()
     // Default: /api/swap-suggestions responds with no names, so the
     // brainstorm-load call site falls back to 100% vault recommendations.
@@ -1057,6 +1063,57 @@ describe('BrainstormMode', () => {
       fireEvent.click(screen.getByRole('button', { name: /Let me adjust/i }))
       expect(screen.queryByText(/Lock in this plan/i)).not.toBeInTheDocument()
       expect(createServedPlan).not.toHaveBeenCalled()
+    })
+  })
+
+  // ---------------------------------------------------------------------------
+  // Haptic feedback — BrainstormMode surface
+  // ---------------------------------------------------------------------------
+  describe('haptic feedback', () => {
+    function setupServedPlanWithCookedItem() {
+      fetchMostRecentPlan.mockResolvedValue({
+        plan: {
+          id: 'plan-haptic',
+          served_at: '2026-04-19T12:00:00Z',
+          period_start: '2026-04-19',
+          period_end: '2026-04-19',
+          finalized_at: null,
+          items: [
+            {
+              scheduled_date: '2026-04-19',
+              name: 'Roast',
+              id: 'v1',
+              is_wildcard: false,
+              source_url: null,
+              item_id: 'item-cooked',
+              cooked: false,
+              cooked_at: null,
+              is_shortlisted: false,
+            },
+          ],
+          shortlist: [],
+          scheduledDates: ['2026-04-19'],
+          source: 'new',
+        },
+      })
+      classifyPlanState.mockReturnValue('active')
+    }
+
+    it('toggling the COOKED checkbox fires the haptic trigger', async () => {
+      setupServedPlanWithCookedItem()
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      mockTrigger.mockReset()
+
+      const checkbox = await screen.findByRole('checkbox', {
+        name: /Mark "Roast" cooked/i,
+      })
+      fireEvent.click(checkbox)
+
+      expect(mockTrigger).toHaveBeenCalled()
     })
   })
 })
