@@ -12,6 +12,7 @@ import Preferences from './components/Preferences'
 import AppMenuSheet from './components/AppMenuSheet'
 import ErrorBoundary from './components/ErrorBoundary'
 import About from './components/About'
+import MothersDayCard from './components/MothersDayCard'
 
 export default function App() {
   const [session, setSession]         = useState(null)
@@ -59,6 +60,7 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto relative">
+      <MothersDayCard />
       <button
         onClick={() => setMenuOpen(true)}
         className="btn-icon absolute top-[max(20px,env(safe-area-inset-top))] right-[max(20px,env(safe-area-inset-right))] z-50"
