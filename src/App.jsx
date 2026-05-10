@@ -10,6 +10,7 @@ import GroceryList from './pages/GroceryList'
 import CalendarView from './components/CalendarView'
 import Preferences from './components/Preferences'
 import AppMenuSheet from './components/AppMenuSheet'
+import ErrorBoundary from './components/ErrorBoundary'
 
 export default function App() {
   const [session, setSession]         = useState(null)
@@ -66,6 +67,7 @@ export default function App() {
         <Menu size={18} />
       </button>
 
+      <ErrorBoundary>
       <main>
         {page === 'log' && (
           <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
@@ -87,6 +89,7 @@ export default function App() {
           <Preferences userId={userId} />
         )}
       </main>
+      </ErrorBoundary>
       {/* TODO (post-PRD-003): convert nav entries to <NavLink>. PRD-003 P0.11 introduced react-router for the public share route only. */}
       <nav className="max-w-md mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
         {[
