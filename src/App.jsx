@@ -11,6 +11,7 @@ import CalendarView from './components/CalendarView'
 import Preferences from './components/Preferences'
 import AppMenuSheet from './components/AppMenuSheet'
 import ErrorBoundary from './components/ErrorBoundary'
+import About from './components/About'
 
 export default function App() {
   const [session, setSession]         = useState(null)
@@ -86,7 +87,10 @@ export default function App() {
         )}
         {/* TODO (post-PRD-003): convert page-state routing to <NavLink> + <Route>. PRD-003 P0.11 introduced react-router for the public share route only. */}
         {page === 'settings' && (
-          <Preferences userId={userId} />
+          <Preferences userId={userId} onOpenAbout={() => setPage('about')} />
+        )}
+        {page === 'about' && (
+          <About onBack={() => setPage('settings')} />
         )}
       </main>
       </ErrorBoundary>
