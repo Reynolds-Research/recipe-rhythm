@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Brand-600 background; rx for rounded-square appearance on non-maskable icons -->
+  <rect width="512" height="512" rx="100" fill="#D74520"/>
+  <!-- Lucide heart path scaled to ~300×300 and centered within the 512×512 canvas.
+       Lucide viewBox is 24×24; scale factor = 300/24 = 12.5; offset = (512 - 300) / 2 = 106 -->
+  <g transform="translate(106,106) scale(12.5)">
+    <path
+      fill="white"
+      d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+    />
+  </g>
+</svg>

@@ -13,6 +13,7 @@ import AppMenuSheet from './components/AppMenuSheet'
 import ErrorBoundary from './components/ErrorBoundary'
 import About from './components/About'
 import MothersDayCard from './components/MothersDayCard'
+import InstallPrompt from './components/InstallPrompt'
 
 export default function App() {
   const [session, setSession]         = useState(null)
@@ -122,6 +123,7 @@ export default function App() {
         onOpenSettings={() => setPage('settings')}
         onSignOut={() => supabase.auth.signOut()}
       />
+      <InstallPrompt />
     </div>
   )
 }
