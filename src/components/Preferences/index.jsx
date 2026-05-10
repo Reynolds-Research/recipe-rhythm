@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Loader2, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Loader2, RefreshCw, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import {
   CUISINE_OPTIONS,
@@ -41,7 +41,7 @@ function bucketIdForMinutes(minutes) {
   return match ? match.id : null
 }
 
-export default function Preferences({ userId }) {
+export default function Preferences({ userId, onOpenAbout }) {
   const [prefs, setPrefs] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -569,6 +569,18 @@ export default function Preferences({ userId }) {
             </p>
           )}
         </section>
+      </div>
+
+      <div className="border-t border-cream-100 mt-4">
+        <button
+          type="button"
+          onClick={onOpenAbout}
+          aria-label="About this app"
+          className="w-full flex items-center justify-between px-5 py-4 min-h-[44px] text-left hover:bg-cream-100/50 transition-colors"
+        >
+          <span className="body-text">About Recipe Rhythm</span>
+          <ChevronRight size={18} className="text-gray-500" />
+        </button>
       </div>
     </div>
   )
