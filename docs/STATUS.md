@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-06 against `origin/main` @ `1d28e56` (PR #94 PRD-001 P1.3 last-cooked badge)
+**Last verified:** 2026-05-10 against `feat/decompose-brainstorm-mode` @ `66b332d` (PRD-005 P1.1 BrainstormMode decomposition)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -17,7 +17,7 @@
 | PRD-002 | Meal Planning | ✅ **All P0 + P1.2 shipped** | P1.1 + P1.3 nice-to-haves |
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | P1 polish (auto-regenerate prompt, individual-item edit, plain-text export, custom section order, source-recipe captions, staple override) |
 | PRD-004 | Smarter Ingredient Filtering | ✅ **All P0 shipped** | P1 nice-to-haves (override review surface, frequency analytics, AI confidence, periodic re-classification) |
-| PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 shipped** (Phases 1–8 + lint guardrail) | P1 nice-to-haves (BrainstormMode decomposition is the big one) |
+| PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 + P1.1 shipped** (Phases 1–8 + lint guardrail + BrainstormMode decomposition) | P1.2–P1.5 nice-to-haves |
 | PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
 
 **PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86). P0.8 / Bite δ wires structured-ingredient quantities through to the grocery-list prompt (PR #89).
@@ -153,9 +153,12 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Phase 8** (PR #70, commit `7c18101`, P0.12): CI design-system lint guardrail.
 - [x] **Follow-up** (PR #71, commit `4b585a8`): banned-class sweep in DateRangePicker + MealNameConfirmSheet.
 
+### Shipped (P1)
+
+- [x] **P1.1** (PR #97, commits `4da1b6d`–`66b332d`): Decomposed `BrainstormMode.jsx` (~1,600 lines) into `BrainstormMode/{index, LastWeekCard, MealPlanCard, SortableMealItem, MaybeShortlist, useBrainstorm}`. Test file moved and paths updated; all 31 tests pass.
+
 ### Pending
 
-- [ ] P1.1 — Decompose `BrainstormMode.jsx` (1,572 lines) into `index`, `LastWeekCard`, `MealPlanCard`, `SortableMealItem`, `MaybeShortlist`, `useBrainstorm`.
 - [ ] P1.2 — `/dev/styleguide` route showing every primitive in isolation.
 - [ ] P1.3 — Standardized haptic feedback across pages.
 - [ ] P1.4 — Skeleton loaders replacing "Loading…" gray text.
