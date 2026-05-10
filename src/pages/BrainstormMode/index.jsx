@@ -3,6 +3,7 @@ import LastWeekCard from './LastWeekCard'
 import MealPlanCard from './MealPlanCard'
 import MaybeShortlist from './MaybeShortlist'
 import { useBrainstorm, shortDateLabel } from './useBrainstorm'
+import SkeletonBrainstormSlot from '../../components/SkeletonBrainstormSlot'
 import { Sheet } from 'react-modal-sheet'
 import Logo from '../../components/Logo'
 import GroceryListSheet from '../../components/GroceryListSheet'
@@ -97,8 +98,15 @@ export default function BrainstormMode({ userId }) {
 
   if (loading) {
     return (
-      <div className="mobile-screen items-center justify-center pb-28">
-        <p className="helper-text">Building your plan…</p>
+      <div className="mobile-screen pb-28">
+        <div role="status" aria-busy="true" className="px-5 py-4">
+          <span className="sr-only">Building your plan…</span>
+          <div className="bg-white border border-cream-100 rounded-2xl px-5 shadow-sm divide-y divide-cream-50">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <SkeletonBrainstormSlot key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }

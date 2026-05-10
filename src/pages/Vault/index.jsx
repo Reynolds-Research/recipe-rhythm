@@ -6,6 +6,7 @@ import RecipeForm from './RecipeForm'
 import RecipeCard from './RecipeCard'
 import { useVault } from './useVault'
 import { chipsRequireReExtraction } from '../../lib/chipDiff'
+import SkeletonRecipeCard from '../../components/SkeletonRecipeCard'
 
 // PRD-006 D1: how long the success banner stays visible after a chip-driven
 // re-extraction completes. Errors stick until manually dismissed.
@@ -191,8 +192,13 @@ export default function Vault({ userId }) {
 
   if (loading) {
     return (
-      <div className="mobile-screen items-center justify-center pb-28">
-        <p className="helper-text">Loading vault…</p>
+      <div className="mobile-screen pb-28">
+        <div role="status" aria-busy="true" className="px-5 py-4 space-y-4">
+          <span className="sr-only">Loading vault…</span>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonRecipeCard key={i} />
+          ))}
+        </div>
       </div>
     )
   }
