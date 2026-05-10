@@ -368,7 +368,6 @@ export default function BrainstormMode({ userId }) {
           onCloseSheet={() => setScheduleSheetItem(null)}
           onSchedule={handleScheduleFromShortlist}
           onRemove={handleRemoveShortlist}
-          error={shortlistError}
         />
 
       </div>
