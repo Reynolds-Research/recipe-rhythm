@@ -1,30 +1,6 @@
 import { Bookmark, Trash2 } from 'lucide-react'
 import { Sheet } from 'react-modal-sheet'
-
-function parseYmd(ymd) {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
-function addDays(date, n) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + n)
-}
-
-function formatLocalYmd(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-function shortDateLabel(ymd) {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+import { parseYmd, addDays, formatLocalYmd, shortDateLabel } from './useBrainstorm'
 
 // PRD-002 P0.6: the "Maybe" tab view. Renders the shortlist for the active
 // period; each item exposes a "Schedule" button that opens the schedule sheet.

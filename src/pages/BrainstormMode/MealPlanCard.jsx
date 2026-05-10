@@ -3,20 +3,7 @@ import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import DateStripPicker from '../../components/DateStripPicker'
 import SortableMealItem from './SortableMealItem'
-
-function shortWeekday(ymd) {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short' })
-}
-
-function shortDateLabel(ymd) {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+import { shortWeekday, shortDateLabel } from './useBrainstorm'
 
 // PRD-002 P0.7: a single day's worth of the grid.
 //   - 0 items: the whole cell is a tap-target (placeholder + Plus icon).
