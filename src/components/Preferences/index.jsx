@@ -578,7 +578,7 @@ export default function Preferences({ userId, onOpenAbout }) {
           aria-label="About this app"
           className="w-full flex items-center justify-between px-5 py-4 min-h-[44px] text-left hover:bg-cream-100/50 transition-colors"
         >
-          <span className="body-text">About Recipe Rhythm</span>
+          <span className="body-text">A Love Letter to my Wife!</span>
           <ChevronRight size={18} className="text-gray-500" />
         </button>
       </div>
