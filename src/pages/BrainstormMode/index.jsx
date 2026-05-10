@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Share2, RefreshCw, Check, Loader2, Bookmark, Plus, Trash2, ShoppingCart, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
-import SortableMealItem from './SortableMealItem'
+import { Share2, Check, Loader2, Bookmark, Trash2, ShoppingCart, ThumbsUp, ThumbsDown, Pencil } from 'lucide-react'
 import LastWeekCard from './LastWeekCard'
+import MealPlanCard from './MealPlanCard'
 import { supabase } from '../../lib/supabase'
 import { Sheet } from 'react-modal-sheet'
 import { useHaptics } from '../../hooks/useHaptics'
@@ -26,21 +26,14 @@ import PeriodReview from '../PeriodReview'
 import GapDayView from '../../components/GapDayView'
 import DateRangePicker from '../../components/DateRangePicker'
 import LeftoverPicker from '../../components/LeftoverPicker'
-import DateStripPicker from '../../components/DateStripPicker'
 import DayPicker from '../../components/Brainstorm/DayPicker'
 import {
-  DndContext,
-  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
   TouchSensor,
 } from '@dnd-kit/core'
-import {
-  arrayMove,
-  SortableContext,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { arrayMove } from '@dnd-kit/sortable'
 
 /**
  * BrainstormMode
@@ -160,76 +153,6 @@ function migrateLegacyWeekdayDates(weekdayList, today, disabled) {
   return out.sort()
 }
 
-
-// PRD-002 P0.7: a single day's worth of the grid.
-//   - 0 items: the whole cell is a tap-target (placeholder + Plus icon).
-//   - 1+ items: each item renders as a card; a "+" button below opens the
-//     picker for adding another meal to that day.
-// Tapping an existing meal card is intentionally NOT a picker trigger.
-function DayCell({
-  date,
-  items,
-  isServed,
-  onOpenPicker,
-  onToggleCooked,
-  onMoveToMaybe,
-}) {
-  const dow = shortWeekday(date)
-  const dateLabel = shortDateLabel(date)
-
-  if (items.length === 0) {
-    return (
-      <div className="py-3">
-        <div className="flex items-start gap-3">
-          <span className="text-sm font-bold text-brand-700 w-8 flex-shrink-0 tracking-tighter uppercase pt-3">
-            {dow}
-          </span>
-          <button
-            type="button"
-            role="button"
-            aria-label={`Schedule a meal for ${dateLabel}`}
-            onClick={() => onOpenPicker(date)}
-            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border border-dashed border-cream-200 text-gray-700 hover:text-brand-700 hover:border-brand-200 hover:bg-brand-50/30 transition-colors min-h-[44px]"
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span className="text-sm italic">Tap to add a meal</span>
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="py-2">
-      <div className="flex items-start gap-3">
-        <span className="text-sm font-bold text-brand-700 w-8 flex-shrink-0 tracking-tighter uppercase pt-4">
-          {dow}
-        </span>
-        <div className="flex-1 min-w-0">
-          {items.map((slot) => (
-            <SortableMealItem
-              key={slot.item_id ?? `${slot.scheduled_date}-${slot.name}`}
-              slot={slot}
-              isServed={isServed}
-              onToggleCooked={isServed ? onToggleCooked : null}
-              onMoveToMaybe={isServed ? onMoveToMaybe : null}
-            />
-          ))}
-          <button
-            type="button"
-            role="button"
-            aria-label={`Add another meal to ${dateLabel}`}
-            onClick={() => onOpenPicker(date)}
-            className="btn-text"
-          >
-            <Plus size={14} strokeWidth={2.5} />
-            Add another meal
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // PRD-002 P0.6: the "Maybe" tab view. Renders the shortlist for the active
 // period; each item exposes a "Schedule" button that hands the row up to
@@ -1160,60 +1083,21 @@ export default function BrainstormMode({ userId }) {
         <LastWeekCard items={lastWeek} />
 
         {/* Date strip + plan */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <p className="section-heading">Your meal plan</p>
-            <button
-              onClick={() => loadData(true)}
-              disabled={isServed}
-              className={`btn-text ${isServed ? 'text-gray-500 cursor-not-allowed pointer-events-none' : ''}`}
-            >
-              <RefreshCw size={14} strokeWidth={2.5} />
-              Regenerate
-            </button>
-          </div>
-
-          {!isServed && (
-            <DateStripPicker
-              selectedDates={selectedDates}
-              disabledDates={disabledDates}
-              onToggle={handleToggleDate}
-            />
-          )}
-
-          <div className="bg-white border border-cream-100 rounded-2xl px-5 shadow-sm overflow-hidden">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={plan.map(s => s.scheduled_date)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="divide-y divide-cream-50">
-                  {dayGridDates.length === 0 ? (
-                    <p className="py-6 helper-text text-center">
-                      Pick a date above to start planning.
-                    </p>
-                  ) : (
-                    dayGridDates.map((date) => (
-                      <DayCell
-                        key={date}
-                        date={date}
-                        items={itemsByDate.get(date) ?? []}
-                        isServed={isServed}
-                        onOpenPicker={handleOpenPicker}
-                        onToggleCooked={handleToggleCooked}
-                        onMoveToMaybe={handleMoveToMaybe}
-                      />
-                    ))
-                  )}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </div>
-        </div>
+        <MealPlanCard
+          isServed={isServed}
+          selectedDates={selectedDates}
+          disabledDates={disabledDates}
+          dayGridDates={dayGridDates}
+          itemsByDate={itemsByDate}
+          plan={plan}
+          sensors={sensors}
+          onToggleDate={handleToggleDate}
+          onRegenerate={() => loadData(true)}
+          onDragEnd={handleDragEnd}
+          onOpenPicker={handleOpenPicker}
+          onToggleCooked={handleToggleCooked}
+          onMoveToMaybe={handleMoveToMaybe}
+        />
 
         {/* Serve + Share + Download */}
         <div className="space-y-3">
