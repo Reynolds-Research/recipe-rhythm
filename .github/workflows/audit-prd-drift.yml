@@ -1,0 +1,45 @@
+name: Audit — PRD ↔ Implementation Drift
+
+# Monthly. Slowest-moving audit; checks if the docs still match the code.
+
+on:
+  schedule:
+    - cron: '0 17 1 * *' # 1st of month, 17:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (full history for commit analysis)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          gemini --yolo --prompt-file audits/prompts/11-prd-drift.md > audit-output.md
+
+      - name: Open GitHub Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          gh issue create \
+            --title "PRD drift audit — $DATE" \
+            --label "audit,audit:prd-drift" \
+            --body-file audit-output.md

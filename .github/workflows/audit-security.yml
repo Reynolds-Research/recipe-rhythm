@@ -1,0 +1,60 @@
+name: Audit — Security
+
+# Runs weekly. Reads audits/prompts/01-security.md, sends it to Gemini,
+# and posts findings as a GitHub Issue labeled `audit:security`.
+
+on:
+  schedule:
+    # Mondays at 14:00 UTC (≈ 7am PT / 10am ET / 3pm CET)
+    - cron: '0 14 * * 1'
+  workflow_dispatch: # allows manual trigger from the Actions tab
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install project deps (for npm audit / grep access)
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          PROMPT_FILE="audits/prompts/01-security.md"
+          if [ ! -f "$PROMPT_FILE" ]; then
+            echo "::error::Prompt file $PROMPT_FILE not found"
+            exit 1
+          fi
+          # --yolo auto-approves filesystem/shell tool calls (required in CI)
+          # If gemini CLI flag names change, see audits/README.md for alternatives.
+          gemini --yolo --prompt-file "$PROMPT_FILE" > audit-output.md
+          echo "--- audit-output.md (first 50 lines) ---"
+          head -n 50 audit-output.md
+
+      - name: Open / update GitHub Issue with findings
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +"%Y-%m-%d")
+          TITLE="Security audit — $DATE"
+          gh issue create \
+            --title "$TITLE" \
+            --label "audit,audit:security" \
+            --body-file audit-output.md

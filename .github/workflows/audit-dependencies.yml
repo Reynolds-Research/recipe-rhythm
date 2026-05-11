@@ -1,0 +1,71 @@
+name: Audit — Dependencies
+
+# Daily. Lightweight (npm audit is fast); catches new CVEs as they're disclosed.
+# Most days this issue will say "no new findings since yesterday" — that's the point.
+
+on:
+  schedule:
+    # Daily at 13:00 UTC
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Capture npm audit / outdated as facts for Gemini
+        run: |
+          # These run before Gemini so the model can read structured input
+          # alongside the prompt instead of running tools itself.
+          npm audit --json > .audit-npm.json || true
+          npm outdated --json > .audit-outdated.json || true
+          # depcheck for unused dependencies (best-effort, may have false positives)
+          npx --yes depcheck --json > .audit-depcheck.json || echo '{}' > .audit-depcheck.json
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          gemini --yolo --prompt-file audits/prompts/03-dependencies.md > audit-output.md
+
+      - name: Decide whether to open an issue
+        id: triage
+        run: |
+          # Only open an issue if Gemini surfaced a P0 or P1.
+          # Cuts noise on quiet days.
+          if grep -qE "^### \[P[01]" audit-output.md; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+            echo "No P0/P1 dependency findings today — skipping issue creation."
+          fi
+
+      - name: Open GitHub Issue (only if findings)
+        if: steps.triage.outputs.open == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          gh issue create \
+            --title "Dependency audit — $DATE" \
+            --label "audit,audit:dependencies" \
+            --body-file audit-output.md

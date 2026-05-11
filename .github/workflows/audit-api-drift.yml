@@ -1,0 +1,54 @@
+name: Audit — API Contract Drift (api-server.mjs ↔ api/)
+
+# Weekly. Specific to this project's dual local/serverless backend setup.
+
+on:
+  schedule:
+    - cron: '30 14 * * 1' # Mondays 14:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          gemini --yolo --prompt-file audits/prompts/08-api-drift.md > audit-output.md
+
+      - name: Decide whether to open an issue
+        id: triage
+        run: |
+          # Skip issue creation if Gemini reports zero drift.
+          if grep -qiE "(drift|missing|differs|mismatch)" audit-output.md; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open GitHub Issue (only if drift detected)
+        if: steps.triage.outputs.open == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          gh issue create \
+            --title "API contract drift — $DATE" \
+            --label "audit,audit:api-drift" \
+            --body-file audit-output.md

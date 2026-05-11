@@ -1,0 +1,60 @@
+name: Audit — Accessibility (WCAG 2.2 AA)
+
+# Biweekly. Runs every Monday, but only proceeds on even ISO weeks.
+
+on:
+  schedule:
+    - cron: '0 15 * * 1' # Mondays 15:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip on odd ISO weeks (biweekly cadence)
+        id: cadence
+        run: |
+          WEEK=$(date -u +%V)
+          # Always run on manual dispatch; otherwise skip odd weeks
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ $((10#$WEEK % 2)) -eq 0 ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Odd ISO week $WEEK — skipping per biweekly cadence."
+          fi
+
+      - name: Checkout repo
+        if: steps.cadence.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.cadence.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Gemini CLI
+        if: steps.cadence.outputs.run == 'true'
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        if: steps.cadence.outputs.run == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          gemini --yolo --prompt-file audits/prompts/04-accessibility.md > audit-output.md
+
+      - name: Open GitHub Issue
+        if: steps.cadence.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          gh issue create \
+            --title "Accessibility audit — $DATE" \
+            --label "audit,audit:a11y" \
+            --body-file audit-output.md

@@ -1,0 +1,45 @@
+name: Audit — Supabase RLS
+
+# Weekly. The single most important data-safety check in the project.
+
+on:
+  schedule:
+    # Mondays at 14:15 UTC (offset from security audit so issues don't pile up at once)
+    - cron: '15 14 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          gemini --yolo --prompt-file audits/prompts/02-rls.md > audit-output.md
+
+      - name: Open GitHub Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          gh issue create \
+            --title "RLS audit — $DATE" \
+            --label "audit,audit:rls,audit:security" \
+            --body-file audit-output.md
