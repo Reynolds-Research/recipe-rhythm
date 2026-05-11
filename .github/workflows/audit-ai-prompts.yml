@@ -30,7 +30,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          gemini --yolo --prompt-file audits/prompts/10-ai-prompt-quality.md > audit-output.md
+          gemini --yolo --prompt "$(cat audits/prompts/10-ai-prompt-quality.md)" > audit-output.md
 
       - name: Open GitHub Issue
         env:

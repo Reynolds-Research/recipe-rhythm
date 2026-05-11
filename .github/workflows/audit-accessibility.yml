@@ -46,7 +46,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          gemini --yolo --prompt-file audits/prompts/04-accessibility.md > audit-output.md
+          gemini --yolo --prompt "$(cat audits/prompts/04-accessibility.md)" > audit-output.md
 
       - name: Open GitHub Issue
         if: steps.cadence.outputs.run == 'true'
