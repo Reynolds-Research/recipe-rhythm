@@ -3,17 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Mobile-first meal planner with voice-first daily logging, AI-powered recipe parsing, and household-aware grocery lists. Built with React 19, Vite, Supabase, and the Anthropic API.",
+  "description": "Mobile-first meal planner I built for my wife. Voice-first logging, AI recipe parsing, household grocery lists. Directed by a UX researcher, coded by Claude.",
   "homepage": "https://recipe-rhythm.vercel.app",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mreynolds08-glitch/recipe-rhythm.git"
+    "url": "git+https://github.com/matt-reynolds-research/recipe-rhythm.git"
   },
   "bugs": {
-    "url": "https://github.com/mreynolds08-glitch/recipe-rhythm/issues"
+    "url": "https://github.com/matt-reynolds-research/recipe-rhythm/issues"
   },
   "license": "MIT",
-  "author": "Matt Reynolds",
+  "author": "Matt Reynolds <matt.reynolds.research@gmail.com>",
   "keywords": [
     "meal-planning",
     "recipe-vault",

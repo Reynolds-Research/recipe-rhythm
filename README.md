@@ -3,8 +3,8 @@
 > Mobile-first meal planner with voice-first daily logging, AI-powered recipe parsing, and household-aware grocery lists.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![E2E Tests](https://github.com/mreynolds08-glitch/recipe-rhythm/actions/workflows/e2e.yml/badge.svg)](.github/workflows/e2e.yml)
-[![Design System Lint](https://github.com/mreynolds08-glitch/recipe-rhythm/actions/workflows/design-system-lint.yml/badge.svg)](.github/workflows/design-system-lint.yml)
+[![E2E Tests](https://github.com/matt-reynolds-research/recipe-rhythm/actions/workflows/e2e.yml/badge.svg)](.github/workflows/e2e.yml)
+[![Design System Lint](https://github.com/matt-reynolds-research/recipe-rhythm/actions/workflows/design-system-lint.yml/badge.svg)](.github/workflows/design-system-lint.yml)
 
 **Live demo:** [recipe-rhythm.vercel.app](https://recipe-rhythm.vercel.app)
 
