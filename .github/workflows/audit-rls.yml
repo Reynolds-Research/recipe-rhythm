@@ -32,7 +32,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
-          gemini --yolo --prompt "$(cat audits/prompts/02-rls.md)" > audit-output.md
+          gemini --yolo --skip-trust --prompt "$(cat audits/prompts/02-rls.md)" > audit-output.md
 
       - name: Open GitHub Issue
         env:

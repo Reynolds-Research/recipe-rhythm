@@ -32,7 +32,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          gemini --yolo --prompt "$(cat audits/prompts/11-prd-drift.md)" > audit-output.md
+          gemini --yolo --skip-trust --prompt "$(cat audits/prompts/11-prd-drift.md)" > audit-output.md
 
       - name: Open GitHub Issue
         env:

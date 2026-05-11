@@ -45,7 +45,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           set -euo pipefail
-          gemini --yolo --prompt "$(cat audits/prompts/03-dependencies.md)" > audit-output.md
+          gemini --yolo --skip-trust --prompt "$(cat audits/prompts/03-dependencies.md)" > audit-output.md
 
       - name: Decide whether to open an issue
         id: triage

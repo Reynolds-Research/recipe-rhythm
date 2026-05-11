@@ -43,7 +43,7 @@ jobs:
           fi
           # --yolo auto-approves filesystem/shell tool calls (required in CI)
           # If gemini CLI flag names change, see audits/README.md for alternatives.
-          gemini --yolo --prompt "$(cat "$PROMPT_FILE")" > audit-output.md
+          gemini --yolo --skip-trust --prompt "$(cat "$PROMPT_FILE")" > audit-output.md
           echo "--- audit-output.md (first 50 lines) ---"
           head -n 50 audit-output.md
 
