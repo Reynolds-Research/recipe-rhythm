@@ -28,12 +28,12 @@ jobs:
       - name: Install project deps (for npm audit / grep access)
         run: npm ci --no-audit --no-fund
 
-      - name: Install Gemini CLI
-        run: npm install -g @google/gemini-cli
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run Gemini audit
+      - name: Run Claude Code audit
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set -euo pipefail
           PROMPT_FILE="audits/prompts/01-security.md"
@@ -41,9 +41,9 @@ jobs:
             echo "::error::Prompt file $PROMPT_FILE not found"
             exit 1
           fi
-          # --yolo auto-approves filesystem/shell tool calls (required in CI)
-          # If gemini CLI flag names change, see audits/README.md for alternatives.
-          gemini --yolo --skip-trust --prompt "$(cat "$PROMPT_FILE")" > audit-output.md
+          # --permission-mode bypassPermissions auto-approves tool calls (required in CI).
+          # If claude CLI flag names change, see audits/README.md for alternatives.
+          claude -p --permission-mode bypassPermissions < "$PROMPT_FILE" > audit-output.md
           echo "--- audit-output.md (first 50 lines) ---"
           head -n 50 audit-output.md
 

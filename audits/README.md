@@ -1,10 +1,12 @@
 # Recipe-Rhythm — Recurring Audit Kit
 
-This bundle gives you 11 recurring audits, each driven by **Gemini CLI** running on a **GitHub Actions cron schedule**, with findings opened as **labeled GitHub Issues** in your code repo.
+This bundle gives you 11 recurring audits, each driven by **Claude Code CLI** running on a **GitHub Actions cron schedule**, with findings opened as **labeled GitHub Issues** in your code repo.
+
+> **History note.** This kit was originally built on the Gemini CLI to keep audits cheap. We swapped to Claude Code on 2026-05-11 because the Gemini API free tier (20 requests/day) couldn't support 11 weekly audits, and the user already had an Anthropic API key wired up for the app. The prompts and workflows are otherwise unchanged.
 
 ## Mental model
 
-Think of this kit as a panel of specialist consultants on retainer. Each consultant (an audit prompt) knows their lane — security, accessibility, UX, etc. — and reports in on a predictable schedule. GitHub Actions is the calendar booking system. Gemini is the consultant who actually does the inspection. The GitHub Issue is the report on your desk Monday morning.
+Think of this kit as a panel of specialist consultants on retainer. Each consultant (an audit prompt) knows their lane — security, accessibility, UX, etc. — and reports in on a predictable schedule. GitHub Actions is the calendar booking system. Claude is the consultant who actually does the inspection. The GitHub Issue is the report on your desk Monday morning.
 
 ## What's in this bundle
 
@@ -55,10 +57,10 @@ In your code repo: **Settings → Secrets and variables → Actions → New repo
 
 | Secret | Required for | How to get it |
 |---|---|---|
-| `GEMINI_API_KEY` | All 11 audits | Free at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). The free tier (60 req/min, 1500 req/day on Flash) is more than enough for these audits. |
+| `ANTHROPIC_API_KEY` | All 11 audits | Generated at [console.anthropic.com](https://console.anthropic.com/) → API Keys. Same key the app's `api-server.mjs` already uses — you can reuse it. Make sure the key has a paid billing source attached (the free trial credits will run out fast across 11 audits). |
 | `GITHUB_TOKEN` | All 11 audits (for opening issues) | **No action needed** — GitHub provides this automatically to every Action run. |
 
-If you want to use Gemini's paid tier (higher rate limits, larger context window), use the same `GEMINI_API_KEY` secret — the CLI picks up the entitlement from your API key.
+**Cost estimate.** Claude Code uses Sonnet 4.6 by default for these audits. Each run is roughly 30K–150K input tokens depending on how many files the prompt asks Claude to read. Total monthly spend for the full kit running on schedule should sit in the $2–8 range. If that grows surprising, check the [Anthropic Console usage dashboard](https://console.anthropic.com/settings/usage).
 
 ## Step 2.5 — Create the GitHub Issue labels
 
@@ -117,11 +119,11 @@ This is how you'll prove the kit works without waiting a week.
 ```
 GitHub Action runs on schedule
     ↓
-Installs @google/gemini-cli
+Installs @anthropic-ai/claude-code
     ↓
-Reads audits/prompts/NN-*.md
+Pipes audits/prompts/NN-*.md into `claude -p --permission-mode bypassPermissions`
     ↓
-Gemini reads your repo, writes findings to audit-output.md
+Claude reads your repo, writes findings to audit-output.md
     ↓
 gh CLI opens a GitHub Issue with that content as the body
     ↓
@@ -140,36 +142,36 @@ To test a prompt locally before pushing:
 
 ```bash
 # In your code repo root
-npm install -g @google/gemini-cli
-export GEMINI_API_KEY="your-key-here"
-gemini --yolo --prompt-file audits/prompts/01-security.md > test-output.md
+npm install -g @anthropic-ai/claude-code
+export ANTHROPIC_API_KEY="your-key-here"
+claude -p --permission-mode bypassPermissions < audits/prompts/01-security.md > test-output.md
 open test-output.md  # or `cat`
 ```
 
-The `--yolo` flag auto-approves Gemini's filesystem/shell tool calls — required for CI, fine for local testing on your own repo.
+The `--permission-mode bypassPermissions` flag auto-approves Claude's filesystem/shell tool calls — required for CI, fine for local testing on your own repo. (Equivalent to Gemini's old `--yolo` flag.)
 
 ## Known limitations and things to verify
 
 I want to flag a few things I'm not 100% sure about, per project rule #8:
 
-1. **Gemini CLI flag names.** I used `--yolo` and `--prompt-file` based on the most-recent CLI version I know about. If Google has renamed these (the CLI is still under active development), the workflows will fail. The fix is usually a one-word change in each workflow file. Run any audit manually first to catch this.
+1. **Claude Code CLI flag names.** I'm using `-p` (alias `--print`) and `--permission-mode bypassPermissions` based on the Anthropic docs as of 2026-05-11. The CLI is under active development; if either flag is renamed, the workflows will fail. The fix is usually a one-word change in each workflow file. Run any audit manually first to catch this.
 
-2. **`@google/gemini-cli` package name.** This is the right name as of mid-2025. If it's been republished under a different scope, swap the `npm install -g` line.
+2. **`@anthropic-ai/claude-code` package name.** Correct as of 2026-05-11. If it's been republished under a different scope, swap the `npm install -g` line.
 
 3. **Issue spam over time.** Each audit run currently creates a *new* issue. Over months that adds up. A future enhancement is "find an open issue with this label and add a comment instead of creating a new one" — happy to write that pattern when you're ready.
 
-4. **Gemini context window for large repos.** The prompts ask Gemini to read substantial portions of your codebase. With Gemini 2.5 Flash (~1M tokens) this is comfortable for Recipe-Rhythm's size today. Watch for "context exceeded" errors if the codebase grows significantly.
+4. **Claude context window for large repos.** Each audit prompt asks Claude to read substantial portions of the codebase. Sonnet 4.6 has a 200K-token context window, which is comfortable for Recipe-Rhythm today. Watch for context-limit errors if the codebase grows significantly.
 
 5. **Biweekly cadence via ISO week parity.** GitHub Actions doesn't support biweekly cron natively. I'm using `date +%V` (ISO week number) and checking even/odd. This is correct but a bit hacky — if a finding shows up in an unexpected week, that's why.
 
-6. **Cost.** The free Gemini tier on AI Studio is generous, but if you upgrade to paid and run a lot of `workflow_dispatch` manual triggers during testing, watch the dashboard. Each audit is roughly 50K–200K input tokens.
+6. **Cost monitoring.** Claude API spend varies with prompt complexity. If you run a lot of `workflow_dispatch` manual triggers during testing, watch the [usage dashboard](https://console.anthropic.com/settings/usage). Each audit is roughly 30K–150K input tokens at Sonnet 4.6 pricing.
 
 ## When to update this kit
 
 - **A prompt produces noise** → edit the prompt's "Anti-patterns to avoid" section to suppress that class of finding.
 - **A new PRD lands** → check `11-prd-drift.md` mentions it.
 - **A new endpoint is added** → no change needed; the API-drift and AI-prompt audits will find it automatically.
-- **A new file pattern (e.g., a `routes/` directory)** → mention it in the relevant prompt's "Files to read first" section so Gemini knows where to look.
+- **A new file pattern (e.g., a `routes/` directory)** → mention it in the relevant prompt's "Files to read first" section so Claude knows where to look.
 
 ## When NOT to trust these audits
 

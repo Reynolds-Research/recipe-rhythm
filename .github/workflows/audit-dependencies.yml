@@ -37,15 +37,15 @@ jobs:
           # depcheck for unused dependencies (best-effort, may have false positives)
           npx --yes depcheck --json > .audit-depcheck.json || echo '{}' > .audit-depcheck.json
 
-      - name: Install Gemini CLI
-        run: npm install -g @google/gemini-cli
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run Gemini audit
+      - name: Run Claude Code audit
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set -euo pipefail
-          gemini --yolo --skip-trust --prompt "$(cat audits/prompts/03-dependencies.md)" > audit-output.md
+          claude -p --permission-mode bypassPermissions < audits/prompts/03-dependencies.md > audit-output.md
 
       - name: Decide whether to open an issue
         id: triage
