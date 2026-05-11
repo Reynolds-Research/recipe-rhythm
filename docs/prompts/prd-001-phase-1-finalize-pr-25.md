@@ -1,7 +1,7 @@
 # Finalize PRD-001 Phase 1 — apply migration to Supabase, merge PR #25, cleanup
 
-**Repo:** github.com/mreynolds08-glitch/recipe-rhythm
-**Open PR:** https://github.com/mreynolds08-glitch/recipe-rhythm/pull/25
+**Repo:** github.com/matt-reynolds-research/recipe-rhythm
+**Open PR:** https://github.com/matt-reynolds-research/recipe-rhythm/pull/25
 **Branch:** `fix/vault-fuzzy-match-column-rename` → `main`
 
 ## Context (read first)
