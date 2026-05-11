@@ -1,0 +1,55 @@
+name: Audit — Performance
+
+# Monthly. Code-level perf scan; not a substitute for a real Lighthouse run.
+
+on:
+  schedule:
+    - cron: '0 16 1 * *' # 1st of month, 16:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps and build for bundle-size analysis
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build || echo "::warning::build step failed — Gemini will note this"
+
+      - name: Capture bundle output for Gemini context
+        run: |
+          # If the build succeeded, list dist/ contents and sizes
+          if [ -d "dist" ]; then
+            du -ah dist/ | sort -rh | head -n 40 > .audit-bundle-sizes.txt
+          fi
+
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
+      - name: Run Gemini audit
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          gemini --yolo --prompt-file audits/prompts/09-performance.md > audit-output.md
+
+      - name: Open GitHub Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          gh issue create \
+            --title "Performance audit — $DATE" \
+            --label "audit,audit:performance" \
+            --body-file audit-output.md
