@@ -47,6 +47,7 @@ export default function GroceryListBody({ userId }) {
   const [shareBusy, setShareBusy]         = useState(false)
   const [adhocDraft, setAdhocDraft]       = useState('')
   const [addingAdhoc, setAddingAdhoc]     = useState(false)
+  const [skippedMeals, setSkippedMeals]   = useState([])
 
   async function loadList(planId) {
     const { data: listRow, error: listErr } = await supabase
@@ -99,17 +100,20 @@ export default function GroceryListBody({ userId }) {
     if (generating || !activePlan) return
     setGenerating(true)
     setError(null)
+    setSkippedMeals([])
 
     try {
       // 1. Fetch plan items joined to vault for name + ingredients.
       //    Select categorical fields too so we can fall back when
       //    ingredients_classified hasn't been populated yet.
+      //    We intentionally do NOT filter vault_id IS NOT NULL here — AI-
+      //    suggestion meals (vault_id = null) are caught in the loop below
+      //    and surfaced to the user instead of silently dropped.
       const { data: planItems, error: piErr } = await supabase
         .from('meal_plan_items')
         .select('name, vault_id, vault(name, servings, ingredients_structured, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
         .eq('meal_plan_id', activePlan.id)
         .eq('is_shortlisted', false)
-        .not('vault_id', 'is', null)
       if (piErr) throw piErr
 
       // PRD-006 Bite γ: household size drives quantity scaling. getPreferences
@@ -128,7 +132,7 @@ export default function GroceryListBody({ userId }) {
       const skippedNoVault = []
       const recipes = []
       for (const item of planItems ?? []) {
-        if (!item.vault) {
+        if (!item.vault_id || !item.vault) {
           skippedNoVault.push(item.name)
           continue
         }
@@ -164,10 +168,17 @@ export default function GroceryListBody({ userId }) {
       }
       if (skippedNoVault.length) {
         console.warn('[GroceryList] skipped (no vault row):', skippedNoVault)
+        setSkippedMeals(skippedNoVault)
       }
 
       if (recipes.length === 0) {
-        setError('None of the meals in this plan have ingredient data. Open each recipe in your Cookbook and save it to trigger ingredient analysis.')
+        if (skippedNoVault.length > 0) {
+          setError(
+            `None of the meals in this plan are in your Cookbook. Add them to your Cookbook first, then regenerate the list. Skipped: ${skippedNoVault.join(', ')}.`
+          )
+        } else {
+          setError('None of the meals in this plan have ingredient data. Open each recipe in your Cookbook and save it to trigger ingredient analysis.')
+        }
         return
       }
 
@@ -349,6 +360,22 @@ export default function GroceryListBody({ userId }) {
             onClick={() => setError(null)}
             aria-label="Dismiss error"
             className="text-red-400 hover:text-red-600 ml-3 shrink-0"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {skippedMeals.length > 0 && (
+        <div className="mb-4 px-4 py-3 bg-amber-50 text-amber-800 text-sm rounded-xl border border-amber-200 flex items-start justify-between gap-2">
+          <span>
+            <strong>Not in your Cookbook:</strong>{' '}
+            {skippedMeals.join(', ')}. Add these to your Cookbook to include their ingredients in the list.
+          </span>
+          <button
+            onClick={() => setSkippedMeals([])}
+            aria-label="Dismiss warning"
+            className="text-amber-500 hover:text-amber-700 shrink-0 mt-0.5"
           >
             <X size={16} />
           </button>

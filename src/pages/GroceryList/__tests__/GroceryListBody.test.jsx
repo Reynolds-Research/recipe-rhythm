@@ -42,11 +42,12 @@ function itemRowsChain(result) {
 }
 
 function planItemsChain(result) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    not: vi.fn().mockResolvedValue(result),
-  }
+  // Query shape: .select().eq(meal_plan_id).eq(is_shortlisted) — second eq is terminal.
+  const chain = { select: vi.fn().mockReturnThis(), eq: vi.fn() }
+  chain.eq
+    .mockReturnValueOnce(chain)         // first .eq() returns chain for chaining
+    .mockResolvedValueOnce(result)      // second .eq() resolves the query
+  return chain
 }
 
 function upsertCheckChain(result) {
@@ -291,6 +292,71 @@ describe('Bite δ — structured-ingredient formatting', () => {
     expect(fetch).not.toHaveBeenCalled()
 
     warnSpy.mockRestore()
+  })
+})
+
+// ---- AI-suggestion / no-vault-link warning ----
+
+describe('AI-suggestion meals with no Cookbook entry', () => {
+  const VALID_VAULT = {
+    name: 'Pasta',
+    servings: 2,
+    ingredients_structured: [{ name: 'pasta', quantity: '200', unit: 'g' }],
+    ingredients_classified: null,
+    proteins: [], main_carb: null, vegetables: [], dairy_components: [], fruits: [],
+  }
+
+  it('shows an amber warning banner listing meals not in the Cookbook', async () => {
+    supabase.from
+      .mockReturnValueOnce(listRowChain({ data: null, error: null }))
+      .mockReturnValueOnce(planItemsChain({
+        data: [
+          { name: 'AI Meal', vault_id: null, vault: null },
+          { name: 'Pasta', vault_id: 'v-1', vault: VALID_VAULT },
+        ],
+        error: null,
+      }))
+      .mockReturnValueOnce(upsertCheckChain({ data: null, error: null }))
+      .mockReturnValueOnce(insertListChain({ data: { id: 'list-new' }, error: null }))
+      .mockReturnValueOnce(deleteChain())
+      .mockReturnValueOnce(insertItemsChain())
+      .mockReturnValueOnce(listRowChain({ data: { id: 'list-new', created_at: '2026-05-05' }, error: null }))
+      .mockReturnValueOnce(itemRowsChain({ data: [], error: null }))
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ name: 'pasta', quantity: '200 g', section: 'Pantry' }] }),
+    })
+
+    render(<GroceryListBody userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/Not in your Cookbook/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/AI Meal/)).toBeInTheDocument()
+    // Vault-linked meal still contributes to the list call
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it('shows targeted error (not generic message) when ALL meals are AI suggestions', async () => {
+    supabase.from
+      .mockReturnValueOnce(listRowChain({ data: null, error: null }))
+      .mockReturnValueOnce(planItemsChain({
+        data: [{ name: 'Chicken Tikka', vault_id: null, vault: null }],
+        error: null,
+      }))
+
+    render(<GroceryListBody userId="user-1" />)
+    await waitFor(() => screen.getByRole('button', { name: 'Generate List' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Generate List' }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/None of the meals in this plan are in your Cookbook/i)).toBeInTheDocument()
+    )
+    expect(screen.getByText(/Chicken Tikka/)).toBeInTheDocument()
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
 
