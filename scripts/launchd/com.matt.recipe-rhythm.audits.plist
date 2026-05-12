@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Recipe-Rhythm audit scheduler.
+
+  WHAT THIS DOES:
+    Fires scripts/run-audits.sh every day at 2:00am local time. The script
+    itself decides which audits to run today based on the cadence config.
+
+  HOW TO INSTALL:
+    1. Copy this file to ~/Library/LaunchAgents/
+         cp scripts/launchd/com.matt.recipe-rhythm.audits.plist \
+            ~/Library/LaunchAgents/
+
+    2. Load it into launchd:
+         launchctl load ~/Library/LaunchAgents/com.matt.recipe-rhythm.audits.plist
+
+    3. Verify it's loaded:
+         launchctl list | grep recipe-rhythm
+
+  HOW TO UPDATE (if you change the time / script path):
+    launchctl unload ~/Library/LaunchAgents/com.matt.recipe-rhythm.audits.plist
+    # edit the file, re-copy if needed
+    launchctl load   ~/Library/LaunchAgents/com.matt.recipe-rhythm.audits.plist
+
+  HOW TO REMOVE:
+    launchctl unload ~/Library/LaunchAgents/com.matt.recipe-rhythm.audits.plist
+    rm               ~/Library/LaunchAgents/com.matt.recipe-rhythm.audits.plist
+
+  OPTIONAL — wake the Mac so the 2am job fires reliably:
+    sudo pmset repeat wakeorpoweron MTWRFSU 01:55:00
+  (Wakes the Mac every day at 1:55am, five minutes before launchd fires.
+  Without this, the job runs on the next wake instead — fine, but later.)
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Reverse-DNS identifier — must be unique among all launchd jobs -->
+    <key>Label</key>
+    <string>com.matt.recipe-rhythm.audits</string>
+
+    <!-- Absolute path to the script. Update if the repo moves. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/Matt/Desktop/Current Projects/recipe-rhythm/scripts/run-audits.sh</string>
+    </array>
+
+    <!-- Schedule: 2:00am every day. launchd uses LOCAL time. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Don't run the moment we install it — only on schedule. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Where to send anything the script prints (above and beyond its own log file). -->
+    <key>StandardOutPath</key>
+    <string>/Users/Matt/Library/Logs/recipe-rhythm-audits.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/Matt/Library/Logs/recipe-rhythm-audits.err</string>
+
+    <!--
+      Working directory for the job. The script also `cd`s to REPO_ROOT
+      internally, but setting this defends against the rare launchd quirk
+      where commands run from /.
+    -->
+    <key>WorkingDirectory</key>
+    <string>/Users/Matt/Desktop/Current Projects/recipe-rhythm</string>
+</dict>
+</plist>
