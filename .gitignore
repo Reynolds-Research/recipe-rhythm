@@ -30,3 +30,4 @@ coverage/
 
 # PRD-004 eval output — regenerated on every run, contains full truth labels + AI classifications
 eval-report.json
+.audit-logs/

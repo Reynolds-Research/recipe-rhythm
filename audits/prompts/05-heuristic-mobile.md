@@ -44,7 +44,7 @@ For each, walk the codebase and the recent commit messages, then assess:
 - DO NOT recommend redesigns of major flows — recommend targeted fixes. "Add a confirm step to delete" is good. "Reimagine the meal planning page" is not.
 - DO NOT cite heuristic violations without a specific file or screen reference.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # UX + Mobile Audit — {{run_date}}

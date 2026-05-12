@@ -47,7 +47,7 @@ You are a supply-chain security auditor reviewing the project's npm dependencies
 - DO NOT flag dev-only deps (under `devDependencies`) for "production attack surface" — they're not shipped.
 - DO NOT flag `@types/*` packages as "unused" if there's no TypeScript — they're for editor IntelliSense.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # Dependency Audit — {{run_date}}

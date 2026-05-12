@@ -62,7 +62,7 @@ You are a frontend performance engineer reviewing the Recipe-Rhythm React app fo
 - DO NOT recommend switching state managers (Redux, Zustand) — out of scope.
 - DO NOT recommend service workers / PWA unless the user has signaled interest.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # Performance Audit — {{run_date}}

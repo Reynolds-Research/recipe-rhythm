@@ -47,7 +47,7 @@ You are a senior accessibility auditor checking the Recipe-Rhythm React app agai
 - DO NOT recommend adding `tabindex` values greater than 0 — they break tab order. The fix for non-focusable elements is `tabIndex={0}`, not `tabIndex={5}`.
 - DO NOT recommend replacing `<button>` with `<a>` or vice versa without checking semantic meaning.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # Accessibility Audit — {{run_date}}

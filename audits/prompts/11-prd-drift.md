@@ -49,7 +49,7 @@ For each ADR:
 - DO NOT recommend abandoning ADRs/PRDs that aren't actively used — that's a process call for the owner.
 - DO NOT flag every `[ ]` item as urgent — the point is alignment, not pressure.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # PRD ↔ Implementation Drift Audit — {{run_date}}

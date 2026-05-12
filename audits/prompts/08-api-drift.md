@@ -51,7 +51,7 @@ For each shared endpoint:
 - DO NOT recommend "merge to one implementation" as a quick fix — that's a real architectural call (would need a shared module + bundler config). Flag the drift; don't rewrite the architecture.
 - DO NOT flag stylistic differences (one uses `async/await`, the other uses `.then()`) unless they change behavior.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # API Contract Drift Audit — {{run_date}}
