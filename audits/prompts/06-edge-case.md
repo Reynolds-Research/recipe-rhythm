@@ -60,7 +60,7 @@ Flag any async data display that goes straight from `null` → render with no in
 - DO NOT recommend defensive coding for impossible states (e.g., "what if `useState` returns null") — focus on states the user can actually reach.
 - DO NOT spitball hypotheticals without a file reference.
 
-## Output format (write to `audit-output.md`)
+## Output format (return as your direct response — do NOT use the Write tool or create any file; the output of this conversation will be piped into a downstream tool)
 
 ```markdown
 # Edge Case Audit — {{run_date}}
