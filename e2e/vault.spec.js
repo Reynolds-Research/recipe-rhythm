@@ -56,9 +56,9 @@ test.describe('Vault E2E', () => {
     await expect(page.getByText('Loading vault…')).not.toBeVisible();
     await expect(page.getByText('Mock Vault Recipe')).toBeVisible();
 
-    // Click Add
-    const addBtn = page.locator('button.bg-brand-500.text-white').first();
-    await addBtn.click();
+    // Click Add — use aria-label, not CSS class (design-system @apply classes
+    // don't appear as individual utility classes in the rendered HTML)
+    await page.getByRole('button', { name: 'Add a new recipe' }).click();
 
     await expect(page.getByText('Add a new recipe')).toBeVisible();
     
