@@ -355,7 +355,7 @@ describe('AI-suggestion meals with no Cookbook entry', () => {
     await waitFor(() =>
       expect(screen.getByText(/None of the meals in this plan are in your Cookbook/i)).toBeInTheDocument()
     )
-    expect(screen.getByText(/Chicken Tikka/)).toBeInTheDocument()
+    expect(screen.getByText(/Skipped: Chicken Tikka/)).toBeInTheDocument()
     expect(fetch).not.toHaveBeenCalled()
   })
 })
