@@ -41,13 +41,13 @@ function itemRowsChain(result) {
   }
 }
 
-// .select().eq().eq().not()  →  resolves to `result`   (meal_plan_items join)
+// .select().eq(meal_plan_id).eq(is_shortlisted)  —  second eq is terminal
 function planItemsChain(result) {
-  return {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    not: vi.fn().mockResolvedValue(result),
-  }
+  const chain = { select: vi.fn().mockReturnThis(), eq: vi.fn() }
+  chain.eq
+    .mockReturnValueOnce(chain)
+    .mockResolvedValueOnce(result)
+  return chain
 }
 
 // .select('id').eq().eq().maybeSingle()  →  resolves to `result`  (upsert check)
