@@ -38,9 +38,14 @@
     <key>Label</key>
     <string>com.matt.recipe-rhythm.audits</string>
 
-    <!-- Absolute path to the script. Update if the repo moves. -->
+    <!--
+      Homebrew bash is used explicitly here (instead of /bin/bash) because
+      macOS TCC blocks sealed system binaries from accessing ~/Desktop.
+      /opt/homebrew/bin/bash can be granted Full Disk Access in System Settings.
+    -->
     <key>ProgramArguments</key>
     <array>
+        <string>/opt/homebrew/bin/bash</string>
         <string>/Users/Matt/Desktop/Current Projects/recipe-rhythm/scripts/run-audits.sh</string>
     </array>
 
