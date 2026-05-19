@@ -3,8 +3,8 @@ name: Audit — API Contract Drift (api-server.mjs ↔ api/)
 # Weekly. Specific to this project's dual local/serverless backend setup.
 
 on:
-  schedule:
-    - cron: '30 14 * * 1' # Mondays 14:30 UTC
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
+    # - cron: '30 14 * * 1' # Mondays 14:30 UTC
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude -p --permission-mode bypassPermissions < audits/prompts/08-api-drift.md > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < audits/prompts/08-api-drift.md > audit-output.md
 
       - name: Decide whether to open an issue
         id: triage

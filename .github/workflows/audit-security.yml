@@ -4,9 +4,9 @@ name: Audit — Security
 # and posts findings as a GitHub Issue labeled `audit:security`.
 
 on:
-  schedule:
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
     # Mondays at 14:00 UTC (≈ 7am PT / 10am ET / 3pm CET)
-    - cron: '0 14 * * 1'
+    # - cron: '0 14 * * 1'
   workflow_dispatch: # allows manual trigger from the Actions tab
 
 permissions:
@@ -43,7 +43,7 @@ jobs:
           fi
           # --permission-mode bypassPermissions auto-approves tool calls (required in CI).
           # If claude CLI flag names change, see audits/README.md for alternatives.
-          claude -p --permission-mode bypassPermissions < "$PROMPT_FILE" > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < "$PROMPT_FILE" > audit-output.md
           echo "--- audit-output.md (first 50 lines) ---"
           head -n 50 audit-output.md
 

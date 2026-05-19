@@ -3,8 +3,8 @@ name: Audit — Performance
 # Monthly. Code-level perf scan; not a substitute for a real Lighthouse run.
 
 on:
-  schedule:
-    - cron: '0 16 1 * *' # 1st of month, 16:00 UTC
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
+    # - cron: '0 16 1 * *' # 1st of month, 16:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -42,7 +42,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude -p --permission-mode bypassPermissions < audits/prompts/09-performance.md > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < audits/prompts/09-performance.md > audit-output.md
 
       - name: Open GitHub Issue
         env:
