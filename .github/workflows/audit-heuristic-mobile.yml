@@ -3,8 +3,8 @@ name: Audit — UX Heuristic + Mobile
 # Biweekly (alternating weeks from accessibility audit).
 
 on:
-  schedule:
-    - cron: '0 15 * * 1' # Mondays 15:00 UTC
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
+    # - cron: '0 15 * * 1' # Mondays 15:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -45,7 +45,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude -p --permission-mode bypassPermissions < audits/prompts/05-heuristic-mobile.md > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < audits/prompts/05-heuristic-mobile.md > audit-output.md
 
       - name: Open GitHub Issue
         if: steps.cadence.outputs.run == 'true'

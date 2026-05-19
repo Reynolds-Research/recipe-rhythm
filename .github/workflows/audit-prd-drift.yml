@@ -3,8 +3,8 @@ name: Audit — PRD ↔ Implementation Drift
 # Monthly. Slowest-moving audit; checks if the docs still match the code.
 
 on:
-  schedule:
-    - cron: '0 17 1 * *' # 1st of month, 17:00 UTC
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
+    # - cron: '0 17 1 * *' # 1st of month, 17:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude -p --permission-mode bypassPermissions < audits/prompts/11-prd-drift.md > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < audits/prompts/11-prd-drift.md > audit-output.md
 
       - name: Open GitHub Issue
         env:

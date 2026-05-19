@@ -3,8 +3,8 @@ name: Audit — AI Prompt Quality
 # Weekly. Particularly important given the active PRD-004/006 prompt work.
 
 on:
-  schedule:
-    - cron: '30 14 * * 2' # Tuesdays 14:30 UTC
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
+    # - cron: '30 14 * * 2' # Tuesdays 14:30 UTC
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude -p --permission-mode bypassPermissions < audits/prompts/10-ai-prompt-quality.md > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < audits/prompts/10-ai-prompt-quality.md > audit-output.md
 
       - name: Open GitHub Issue
         env:

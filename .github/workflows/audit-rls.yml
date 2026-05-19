@@ -3,9 +3,9 @@ name: Audit — Supabase RLS
 # Weekly. The single most important data-safety check in the project.
 
 on:
-  schedule:
+  # schedule:  # DISABLED 2026-05-19 — API-spend audit. Re-enable by uncommenting this line and the cron line below.
     # Mondays at 14:15 UTC (offset from security audit so issues don't pile up at once)
-    - cron: '15 14 * * 1'
+    # - cron: '15 14 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set -euo pipefail
-          claude -p --permission-mode bypassPermissions < audits/prompts/02-rls.md > audit-output.md
+          claude -p --model sonnet --permission-mode bypassPermissions < audits/prompts/02-rls.md > audit-output.md
 
       - name: Open GitHub Issue
         env:
