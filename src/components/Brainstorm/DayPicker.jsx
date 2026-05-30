@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Sheet } from 'react-modal-sheet'
 import { X, RefreshCw, Bookmark, Sparkles, Plus, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/apiClient'
 import { getRecommendations } from '../../lib/recommendations'
 import {
   addScheduledItem,
@@ -107,9 +108,8 @@ export default function DayPicker({
       try {
         const planNames = scheduledNames.join(', ')
         const recentNames = recentMeals.slice(0, 14).map((m) => m.name).join(', ')
-        const res = await fetch('/api/swap-suggestions', {
+        const res = await apiFetch('/api/swap-suggestions', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             planNames,
             recentNames,

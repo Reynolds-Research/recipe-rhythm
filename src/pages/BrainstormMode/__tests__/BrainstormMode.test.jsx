@@ -25,7 +25,10 @@ const supabaseChain = {
 }
 
 vi.mock('../../../lib/supabase', () => ({
-  supabase: { from: vi.fn(() => supabaseChain) },
+  supabase: {
+    from: vi.fn(() => supabaseChain),
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+  },
 }))
 
 vi.mock('../../../lib/mealPlanReader', () => ({

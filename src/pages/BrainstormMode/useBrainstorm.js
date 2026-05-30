@@ -7,6 +7,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/apiClient'
 import { useHaptics } from '../../hooks/useHaptics'
 import { getRecommendations } from '../../lib/recommendations'
 import { buildLastWeekSlots } from '../../lib/lastWeekSlots'
@@ -278,9 +279,8 @@ export function useBrainstorm(userId) {
 
     let res
     try {
-      res = await fetch('/api/swap-suggestions', {
+      res = await apiFetch('/api/swap-suggestions', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
         // PRD-002 P0.9: `count` lets the recommender ask for AI_CANDIDATE_COUNT
         // suggestions instead of the API's default of 1.
         // PRD-002 P0.3: forward `preferences` so the system prompt can ask the

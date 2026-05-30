@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Loader2, ShoppingCart, X } from 'lucide-react'
 import { Sheet } from 'react-modal-sheet'
 import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/apiClient'
 import { fetchMostRecentPlan } from '../../lib/mealPlanReader'
 import { getPreferences } from '../../lib/preferences'
 import { GROCERY_SECTIONS } from '../../lib/constants'
@@ -183,9 +184,8 @@ export default function GroceryListBody({ userId }) {
       }
 
       // 3. Call /api/grocery-list
-      const res = await fetch('/api/grocery-list', {
+      const res = await apiFetch('/api/grocery-list', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ recipes, pantryStaples, householdSize: safeHouseholdSize }),
       })
       if (!res.ok) {

@@ -3,7 +3,10 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import DayPicker from '../DayPicker'
 
 vi.mock('../../../lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+  supabase: {
+    from: vi.fn(),
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+  },
 }))
 
 vi.mock('../../../lib/recommendations', () => ({
