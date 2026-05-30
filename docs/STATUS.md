@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-30 against `feat/api-auth-rate-limit` @ `bcaac5a` (PRD-001 P1.6 API auth + rate limiting)
+**Last verified:** 2026-05-30 against `main` @ `e4f5cde` (PRD-001 P1.6 API auth + rate limiting merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
