@@ -4,6 +4,8 @@
  * Anthropic key and returns parsed component metadata for a recipe.
  * Used by both Vault (manual add) and LogMode (save-to-vault flow).
  */
+import { apiFetch } from './apiClient.js'
+
 export async function analyzeRecipe(arg) {
   let name = ''
   let url = ''
@@ -29,9 +31,8 @@ export async function analyzeRecipe(arg) {
 
   let res
   try {
-    res = await fetch('/api/analyze-recipe', {
+    res = await apiFetch('/api/analyze-recipe', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     })
   } catch (err) {

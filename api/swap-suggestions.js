@@ -3,6 +3,7 @@
  * in api-server.mjs. Keep the two in sync when changing prompt/model.
  */
 import { anthropic, parseJsonLoose, sendUpstreamError } from './_lib/anthropic.js'
+import { requireAuth, AuthError } from './_lib/verifyAuth.js'
 
 // PRD-002 P0.3: render the household preferences as a structured prompt block.
 // Returns '' when the field is missing or every sub-list is empty/null, so the
@@ -41,6 +42,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'method_not_allowed' })
+  }
+  try {
+    const { user } = await requireAuth(req)
+    req.user = user
+  } catch (err) {
+    const status = err instanceof AuthError ? err.status : 500
+    return res.status(status).json({ error: err.message })
   }
   if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 

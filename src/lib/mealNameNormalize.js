@@ -13,6 +13,8 @@
  *     API errors or is unreachable.
  */
 
+import { apiFetch } from './apiClient.js'
+
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'as', 'at', 'but', 'by', 'en', 'for', 'if', 'in', 'of',
   'on', 'or', 'the', 'to', 'vs', 'via', 'with',
@@ -78,9 +80,8 @@ export async function normalizeMealName(rawName) {
 
   let res
   try {
-    res = await fetch('/api/normalize-meal-name', {
+    res = await apiFetch('/api/normalize-meal-name', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ name: input }),
     })
   } catch (err) {

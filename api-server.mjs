@@ -26,6 +26,7 @@ import { createNormalizeMealNameHandler } from './api/_lib/normalizeMealNameHand
 // ADR-004: server-side AI response cache. Null when SUPABASE_* env vars
 // aren't set — endpoints still work; they just skip cache reads/writes.
 import { supabaseAdmin } from './api/_lib/supabaseAdmin.js'
+import { requireAuthMiddleware } from './api/_lib/verifyAuth.js'
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
 const API_PORT = Number(process.env.API_PORT || 3001)
@@ -77,7 +78,7 @@ app.get('/health', (req, res) => {
 
 // PRD-006 P0.2: logic lives in api/_lib/analyzeRecipeHandler.js so this route
 // and the Vercel mirror in api/analyze-recipe.js stay in lockstep.
-app.post('/api/analyze-recipe', createAnalyzeRecipeHandler({ anthropic, supabase: supabaseAdmin }))
+app.post('/api/analyze-recipe', requireAuthMiddleware, createAnalyzeRecipeHandler({ anthropic, supabase: supabaseAdmin }))
 
 // PRD-002 P0.3: render the household preferences as a structured prompt block.
 // Returns '' when the field is missing or every sub-list is empty/null, so the
@@ -112,7 +113,7 @@ function buildPreferencesBlock(preferences) {
 - Maximum prep time: ${hasMaxPrep ? `${maxPrep} minutes` : 'none'}\n`
 }
 
-app.post('/api/swap-suggestions', async (req, res) => {
+app.post('/api/swap-suggestions', requireAuthMiddleware, async (req, res) => {
   if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
   // PRD-002 P0.9: `count` is optional. Single-day swaps still send no count
@@ -175,12 +176,12 @@ ${excludeBullets}${preferencesBlock}
 // Validation + prompt + parse logic lives in api/_lib/classifyHandler.js so
 // this route + the Vercel mirror in api/classify-ingredients.js stay in
 // lockstep. Reuses the module-scoped `anthropic` client.
-app.post('/api/classify-ingredients', createClassifyIngredientsHandler({ anthropic, supabase: supabaseAdmin }))
+app.post('/api/classify-ingredients', requireAuthMiddleware, createClassifyIngredientsHandler({ anthropic, supabase: supabaseAdmin }))
 
 // PRD-003 P0.3 (Bite B): /api/grocery-list (Haiku 4.5). Validation + prompt
 // + parse logic lives in api/_lib/groceryListHandler.js so this route + the
 // Vercel mirror in api/grocery-list.js stay in lockstep.
-app.post('/api/grocery-list', createGroceryListHandler({ anthropic }))
+app.post('/api/grocery-list', requireAuthMiddleware, createGroceryListHandler({ anthropic }))
 
 // Spell-check + title-case a single meal/recipe name. Used by Vault add and
 // LogMode save to standardize names before they're persisted. Haiku 4.5 —
@@ -188,7 +189,7 @@ app.post('/api/grocery-list', createGroceryListHandler({ anthropic }))
 // + prompt + cache logic live in api/_lib/normalizeMealNameHandler.js so
 // this route + the Vercel mirror in api/normalize-meal-name.js stay in
 // lockstep automatically.
-app.post('/api/normalize-meal-name', createNormalizeMealNameHandler({ anthropic, supabase: supabaseAdmin }))
+app.post('/api/normalize-meal-name', requireAuthMiddleware, createNormalizeMealNameHandler({ anthropic, supabase: supabaseAdmin }))
 
 app.listen(API_PORT, () => {
   console.log(`[api-server] listening on :${API_PORT} (CORS origin: ${corsOrigin})`)

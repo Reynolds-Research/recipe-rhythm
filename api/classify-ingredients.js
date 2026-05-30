@@ -7,6 +7,7 @@
 import { anthropic } from './_lib/anthropic.js'
 import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { createClassifyIngredientsHandler } from './_lib/classifyHandler.js'
+import { requireAuth, AuthError } from './_lib/verifyAuth.js'
 
 // ADR-004: pass Supabase service-role client so the handler reaches
 // classifyIngredientsCached with cache I/O enabled. Null env ⇒ uncached
@@ -17,6 +18,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'method_not_allowed' })
+  }
+  try {
+    const { user } = await requireAuth(req)
+    req.user = user
+  } catch (err) {
+    const status = err instanceof AuthError ? err.status : 500
+    return res.status(status).json({ error: err.message })
   }
   return handle(req, res)
 }

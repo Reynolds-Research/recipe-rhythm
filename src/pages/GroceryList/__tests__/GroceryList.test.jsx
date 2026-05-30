@@ -6,7 +6,10 @@ import GroceryList from '../index'
 // --- Module mocks ---
 
 vi.mock('../../../lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+  supabase: {
+    from: vi.fn(),
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
+  },
 }))
 
 vi.mock('../../../lib/mealPlanReader', () => ({
