@@ -3,7 +3,11 @@
  * in api-server.mjs. Keep the two in sync when changing prompt/model.
  */
 import { anthropic, parseJsonLoose, sendUpstreamError } from './_lib/anthropic.js'
+import { supabaseAdmin } from './_lib/supabaseAdmin.js'
 import { requireAuth, AuthError } from './_lib/verifyAuth.js'
+import { createRateLimiter, ENDPOINT_LIMITS, RateLimitError } from './_lib/rateLimit.js'
+
+const checkLimit = createRateLimiter({ supabase: supabaseAdmin, maxRequests: ENDPOINT_LIMITS['swap-suggestions'] })
 
 // PRD-002 P0.3: render the household preferences as a structured prompt block.
 // Returns '' when the field is missing or every sub-list is empty/null, so the
@@ -49,6 +53,14 @@ export default async function handler(req, res) {
   } catch (err) {
     const status = err instanceof AuthError ? err.status : 500
     return res.status(status).json({ error: err.message })
+  }
+  try {
+    await checkLimit(req.user.id, 'swap-suggestions')
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return res.status(429).setHeader('Retry-After', String(err.retryAfter))
+        .json({ error: 'rate_limited', retry_after_seconds: err.retryAfter })
+    }
   }
   if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 

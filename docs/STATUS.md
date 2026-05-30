@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-10 against `feat/decompose-brainstorm-mode` @ `66b332d` (PRD-005 P1.1 BrainstormMode decomposition)
+**Last verified:** 2026-05-30 against `feat/api-auth-rate-limit` @ TBD (PRD-001 P1.6 API auth + rate limiting)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -60,8 +60,9 @@ Nav simplification work that doesn't belong to any one PRD.
 - [ ] P1.2 — Per-meal note prompt nudge ("How was it?")
 - [ ] P1.4 — Voice dictation in Vault entry
 - [ ] P1.5 — Bulk-link cleanup tool (retroactive fuzzy-match for old `meals.vault_id IS NULL` rows)
-- [ ] P1.6 — API rate limiting + auth on `/api/*` endpoints
+- [x] **P1.6** (PR TBD): JWT auth + per-user rate limiting on all `/api/*` endpoints. `verifyAuth.js` (anon-key `getUser`), `rateLimit.js` (Postgres UPSERT via `increment_api_rate_limit` RPC), `apiClient.js` (client-side Bearer header injection). Limits: 20 req/min/user for `analyze-recipe` (Sonnet), 60 for all Haiku endpoints.
 - [ ] P2.1–P2.5 — Future considerations (OCR, JSON-LD scraping, per-member preferences, insights dashboard, structured ingredients — last of which is largely covered by PRD-006)
+- [ ] **api_rate_limits cleanup cron** — Supabase scheduled function to run `DELETE FROM api_rate_limits WHERE window_start < now() - interval '1 day'` nightly. Table stays tiny without it (2 users × 5 endpoints), but add when convenient.
 
 ---
 
