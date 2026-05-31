@@ -1,7 +1,12 @@
 name: E2E Tests
 on:
-  workflow_dispatch: # This enables the manual "Run workflow" button
+  workflow_dispatch: # Manual "Run workflow" button
   push:
+    branches: [main]
+  # Gate PRs on the e2e suite. Previously this only fired post-merge, so a
+  # regression caught here was already in main. Running on every PR catches
+  # them before review concludes — at the cost of one ~3 minute job per PR.
+  pull_request:
     branches: [main]
 
 jobs:
@@ -15,3 +20,19 @@ jobs:
       - run: npm install
       - run: npx playwright install --with-deps
       - run: npm run test:e2e
+
+      # Preserve the HTML report and raw traces when the suite fails so a
+      # debugger doesn't have to re-run locally to see what blew up. The
+      # `if: failure()` guard keeps green runs from uploading 50+ MB of
+      # noise each time. Retention is short (7d) because PR-time failures
+      # are debugged in hours, not weeks.
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
