@@ -14,6 +14,9 @@
  * a one-time warning is emitted at module load (mirrors supabaseAdmin.js).
  */
 import { createClient } from '@supabase/supabase-js'
+import { assertProductionConfig } from './assertProductionConfig.js'
+
+assertProductionConfig(['SUPABASE_URL', 'SUPABASE_ANON_KEY'], 'verifyAuth')
 
 export class AuthError extends Error {
   constructor(message, status) {
