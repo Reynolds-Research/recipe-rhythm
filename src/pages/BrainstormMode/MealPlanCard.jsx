@@ -19,7 +19,7 @@ function DayCell({ date, items, isServed, onOpenPicker, onToggleCooked, onMoveTo
     return (
       <div className="py-3">
         <div className="flex items-start gap-3">
-          <span className="text-sm font-bold text-brand-700 w-8 flex-shrink-0 tracking-tighter uppercase pt-3">
+          <span className="text-sm font-bold text-brand-700 w-8 shrink-0 tracking-tighter uppercase pt-3">
             {dow}
           </span>
           <button
@@ -40,7 +40,7 @@ function DayCell({ date, items, isServed, onOpenPicker, onToggleCooked, onMoveTo
   return (
     <div className="py-2">
       <div className="flex items-start gap-3">
-        <span className="text-sm font-bold text-brand-700 w-8 flex-shrink-0 tracking-tighter uppercase pt-4">
+        <span className="text-sm font-bold text-brand-700 w-8 shrink-0 tracking-tighter uppercase pt-4">
           {dow}
         </span>
         <div className="flex-1 min-w-0">

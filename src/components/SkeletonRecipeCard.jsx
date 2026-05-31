@@ -9,7 +9,7 @@ export default function SkeletonRecipeCard() {
           <Skeleton className="h-3 w-1/2" />
           <Skeleton className="h-3 w-24" />
         </div>
-        <Skeleton className="h-5 w-5 flex-shrink-0" />
+        <Skeleton className="h-5 w-5 shrink-0" />
       </div>
     </div>
   )

@@ -302,7 +302,7 @@ export default function DayPicker({
                         <Bookmark
                           size={16}
                           strokeWidth={2}
-                          className="text-brand-700 flex-shrink-0"
+                          className="text-brand-700 shrink-0"
                           fill="currentColor"
                         />
                         <span className="text-base font-medium text-gray-900 flex-1 truncate">
@@ -369,14 +369,14 @@ function CandidateRow({ item, onSelect, onBookmark }) {
         onClick={() => onSelect(item)}
         className="flex-1 flex items-center gap-2 min-h-[44px] py-2 text-left hover:text-brand-700 transition-colors min-w-0"
       >
-        <Plus size={16} strokeWidth={2.5} className="text-brand-700 flex-shrink-0" />
+        <Plus size={16} strokeWidth={2.5} className="text-brand-700 shrink-0" />
         <span className="text-base font-medium text-gray-900 truncate">
           {item.name}
         </span>
         {isAi && (
           <span
             data-testid="ai-new-badge"
-            className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1 flex-shrink-0"
+            className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1 shrink-0"
           >
             <Sparkles size={10} />
             New
@@ -388,7 +388,7 @@ function CandidateRow({ item, onSelect, onBookmark }) {
           onClick={() => onBookmark(item)}
           aria-label="Add to Maybe"
           title="Add to Maybe"
-          className="flex-shrink-0 w-11 h-11 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
+          className="shrink-0 w-11 h-11 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
         >
           <Bookmark size={18} strokeWidth={2} />
         </button>

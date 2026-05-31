@@ -196,7 +196,7 @@ export default function DateStripPicker({
             type="button"
             onClick={() => setExpanded(false)}
             aria-expanded={expanded}
-            className="text-sm font-semibold text-gray-700 hover:text-brand-700 transition-colors px-3 py-3 min-h-[44px] flex-shrink-0"
+            className="text-sm font-semibold text-gray-700 hover:text-brand-700 transition-colors px-3 py-3 min-h-[44px] shrink-0"
             data-testid="date-strip-collapse"
           >
             Hide second week
@@ -206,7 +206,7 @@ export default function DateStripPicker({
             type="button"
             onClick={() => setExpanded(true)}
             aria-expanded={expanded}
-            className="text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-4 py-3 min-h-[44px] hover:bg-brand-100 transition-colors flex-shrink-0"
+            className="text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-4 py-3 min-h-[44px] hover:bg-brand-100 transition-colors shrink-0"
             data-testid="date-strip-expand"
           >
             Show another 7 days

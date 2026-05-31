@@ -107,7 +107,7 @@ export default function GapDayView({ userId, periodEnd, onStartNewPeriod }) {
                   className="flex items-center gap-3 py-3"
                   data-testid="gap-leftover-item"
                 >
-                  <span className="text-sm font-bold text-brand-700 w-14 flex-shrink-0 tracking-tighter uppercase">
+                  <span className="text-sm font-bold text-brand-700 w-14 shrink-0 tracking-tighter uppercase">
                     {formatShortDate(item.scheduled_date)}
                   </span>
                   <span className="text-base flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">

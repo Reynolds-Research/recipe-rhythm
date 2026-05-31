@@ -91,7 +91,7 @@ export default function LeftoverPicker({
                 data-testid="leftover-row"
               >
                 <span
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                     checked
                       ? 'bg-brand-700 border-brand-700'
                       : 'bg-white border-gray-500'
@@ -107,7 +107,7 @@ export default function LeftoverPicker({
                   className="sr-only"
                   aria-label={`Include ${item.name}`}
                 />
-                <span className="text-sm font-bold text-brand-700 w-12 flex-shrink-0 tracking-tighter uppercase">
+                <span className="text-sm font-bold text-brand-700 w-12 shrink-0 tracking-tighter uppercase">
                   {formatShortDate(item.scheduled_date)}
                 </span>
                 <span className="text-base flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
