@@ -419,4 +419,45 @@ describe('fetchCurrentLeftovers', () => {
       message: 'permission denied',
     })
   })
+
+  // Regression: the `current_leftovers` view predates the shortlist feature
+  // (PRD-002 P0.6) and historically leaked shortlisted rows — which have
+  // `scheduled_date = NULL` — into the result set. Downstream formatters
+  // (LeftoverPicker.formatShortDate) crashed on null, surfacing the global
+  // ErrorBoundary right after the user confirmed dates for a new period.
+  // The companion migration 20260530000002 fixes the view at the DB layer;
+  // this filter is defense-in-depth at the data-access layer so a stale view
+  // or future regression can never surface a null-date leftover to the UI.
+  it('filters out rows with null scheduled_date (shortlist leak guard)', async () => {
+    const data = [
+      {
+        id: 'item-real',
+        name: 'Roast',
+        vault_id: 'v1',
+        is_wildcard: false,
+        source_url: null,
+        scheduled_date: '2026-04-12',
+        source_period_start: '2026-04-12',
+        source_period_end: '2026-04-18',
+      },
+      {
+        // Shortlisted leftover that leaked from the view — would crash
+        // LeftoverPicker before this filter.
+        id: 'item-shortlist',
+        name: 'Cheese Tuna Orzo',
+        vault_id: 'v2',
+        is_wildcard: false,
+        source_url: null,
+        scheduled_date: null,
+        source_period_start: '2026-04-12',
+        source_period_end: '2026-04-18',
+      },
+    ]
+    const supabase = makeLeftoversSupabase({ data })
+    const result = await fetchCurrentLeftovers(supabase, 'user-1')
+
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('item-real')
+    expect(result.every((r) => !!r.scheduled_date)).toBe(true)
+  })
 })

@@ -266,9 +266,9 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 ## Views
 
 ### `public.current_leftovers`
-**Added 2026-04-19** via [ADR-001 Phase 1 migration](../supabase/migrations/20260418000001_planning_periods_schema.sql). The SQL view that powers the gap-day "leftovers to roll forward" UI.
+**Added 2026-04-19** via [ADR-001 Phase 1 migration](../supabase/migrations/20260418000001_planning_periods_schema.sql). **Patched 2026-05-30** via [shortlist-exclude migration](../supabase/migrations/20260530000002_current_leftovers_exclude_shortlist.sql) to filter out `is_shortlisted = true` rows that were leaking through with NULL `scheduled_date` and crashing the LeftoverPicker. The SQL view that powers the gap-day "leftovers to roll forward" UI.
 
-**Definition:** uncooked `meal_plan_items` from finalized planning periods whose `period_end` is in the past but within the last 14 days. The 14-day cap is a label-staleness rule per the ADR Retention Policy — the underlying rows are never deleted; they just stop appearing as "actionable leftovers" after two weeks.
+**Definition:** uncooked, **non-shortlisted** `meal_plan_items` from finalized planning periods whose `period_end` is in the past but within the last 14 days. The 14-day cap is a label-staleness rule per the ADR Retention Policy — the underlying rows are never deleted; they just stop appearing as "actionable leftovers" after two weeks. Shortlisted ("Maybe") rows are excluded because they were never scheduled (their `scheduled_date` is NULL by design).
 
 ```sql
 SELECT mpi.*, mp.period_start AS source_period_start,
@@ -277,6 +277,7 @@ SELECT mpi.*, mp.period_start AS source_period_start,
 FROM meal_plan_items mpi
 JOIN meal_plans mp ON mpi.meal_plan_id = mp.id
 WHERE mpi.cooked = false
+  AND mpi.is_shortlisted = false
   AND mp.finalized_at IS NOT NULL
   AND mp.period_end < CURRENT_DATE
   AND mp.period_end >= (CURRENT_DATE - INTERVAL '14 days');
@@ -331,6 +332,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260506000003_ai_response_caches.sql`](../supabase/migrations/verify_20260506000003_ai_response_caches.sql) | 2026-05-06 | Read-only verification queries for the AI cache migration: columns, CHECK + UNIQUE constraints, RLS-enabled bits, exactly-one-SELECT-policy assertion (catches accidental write-policy regressions), empty-row smoke counts. |
 | [`20260530000001_api_rate_limits.sql`](../supabase/migrations/20260530000001_api_rate_limits.sql) | 2026-05-30 | PRD-001 P1.6 Phase 2: creates `public.api_rate_limits` with PK `(user_id, endpoint, window_start)`, RLS enabled (no anon/auth policies — service-role only), index `api_rate_limits_window_idx` on `window_start`, and the `increment_api_rate_limit(p_user_id, p_endpoint, p_window_start)` RPC for atomic UPSERT+increment. Used by the API server to enforce per-user per-minute limits (20 req/min for Sonnet, 60 for Haiku). |
 | [`verify_20260530000001.sql`](../supabase/migrations/verify_20260530000001.sql) | 2026-05-30 | Read-only verification queries for the rate-limits migration: column shapes, RLS-enabled bit, no-anon/auth-policy assertion, window index existence, RPC function existence. |
+| [`20260530000002_current_leftovers_exclude_shortlist.sql`](../supabase/migrations/20260530000002_current_leftovers_exclude_shortlist.sql) | 2026-05-30 | Hotfix: replaces the `current_leftovers` view definition to add `AND mpi.is_shortlisted = false`. The original view (from `20260418000001`) predates PRD-002 P0.6 and leaked shortlisted rows (which have `scheduled_date = NULL`) into the leftovers query. Those NULL dates crashed `LeftoverPicker.parseIso` and triggered the global ErrorBoundary right after the user confirmed dates for a new planning period. `CREATE OR REPLACE VIEW`, idempotent. |
+| [`verify_20260530000002.sql`](../supabase/migrations/verify_20260530000002.sql) | 2026-05-30 | Read-only verification queries for the shortlist-exclude hotfix: view definition contains the new filter, no NULL `scheduled_date` rows survive, no shortlisted rows survive, view row count matches an inline simulation of the same WHERE clause. |
 
 ## Related audit items + ADRs
 
