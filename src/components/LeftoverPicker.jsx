@@ -6,7 +6,12 @@ function parseIso(iso) {
   return new Date(Date.UTC(y, m - 1, d))
 }
 
+// Defensive guard: a leftover without a scheduled_date can't be displayed as
+// a date, but it also shouldn't crash the picker. Callers can render '—' (or
+// hide the row entirely) when this returns ''. Sister fix to the `is_shortlisted`
+// filter in fetchCurrentLeftovers + the current_leftovers view migration.
 function formatShortDate(iso) {
+  if (!iso) return ''
   return parseIso(iso).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

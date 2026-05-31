@@ -248,16 +248,25 @@ export async function fetchCurrentLeftovers(supabase, userId) {
   if (error) throw error
   if (!data) return []
 
-  return data.map((row) => ({
-    id: row.id,
-    name: row.name,
-    vault_id: row.vault_id ?? null,
-    is_wildcard: !!row.is_wildcard,
-    source_url: row.source_url ?? null,
-    scheduled_date: row.scheduled_date,
-    source_period_start: row.source_period_start,
-    source_period_end: row.source_period_end,
-  }))
+  // PRD-002 P0.6 fallout: the `current_leftovers` view predates the shortlist
+  // feature and does not filter `is_shortlisted = true` rows out of its join.
+  // Shortlisted rows have `scheduled_date = NULL`, which crashes downstream
+  // formatters (LeftoverPicker, etc.) that assume a real date. Defense in
+  // depth: drop any row without a real scheduled_date here so a stale view
+  // (or future regression) can't surface them to the UI. The companion
+  // migration `20260530000002` adds the same filter at the DB layer.
+  return data
+    .filter((row) => !!row.scheduled_date)
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      vault_id: row.vault_id ?? null,
+      is_wildcard: !!row.is_wildcard,
+      source_url: row.source_url ?? null,
+      scheduled_date: row.scheduled_date,
+      source_period_start: row.source_period_start,
+      source_period_end: row.source_period_end,
+    }))
 }
 
 /**
