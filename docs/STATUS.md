@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-30 against `main` @ `e4f5cde` (PRD-001 P1.6 API auth + rate limiting merged)
+**Last verified:** 2026-05-30 against `main` @ `7d71a52` (PR #134 assertProductionConfig hardening merged)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 ---
@@ -61,7 +61,7 @@ Nav simplification work that doesn't belong to any one PRD.
 - [ ] P1.4 — Voice dictation in Vault entry
 - [ ] P1.5 — Bulk-link cleanup tool (retroactive fuzzy-match for old `meals.vault_id IS NULL` rows)
 - [x] **P1.6** (PR #133, commits `b0355ff` + `bcaac5a`): JWT auth + per-user rate limiting on all `/api/*` endpoints. `verifyAuth.js` (anon-key `getUser`), `rateLimit.js` (Postgres UPSERT via `increment_api_rate_limit` RPC), `apiClient.js` (client-side Bearer header injection). Limits: 20 req/min/user for `analyze-recipe` (Sonnet), 60 for all Haiku endpoints.
-- [x] **P1.6 hardening** (PR #TBD): `api/_lib/assertProductionConfig.js` — fail-fast guard that throws at Vercel cold-start (not silently per-request) when required env vars are absent in production. Wired into `verifyAuth.js` and `supabaseAdmin.js`; 35 new tests.
+- [x] **P1.6 hardening** (PR #134, commit `48710ed`): `api/_lib/assertProductionConfig.js` — fail-fast guard that throws at Vercel cold-start (not silently per-request) when required env vars are absent in production. Wired into `verifyAuth.js` and `supabaseAdmin.js`; 35 new tests.
 - [ ] P2.1–P2.5 — Future considerations (OCR, JSON-LD scraping, per-member preferences, insights dashboard, structured ingredients — last of which is largely covered by PRD-006)
 - [ ] **api_rate_limits cleanup cron** — Supabase scheduled function to run `DELETE FROM api_rate_limits WHERE window_start < now() - interval '1 day'` nightly. Table stays tiny without it (2 users × 5 endpoints), but add when convenient.
 
