@@ -42,14 +42,14 @@ export default function MaybeShortlist({
                   className="flex items-center gap-3 py-4"
                   data-testid={`shortlist-item-${item.item_id}`}
                 >
-                  <Bookmark size={16} strokeWidth={2} className="text-brand-700 flex-shrink-0" />
+                  <Bookmark size={16} strokeWidth={2} className="text-brand-700 shrink-0" />
                   <span className="text-base text-gray-900 flex-1 min-w-0 truncate font-medium">
                     {item.name}
                   </span>
                   <button
                     onClick={() => onOpenSheet(item)}
                     aria-label={`Schedule ${item.name}`}
-                    className="flex-shrink-0 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-4 py-3 min-h-[44px] uppercase tracking-wide hover:bg-brand-100 transition-colors"
+                    className="shrink-0 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-4 py-3 min-h-[44px] uppercase tracking-wide hover:bg-brand-100 transition-colors"
                   >
                     Schedule
                   </button>

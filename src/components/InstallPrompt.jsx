@@ -69,7 +69,7 @@ export default function InstallPrompt() {
     >
       <div className="card flex flex-col gap-3">
         <div className="flex items-start gap-3">
-          <Download size={18} className="text-brand-500 flex-shrink-0 mt-1" />
+          <Download size={18} className="text-brand-500 shrink-0 mt-1" />
           <p className="body-text flex-1">
             Add to your home screen for the best experience.
           </p>

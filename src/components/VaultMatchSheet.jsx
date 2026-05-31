@@ -47,10 +47,10 @@ export default function VaultMatchSheet({
                     <img
                       src={m.image_url}
                       alt=""
-                      className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-cream-100"
+                      className="w-12 h-12 rounded-xl object-cover shrink-0 bg-cream-100"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0">
                       <BookOpen size={18} className="text-brand-700" />
                     </div>
                   )}

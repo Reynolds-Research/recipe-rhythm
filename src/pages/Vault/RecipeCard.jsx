@@ -262,7 +262,7 @@ export default function RecipeCard({
             )
           })()}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 text-gray-500 group-hover:text-brand-700 transition-colors">
+        <div className="flex items-center gap-2 shrink-0 text-gray-500 group-hover:text-brand-700 transition-colors">
           {expanded
             ? <ChevronUp size={20} strokeWidth={2.5} />
             : <ChevronDown size={20} strokeWidth={2.5} />

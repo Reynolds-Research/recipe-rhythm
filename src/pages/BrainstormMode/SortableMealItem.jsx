@@ -39,8 +39,8 @@ export default function SortableMealItem({ slot, isServed, onToggleCooked, onMov
         aria-label={isServed ? undefined : `Drag to reorder ${slot.name}`}
         className={
           isServed
-            ? 'w-11 h-11 -ml-2 flex items-center justify-center text-gray-500 cursor-not-allowed flex-shrink-0'
-            : 'w-11 h-11 -ml-2 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-500 hover:text-brand-700 flex-shrink-0'
+            ? 'w-11 h-11 -ml-2 flex items-center justify-center text-gray-500 cursor-not-allowed shrink-0'
+            : 'w-11 h-11 -ml-2 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-500 hover:text-brand-700 shrink-0'
         }
       >
         <GripVertical size={20} strokeWidth={2} />
@@ -79,13 +79,13 @@ export default function SortableMealItem({ slot, isServed, onToggleCooked, onMov
           onClick={() => onMoveToMaybe(slot.item_id)}
           aria-label="Move to Maybe"
           title="Move to Maybe"
-          className="flex-shrink-0 w-11 h-11 -mr-2 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
+          className="shrink-0 w-11 h-11 -mr-2 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
         >
           <BookmarkPlus size={18} strokeWidth={2} />
         </button>
       )}
       {showCookedToggle && (
-        <label className="flex-shrink-0 flex items-center gap-2 cursor-pointer">
+        <label className="shrink-0 flex items-center gap-2 cursor-pointer">
           <span className="text-sm font-bold text-brand-700 uppercase tracking-wide">
             Cooked
           </span>
