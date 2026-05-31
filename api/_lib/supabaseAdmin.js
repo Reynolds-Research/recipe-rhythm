@@ -21,17 +21,12 @@
  * used by scripts/backfill-*.js — see .env.example for the documented setup.
  */
 import { createClient } from '@supabase/supabase-js'
+import { assertProductionConfig } from './assertProductionConfig.js'
+
+assertProductionConfig(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'], 'supabaseAdmin')
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  // Single one-time warning at startup so the operator knows caching is off
-  // without spamming every request log.
-  console.warn(
-    '[api] supabaseAdmin: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing — AI response caching is DISABLED. AI endpoints still work; they just don\'t persist or read cache entries.',
-  )
-}
 
 export const supabaseAdmin = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
   ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {

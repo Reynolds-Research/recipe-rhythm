@@ -122,6 +122,44 @@ describe('requireAuth — 503 when env vars missing', () => {
   })
 })
 
+// ── production-throw via assertProductionConfig ───────────────────────────────
+// These tests verify that importing verifyAuth.js in a Vercel production
+// environment with missing env vars throws at module load time (cold-start),
+// rather than degrading silently per-request.
+
+describe('production throw at module import', () => {
+  afterEach(() => {
+    vi.resetModules()
+    vi.unstubAllEnvs()
+  })
+
+  it('throws at import when VERCEL_ENV=production and SUPABASE_URL is missing', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('SUPABASE_URL', '')
+    vi.stubEnv('SUPABASE_ANON_KEY', 'test-anon-key')
+    vi.resetModules()
+    await expect(import('../../../api/_lib/verifyAuth.js'))
+      .rejects.toThrow('[config] verifyAuth')
+  })
+
+  it('throws at import when VERCEL_ENV=production and SUPABASE_ANON_KEY is missing', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('SUPABASE_URL', 'https://test.supabase.co')
+    vi.stubEnv('SUPABASE_ANON_KEY', '')
+    vi.resetModules()
+    await expect(import('../../../api/_lib/verifyAuth.js'))
+      .rejects.toThrow('[config] verifyAuth')
+  })
+
+  it('does not throw at import when VERCEL_ENV=production and both vars are present', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production')
+    vi.stubEnv('SUPABASE_URL', 'https://test.supabase.co')
+    vi.stubEnv('SUPABASE_ANON_KEY', 'test-anon-key')
+    vi.resetModules()
+    await expect(import('../../../api/_lib/verifyAuth.js')).resolves.toBeDefined()
+  })
+})
+
 // ── requireAuthMiddleware ─────────────────────────────────────────────────────
 
 describe('requireAuthMiddleware', () => {
