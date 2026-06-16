@@ -236,9 +236,115 @@ Add Playwright e2e: "set preferences → start a brainstorm → all candidates r
 
 ---
 
+## 13. v0.3 Addendum — Search-to-Plan (Recipe Lookup)
+
+Added 2026-05-30 in response to user feedback that BrainstormMode is recommendation-driven only and offers no fast path when the Planner already knows what they want for a specific day. Designed in a Cowork planning session; this addendum captures the agreed-upon scope. No changes to existing P0/P1 items above.
+
+### 13.1 Problem and goal
+
+Today's BrainstormMode + tap-a-day picker (§P0.7) optimizes for *recommendation discovery* — useful when the Planner is uncertain, frustrating when they know "Tuesday is taco night." There is no search affordance anywhere in the planning surface. The Vault is browsable but not searchable. The new goal: support two distinct planner intents with a unified search behavior.
+
+- **Intent A — day-first.** "Tuesday is taco night." User has the day in mind; needs to find the recipe.
+- **Intent B — recipe-first.** "We have salmon, gotta use it." User has the recipe in mind; the day is flexible.
+
+### 13.2 New user stories (continue numbering from §5)
+
+10. *As the Planner, when I know the recipe I want for a specific day, I want to search and assign in 2–3 taps, not scroll through recommendations.*
+11. *As the Planner, when I have a recipe in mind but the day is flexible, I want to search from the top of Prep Table and pick the day from the result.*
+12. *As the Planner, when I'm searching while cooking or folding laundry, I want voice input so I can plan hands-free.*
+13. *As the Planner, when search misses (no matching recipe in my Cookbook), I want a one-tap path to add the recipe to the Cookbook and continue planning.*
+14. *As the Planner, when I assign a recipe to a day that's already filled, I want the existing meal moved to Maybe (not silently overwritten), so I never lose planning work.*
+
+### 13.3 New P0 requirements
+
+| # | Requirement | Acceptance criteria |
+|---|---|---|
+| P0.13 | **Top-of-page search bar on Prep Table (recipe-first entry)** | A persistent search input pinned at the top of `BrainstormMode/index.jsx`. Visible only when an active plan exists (hidden if no active plan, hidden if the active plan is served — see edge cases). Tapping fires a sheet with the search input focused. Picking a result reveals a mini date-strip showing only the active plan's date range, with empty days highlighted and filled days dimmed-but-tappable. Tap a day → recipe is assigned, sheet closes, haptic feedback. |
+| P0.14 | **Search field inside per-day picker sheet (day-first entry)** | The existing tap-a-day → bottom-sheet picker (§P0.7) gains a search field at the top of the sheet. Behavior: type → results filter in place; tap a result → immediately assigned to the pre-selected day, sheet closes. No date-strip needed (the day is already chosen). |
+| P0.15 | **Top-of-page search bar on Vault** | A persistent search input pinned at the top of `Vault/index.jsx`. Filters the recipe list in place (no day-picking — Vault search is purely a "find what I'm looking for" filter). Tapping a result opens the recipe (current Vault tap behavior — no change). The existing "Add to plan" CTA on the expanded recipe card (per user direction) handles the planning hand-off from Vault. |
+| P0.16 | **Search matching: name + ingredients + chips, ranked** | Extend `vault_fuzzy_match` RPC (or add a sibling RPC if cleaner) to score across recipe name, ingredient strings, and chip values (cuisine, proteins, dietary tags). Name matches rank highest, then ingredients, then chips. Typo tolerance via pg_trgm similarity (already in extension). Return columns: `match_id`, `match_name`, `match_image_url`, `match_score`, `match_field` (which field hit). Documented in `docs/schema.md`. |
+| P0.17 | **Search result row UX (content, empty-input, no-results, voice)** | Each result row renders: thumbnail + recipe name + last-cooked badge (using `formatLastCooked` from PRD-001 P1.3) + an "already on plan" pill when relevant. Empty-input state shows a mix of recently-added vault recipes + frequently-cooked vault recipes (heuristic: 5 each, interleaved). No-results state shows the search query as a clickable "Add '<query>' to Cookbook" CTA that opens the Vault add-recipe form with the name pre-filled. A mic icon in the search field invokes `useSpeech.js` (already used in LogMode) to populate the field from voice input. |
+| P0.18 | **Day-collision behavior on search-assign: bump to Maybe** | When P0.13 or P0.14 assigns a recipe to a day that already has a meal, the existing `meal_plan_items` row is updated to `is_shortlisted = true` + `scheduled_date = null` (the Maybe primitive from §P0.6), and the new recipe is inserted on that date. No confirmation dialog. Silent + reversible. This rule is the canonical collision behavior for the app and is referenced by PRD-007 §P0.6 (ghost-slot collisions) for consistency. |
+
+### 13.4 Edge cases (specific to search)
+
+- **Active plan is served (locked).** The top-bar search on Prep Table (P0.13) is hidden entirely on served plans. The per-day picker (P0.14) is already blocked by the existing `isServed` guard. Vault search (P0.15) is unaffected (plan-independent).
+- **No active plan exists.** P0.13 search bar is absent (not greyed out — absent). Tapping a day to start a plan still uses the existing flow.
+- **All days in active plan are filled.** P0.13 mini date-strip shows all days dimmed but tappable; tap fires the P0.18 bump-to-Maybe behavior. A subtle caption "Tap a day to swap" appears below the date-strip.
+- **Search misses on a query containing no actual recipe-name characters** (e.g., "????"). Treat as no-results; show empty-input recommendations instead of the "Add to Cookbook" CTA.
+- **Voice input → text contains the user's whole sentence** (e.g., "find me a chicken recipe"). Don't try to parse intent; just use the text as the query string. Common voice noise like leading "uh" and "find me" should be handled by simple prefix-stripping client-side OR ignored (worst case: results just aren't great for a query starting with "find me").
+- **Already-on-plan pill on a search result** for a recipe that's currently on a *different* day in the active plan. Render the pill as "On plan [Tue]" to give context. Tapping the result still triggers normal assignment flow (and the bump-to-Maybe collision if the user picks a different day — yes, you can assign the same recipe twice; this is intentional, since planned leftovers are now first-class per PRD-007).
+
+### 13.5 New P1 (search-related)
+
+- **P1.7 Search history / recents.** After typing-and-assigning a query, store the query string; surface recent queries above the recommendations in empty-input state.
+- **P1.8 Multi-day assignment from search.** From the Prep Table search flow (P0.13), allow selecting multiple days for one recipe (e.g., "tacos for Tue and Thu"). Single tap-tap-confirm UI on the mini date-strip.
+- **P1.9 Filter chips inside search results.** Layer the existing preference filter as a togglable chip ("show only filtered" / "show all"); useful when the user is searching for something they normally exclude.
+
+### 13.6 Data model changes (search-related)
+
+No new tables. Possible RPC extension only:
+
+```sql
+-- New or extended RPC for ranked multi-field search.
+-- Decide during impl whether to extend vault_fuzzy_match or add a sibling.
+CREATE OR REPLACE FUNCTION vault_search (
+  search_user_id uuid,
+  search_query text,
+  result_limit int DEFAULT 20
+)
+RETURNS TABLE (
+  match_id uuid,
+  match_name text,
+  match_image_url text,
+  match_score real,
+  match_field text  -- 'name' | 'ingredient' | 'chip'
+)
+LANGUAGE sql
+STABLE
+AS $$
+  -- Score across vault.name (highest weight), vault.ingredients_classified (medium),
+  -- and vault chip columns (cuisine_type, proteins[], dietary_tags[], etc.) (lowest).
+  -- Filter by user_id, exclude soft-deleted (deleted_at IS NULL).
+  -- Order by composite score DESC, limit result_limit.
+  -- Implementation detail; verify pg_trgm % operator is enabled.
+$$;
+```
+
+Add `verify_<timestamp>.sql` confirming the RPC exists, returns expected shape, respects RLS implicitly (via `search_user_id` filter), and runs within latency budget on a representative vault size.
+
+### 13.7 Phasing (search-related)
+
+Single-phase rollout. P0.13 + P0.14 + P0.15 + P0.16 + P0.17 + P0.18 ship together as **Phase 5** of PRD-002 — they're tightly coupled and shipping search at one entry point only would feel incomplete. Estimate one focused PR; can split into "RPC + Vault search" and "Prep Table search + collision rule" if the diff is too large.
+
+### 13.8 Testing (search-related)
+
+| Requirement | Test file | Test cases |
+|---|---|---|
+| P0.13 | `src/pages/BrainstormMode/__tests__/SearchBar.test.jsx` (new) | Search bar absent when no plan; absent when plan is served; pick result → date-strip appears; pick date → meal assigned. |
+| P0.14 | extend `src/pages/BrainstormMode/__tests__/BrainstormMode.tapDayPicker.test.jsx` | Search inside sheet filters in place; pick result → meal assigned, sheet closes. |
+| P0.15 | `src/pages/Vault/__tests__/SearchBar.test.jsx` (new) | Search filters vault list; tap result opens recipe (no day-picking flow). |
+| P0.16 | `src/lib/__tests__/vaultSearch.test.js` (new — RPC mock pattern) | Name match outranks ingredient match outranks chip match for the same recipe; soft-deleted recipes excluded; RLS respected via user_id filter. |
+| P0.17 | extend SearchBar.test.jsx + Vault SearchBar.test.jsx | Empty-input shows recents-mixed recommendations; no-results shows "Add to Cookbook" CTA; voice icon invokes useSpeech mock. |
+| P0.18 | extend `src/lib/__tests__/mealPlanWriter.test.js` | Search-assign on filled day moves existing item to Maybe (`is_shortlisted = true`, `scheduled_date = null`); new item occupies the date. |
+
+Playwright e2e: "type 'tacos' in Prep Table search → tap result → pick Tuesday → verify Tacos appear on Tuesday's slot."
+
+### 13.9 Open questions (search-specific)
+
+| # | Question | Owner |
+|---|---|---|
+| OQ.F | Should `vault_search` be a new RPC or an extension of `vault_fuzzy_match`? Trade-off: separate RPC is cleaner; extending the existing one avoids two similar functions diverging. Recommend separate RPC for clarity. | Engineering — decide during impl |
+| OQ.G | Voice input on Vault search vs. Prep Table search — same component or different? Recommend extracting a shared `SearchBar` component with `enableVoice` prop. | Engineering — decide during impl |
+| OQ.H | "Frequently cooked" in the empty-input state — over what window? All time? Last 90 days? Recommend last 90 days to keep it relevant. | Product — confirm |
+| OQ.I | Should a search result include recipes currently in the Maybe shortlist (assigned but not scheduled)? Recommend yes, with a "Maybe" pill on the row. | Product — confirm |
+
+---
+
 ## Revision History
 
 | Version | Date | Notes |
 |---|---|---|
 | v0.1 | 2026-04-25 | Initial draft, grounded in PRD-001 findings + ADR-001 phase-1 ship + code review of `recommendations.js`, `mealPlanReader.js`, `mealPlanWriter.js`, and `BrainstormMode.jsx` structure. Three new architectural surfaces introduced: household preferences, prep_time on vault, "maybe" state on meal_plan_items. Hard prerequisite on PRD-001 P0.1–P0.4 + P1.1. Soft-penalty mode confirmed deferred to P2.5. |
 | v0.2 | 2026-05-30 | Added P2.6 — `served_at` / `isServed` conflation. Surfaced during the PR #135 investigation (current_leftovers shortlist-leak crash, `fix/current-leftovers-shortlist-crash`): while tracing the gap → new-period flow, found that brand-new empty periods enter `loadData`'s `state === 'active'` branch and set `isServed = true` via the row's DB-defaulted `served_at`. Doesn't crash, but renders a meaningless "Served on …" banner. Captured here so it isn't lost to context drift. No P0/P1 changes. |
+| v0.3 | 2026-05-30 | Added §13 v0.3 Addendum — Search-to-Plan. Six new P0 items (P0.13–P0.18) covering top-of-page search on Prep Table and Vault, search inside the per-day picker sheet, ranked multi-field matching (name + ingredients + chips), result-row UX (last-cooked badge + already-on-plan pill + voice + Add-to-Cookbook fallback), and the canonical day-collision rule (bump existing meal to Maybe shortlist — cross-referenced by PRD-007 §P0.6 for ghost-slot consistency). Three P1 items (P1.7–P1.9). Phasing: single Phase 5 rollout. Authored in Cowork planning session after user feature feedback on (1) search, (2) mobile drag regression, (3) mid-period leftovers; PRD-007 captures the leftover work, the drag fix is a separate bug ticket. |
