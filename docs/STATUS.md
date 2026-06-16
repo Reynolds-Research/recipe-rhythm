@@ -4,8 +4,21 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-05-30 against `main` @ `7d71a52` (PR #134 assertProductionConfig hardening merged)
+**Last verified:** 2026-06-16 against `origin/main` @ `1e1177d` (reconciled in a Cowork planning session — see "Reconciliation 2026-06-16" below)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
+
+> **📍 Roadmap:** Near-term sequencing of what to do *next* lives in [`docs/ROADMAP.md`](./ROADMAP.md) (created 2026-06-16, stability-first, ~3 sprints). This file (STATUS.md) remains the source of truth for what has *shipped*.
+
+### Reconciliation 2026-06-16
+
+`STATUS.md` had drifted ~2.5 weeks. Merged into `origin/main` since the previous verification (`7d71a52`) but not previously reflected here:
+
+- **PR #135** (`c184979`) — **P0 crash fix:** `current_leftovers` view now excludes shortlisted (`is_shortlisted`) rows. Migration `20260530000002_current_leftovers_exclude_shortlist.sql` + paired verify. Bug fix (not a PRD phase), so no Shipped-line moved; recorded here for traceability.
+- **PR #133 + #134** — already recorded under PRD-001 P1.6 below (JWT auth + per-user rate limiting + production config guard). ✅ No drift.
+- **PR #118** (`1580f15`) — dependency bump: React 19.2.4 → 19.2.6.
+- **PR #119** (`312a361` / `c4fa40e`) — **dependency bump: Tailwind CSS v3.4 → v4.** This is a major-version upgrade; `CLAUDE.md` still describes "Tailwind CSS 3.4" and should be updated. Verify the build + visuals against the v4 changes (Roadmap Sprint 1, item 1.6).
+
+⚠️ Note: the current in-flight branch `chore/prd-002-p26-and-leftover-leak-e2e` is *behind* `origin/main` (its `package.json` still pins Tailwind 3.4.19 — it predates the v4 bump) and should be rebased before merge.
 
 ---
 
