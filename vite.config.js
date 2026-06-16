@@ -87,6 +87,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.js',
+    environmentOptions: {
+      jsdom: { url: 'http://localhost/' },
+    },
     include: ['src/**/*.test.js', 'src/**/*.test.jsx'],
     coverage: {
       provider: 'v8',
