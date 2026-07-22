@@ -162,6 +162,12 @@ If either MCP errors or appears unreachable, **ask the user** — don't silently
 - **The Claude.ai project's master prompt may be stale.** It may list older versions of the stack (React 18, Vite 6, Vanilla CSS, Phosphor Icons). The truth is in `package.json`. If there's a conflict, **trust the codebase**.
 - **Don't fix unrelated lint or test errors** while doing focused work. Note them in the PR description as follow-ups; don't expand scope unless the prompt explicitly asks.
 
+## Visualization
+
+Lean on visuals to keep ideas legible — this project is built by a user researcher learning to build with GenAI, so a well-placed picture often beats a paragraph. **Trigger at key moments, not every step:** default to a visual at decision points (show competing approaches side by side rather than describing them in prose), at milestones (when a screen, feature, or analysis reaches a reviewable state), and when explaining something structural or an unfamiliar technical concept. Skip visuals for routine small steps — a one-line fix, a lookup, a yes/no answer; when unsure whether a moment qualifies, offer one in a sentence rather than forcing it.
+
+**Three default methods:** (1) **UI mockups & wireframes** — before building a screen or component (Vault, LogMode, BrainstormMode surfaces), render an HTML mockup to eyeball and react to, rather than describing the layout; (2) **data & results charts** — turn metrics, research data, and test results into charts rendered inline for review, rather than tables of numbers; (3) **concept sketches & analogies** — for unfamiliar mechanics, a simple diagram or visual analogy, since the developer is actively learning the technical side. Flow/architecture diagrams (Mermaid) are welcome when a flow is genuinely complex, but they are optional, not a default. **Always pair a visual with a one-line plain-language explanation** of what it shows and why.
+
 ## When in doubt
 
 1. Read `docs/STATUS.md` to see which PRD phases have shipped vs. are pending
