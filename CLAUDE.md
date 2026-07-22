@@ -163,6 +163,12 @@ If either MCP errors or appears unreachable, **ask the user** — don't silently
 - **`lint:ds-allow` markers.** The `lint:ds` npm script is a grep-based design-system guardrail that occasionally produces false positives on decorative icons or intentional aesthetic reverts. To silence a specific hit, add an inline comment containing `lint:ds-allow: <reason>` on the same line. Inside JSX, use `{/* lint:ds-allow: ... */}` between elements; inside a template-literal expression, use `/* lint:ds-allow: ... */`. **`App.jsx`'s bottom-nav uses `text-gray-400` for inactive labels intentionally** — see commit `54d0e66 revert(design): restore nav to lighter gray-400/brand-500 colors`. This is a known revert from PRD-005's stricter contrast rule. Don't "fix" it without an explicit decision to undo that revert.
 - **Don't fix unrelated lint or test errors** while doing focused work. Note them in the PR description as follow-ups; don't expand scope unless the prompt explicitly asks.
 
+## Visualization
+
+Lean on visuals to keep ideas legible — this project is built by a user researcher learning to build with GenAI, so a well-placed picture often beats a paragraph. **Trigger at key moments, not every step:** default to a visual at decision points (show competing approaches side by side rather than describing them in prose), at milestones (when a screen, feature, or analysis reaches a reviewable state), and when explaining something structural or an unfamiliar technical concept. Skip visuals for routine small steps — a one-line fix, a lookup, a yes/no answer; when unsure whether a moment qualifies, offer one in a sentence rather than forcing it.
+
+**Three default methods:** (1) **UI mockups & wireframes** — before building a screen or component (Vault, LogMode, BrainstormMode surfaces), render an HTML mockup to eyeball and react to, rather than describing the layout; (2) **data & results charts** — turn metrics, research data, and test results into charts rendered inline for review, rather than tables of numbers; (3) **concept sketches & analogies** — for unfamiliar mechanics, a simple diagram or visual analogy, since the developer is actively learning the technical side. Flow/architecture diagrams (Mermaid) are welcome when a flow is genuinely complex, but they are optional, not a default. **Always pair a visual with a one-line plain-language explanation** of what it shows and why.
+
 ## When in doubt
 
 1. Read `docs/STATUS.md` to see which PRD phases have shipped vs. are pending
