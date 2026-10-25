@@ -35,3 +35,6 @@ eval-report.json
 # Playwright generated artifacts
 playwright-report/
 test-results/
+audits/*security-audit*
+audits/*
+!audits/prompts/
