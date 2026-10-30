@@ -65,6 +65,14 @@ const LEFTOVERS = [
 
 test.describe('New period flow (ADR-001 Phase 5)', () => {
   test.beforeEach(async ({ page }) => {
+    // Freeze "today" inside the fixture's timeline. The fixtures are dated
+    // (a period ending 2026-04-18, a new period picked in May 2026), and the
+    // date picker only walks forward from today — so once real time passed
+    // May 2026 these tests could never reach their dates and timed out.
+    // setFixedTime pins Date.now() but lets timers run (the 300ms overlap
+    // debounce still fires).
+    await page.clock.setFixedTime(new Date('2026-04-20T10:00:00'));
+
     // Capture observed requests for post-flow assertions.
     const captured = {
       plansInsert: null,
