@@ -41,6 +41,17 @@ test.describe('Vault E2E', () => {
       }));
     });
     
+    // The Vault page also reads recent meals. Leaving this unmocked used to
+    // fail fast, but supabase-js >= 2.118 retries network errors (1s+2s+4s),
+    // which keeps "Loading vault…" on screen past the 5s assertion timeout.
+    await page.route('**/rest/v1/meals*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
     await page.route('**/auth/v1/user*', async route => {
       await route.fulfill({ json: { id: 'test-user', email: 'test@example.com' } });
     });
