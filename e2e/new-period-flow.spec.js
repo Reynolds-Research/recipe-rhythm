@@ -165,6 +165,24 @@ test.describe('New period flow (ADR-001 Phase 5)', () => {
       });
     });
 
+    // household_preferences has no row for the test user. Mirror real
+    // PostgREST: .single() on zero rows returns 406 / PGRST116, which
+    // getPreferences() maps to defaults. Leaving this unmocked used to fail
+    // fast, but supabase-js >= 2.118 retries network errors (1s+2s+4s),
+    // which pushes the page past the 5s assertion timeout.
+    await page.route('**/rest/v1/household_preferences*', async (route) => {
+      await route.fulfill({
+        status: 406,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 'PGRST116',
+          details: 'The result contains 0 rows',
+          hint: null,
+          message: 'JSON object requested, multiple (or no) rows returned',
+        }),
+      });
+    });
+
     await page.goto('/');
 
     await page.evaluate(() => {
