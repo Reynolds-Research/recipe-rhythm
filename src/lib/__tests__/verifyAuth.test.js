@@ -1,3 +1,4 @@
+/* global process */
 /**
  * Unit tests for api/_lib/verifyAuth.js (PRD-001 P1.6).
  *

@@ -311,7 +311,7 @@ export function useBrainstorm(userId) {
     const today = new Date()
     const ninetyDaysAgo = addDays(today, -90)
 
-    let periods = []
+    let periods
     try {
       periods = await listUserPeriods(supabase, userId)
     } catch {
