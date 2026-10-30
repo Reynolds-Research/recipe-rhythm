@@ -16,15 +16,9 @@ Recipe Rhythm is an AI-assisted codebase, and I want to be upfront about what th
 
 If you're reviewing this with a hire in mind, read a PRD or ADR alongside the code it produced — that's where my judgment lives.
 
-<!--
-  Screenshots — uncomment this block once images are added to docs/screenshots/.
-  Suggested files: vault.png, brainstorm.png, log.png (mobile-sized PNGs work best, e.g. 375×812).
-
-| Vault | Brainstorm | Log |
-| :---: | :---: | :---: |
-| ![Vault](docs/screenshots/vault.png) | ![Brainstorm](docs/screenshots/brainstorm.png) | ![Log](docs/screenshots/log.png) |
-
--->
+| Log | Prep Table | Cookbook: tags | Cookbook: ingredients |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/log.png" alt="Log screen" width="200"> | <img src="docs/screenshots/prep-table.png" alt="Prep Table screen" width="200"> | <img src="docs/screenshots/cookbook-tags.png" alt="Cookbook tags view" width="200"> | <img src="docs/screenshots/cookbook-ingredients.png" alt="Cookbook ingredients view" width="200"> |
 
 ## Core Features
 1. **Log**: Low-friction "what did you eat tonight?" capture. Saves to a local meal history table, and an optional "Save to Cookbook" prompt uses AI to classify and store the meal with rich details.
