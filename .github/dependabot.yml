@@ -19,3 +19,19 @@ updates:
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # Everything else that's minor or patch arrives as ONE weekly PR. Separate
+      # PRs all edit package-lock.json, so merging any one of them put the rest
+      # into conflict (2026-10-30: 4 of 9 open Dependabot PRs went CONFLICTING
+      # after #153/#154 merged). Majors stay separate so a breaking change can
+      # be reviewed and declined on its own.
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
+      # Same idea for security updates (qs, undici, brace-expansion, …).
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
