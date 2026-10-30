@@ -275,7 +275,7 @@ async function main() {
   for (const recipe of truth.recipes) {
     const ingredientNames = recipe.ingredients.map(i => i.name)
     if (ingredientNames.length === 0) continue
-    let aiClassifications = []
+    let aiClassifications
     try {
       const result = await classifyIngredients({
         ingredients: ingredientNames,

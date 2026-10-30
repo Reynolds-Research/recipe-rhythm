@@ -51,6 +51,11 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
 - [ ] **Optional: rethink the launchd audit cadence** — `scripts/run-audits.sh` only runs when the laptop is awake at 02:00. For audits with a hard cadence requirement (e.g. weekly security), the trade-off now that the GitHub Actions copies are disabled is: (a) keep one `audit-security.yml`-style workflow re-enabled with `--model sonnet` pinned, or (b) run the Max-backed CLI under a hosted box that's always on. Not urgent — the local cadence has been working — but worth noting so the trade-off is visible if a missed-audit gap ever surfaces. Effort: M if pursued.
   - **Done when:** superseded 2026-10-30 — the runner is ported to a systemd timer on the Linux PC (`scripts/systemd/`). Matt decided 2026-10-30: reports stay local on the PC (`.audit-logs/`, listed in `INDEX.md`); nothing posts to GitHub. Done when the timer is armed and one run shows in `.audit-logs/INDEX.md`.
 
+## Code health
+
+- [ ] **LINT-REACT-1 · 6 React lint errors (`eslint-plugin-react-hooks` 7 / React Compiler rules)** — the last 6 of `npx eslint .` after the 2026-10-30 lint cleanup. Each changes app code, so take them one at a time with a test: setState called synchronously inside an effect (`App.jsx:48`, `DayPicker.jsx:151`, `DateRangePicker.jsx:123`, `useVault.js:89`); a variable read before it's declared (`useBrainstorm.js:269`); memoization the compiler can't preserve (`useBrainstorm.js:799`). Effort: S each.
+  - **Done when:** `npx eslint .` reports 0 errors, and then `npx eslint .` is added as a step in `.github/workflows/ci.yml` so lint can't regress.
+
 ## UX / Accessibility
 
 _Source: [`audits/2026-08-02-uxr-heuristic-evaluation.md`](audits/2026-08-02-uxr-heuristic-evaluation.md) — Nielsen heuristic evaluation of the live app at 375px, axe-core 4.10.2 + tap-target sweep. Screenshots + raw axe JSON in [`audits/uxr-2026-08-02/`](audits/uxr-2026-08-02/). Severity IDs (P0/P1/P2) are the report's._

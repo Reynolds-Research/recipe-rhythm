@@ -104,7 +104,6 @@ export default function App() {
           { id: 'brainstorm', label: 'Prep Table',  Icon: ChefKnife  },
           { id: 'calendar',   label: 'Calendar',    Icon: CalendarDays  },
           { id: 'vault',      label: 'Cookbook',    Icon: BookOpen  },
-        // eslint-disable-next-line no-unused-vars
         ].map(({ id, label, Icon }) => (
           <button
             key={id}
