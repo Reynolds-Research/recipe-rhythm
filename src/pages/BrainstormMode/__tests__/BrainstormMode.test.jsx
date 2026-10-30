@@ -212,10 +212,13 @@ describe('BrainstormMode', () => {
       expect(cell.dataset.selected).toBe('true')
     }
 
-    // Persisted to the new localStorage key.
-    expect(JSON.parse(localStorage.getItem('brainstorm_plan_dates'))).toEqual(
-      expected,
-    )
+    // Persisted to the new localStorage key. The write happens in a passive
+    // useEffect, which can land after the DOM shows the selection — wait for it.
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem('brainstorm_plan_dates'))).toEqual(
+        expected,
+      )
+    })
   })
 
   it('migrates legacy brainstorm_plan_days into brainstorm_plan_dates and clears the old key', async () => {
