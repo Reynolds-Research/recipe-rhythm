@@ -9,3 +9,13 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      # react and react-dom must always be the exact same version (React
+      # refuses to load otherwise). 7cebd16 bumped react alone and broke 27
+      # test files on main; grouping makes Dependabot bump them in one PR.
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
