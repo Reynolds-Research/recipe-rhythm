@@ -1,0 +1,13 @@
+# Daily at 02:10 local, like the Mac's 02:00 launchd job, offset from the other
+# PC jobs. Persistent=true: a run missed while the PC was off happens on boot.
+[Unit]
+Description=Run Recipe Rhythm audits daily
+
+[Timer]
+OnCalendar=*-*-* 02:10:00
+RandomizedDelaySec=120
+Persistent=true
+Unit=recipe-rhythm-audits.service
+
+[Install]
+WantedBy=timers.target

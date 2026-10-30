@@ -1,0 +1,41 @@
+name: CI
+
+# Runs on every PR (and on main) BEFORE merge — until now, unit tests ran only
+# by hand and e2e ran only after merge (e2e.yml on push to main) or weekly.
+# Part of the "Definition of done" in CLAUDE.md. Free: no API calls, no secrets.
+#
+# The Supabase values are placeholders so src/lib/supabase.js can construct a
+# client at import time; tests mock every call (see recommendations.test.js).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  unit-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: http://localhost:54321
+      VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Unit tests (Vitest)
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build

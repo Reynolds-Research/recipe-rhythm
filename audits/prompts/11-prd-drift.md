@@ -4,22 +4,30 @@
 You are a technical program manager checking whether the shipped code still matches what the PRDs (Product Requirement Documents) and ADRs (Architecture Decision Records) say it does. Drift is normal; surfacing it is the whole point.
 
 ## Project context
-- **Active PRDs (as of May 2026):** PRD-001, PRD-002, PRD-003, PRD-004, PRD-005, PRD-006. PRDs are markdown files at the repo root or in a `docs/` folder.
-- **ADRs in play:** ADR-002 (ingredient classification approach).
-- **Status tracking:** `RECIPE_TODOS.md` is the authoritative ground truth for "what's shipped." Items marked `[x]` with a date have been merged.
+- **Destination:** `docs/NORTH-STAR.md` — the product goal, success criteria S1–S5 and non-goals. This audit compares the project against it, not just against the backlog.
+- **Active PRDs:** PRD-001 through PRD-007, in `docs/prds/`.
+- **ADRs in play:** ADR-001 through ADR-005, in `docs/adr/`.
+- **Status tracking:** `docs/STATUS.md` is the authoritative ground truth for "what's shipped" (per PRD phase, with PR numbers). `TASKS.md` is the next-work list. `RECIPE_TODOS.md` is retired — do not look for it.
 - **Audit history:** A repo-wide PRD audit on 2026-05-02 confirmed all 33 P0 items across PRD-001/002/005 had shipped. Use that as a baseline — your job is to verify still-true and catch any newer drift.
 
 ## Files to read first
-1. `RECIPE_TODOS.md` — the punch list / changelog
-2. `PRD-*.md` files (all of them)
-3. `ADR-*.md` files (all of them)
-4. `INDIGOFLOW_TODOS.md` if it exists
+1. `docs/NORTH-STAR.md` — the destination
+2. `docs/STATUS.md` — what has shipped; and `TASKS.md` — what's next
+3. `docs/prds/PRD-*.md` (all seven)
+4. `docs/adr/ADR-*.md` (all five)
 5. Recent commits: `git log --since="60 days ago" --pretty=format:"%h %s"` — what's been shipping vs. what's documented?
 
 ## What to check
 
+### North Star check (P0–P1)
+For each success criterion S1–S5 in `docs/NORTH-STAR.md`:
+- Status: MET / NOT MET / UNKNOWN, with the evidence (file:line, test name, or the `TASKS.md` item that shows it failing).
+- Is anything in `TASKS.md` or recent commits moving it? If nothing touched a NOT MET criterion in 60 days, say so.
+- Flag any recent work that serves none of the criteria, or that moves toward a listed non-goal (P0 if it's a non-goal).
+- Is `docs/STATUS.md`'s "Last verified" line older than the newest merged phase? CLAUDE.md treats a stale STATUS as a release blocker.
+
 ### Shipped-item verification (P1)
-For each PRD acceptance criterion marked complete (`[x]`):
+For each PRD phase marked shipped in `docs/STATUS.md`:
 - Find the corresponding code. Does it exist?
 - Does it match the PRD's description?
 - Is there a test verifying the behavior the PRD specified?
@@ -54,6 +62,13 @@ For each ADR:
 ```markdown
 # PRD ↔ Implementation Drift Audit — {{run_date}}
 
+## North Star
+| Criterion | Status | Evidence | Moving? |
+|---|---|---|---|
+| S1 … S5 | MET / NOT MET / UNKNOWN | file:line, test, or TASKS item | yes (what) / no |
+
+Verdict: ON COURSE / WATCH / DRIFTING — one line why.
+
 ## Per-PRD scorecard
 
 ### PRD-001
@@ -63,7 +78,7 @@ For each ADR:
 - Findings:
   - [P{0|1|2} · {E|M|H}] specific issue
 
-(repeat for PRD-002, 003, 004, 005, 006)
+(repeat for PRD-002 through PRD-007)
 
 ## ADR adherence
 
@@ -75,7 +90,7 @@ For each ADR:
 
 ## Undocumented features
 - Features visible in code with no matching PRD/TODO:
-  - `path/to/file.jsx` — describes a feature that's not in any PRD; recommend adding a brief note to RECIPE_TODOS or backfilling a PRD if substantial.
+  - `path/to/file.jsx` — describes a feature that's not in any PRD; recommend adding a brief note to TASKS.md or backfilling a PRD if substantial.
 
 ## Cross-PRD conflicts
 - PRDs A and B both speak to ... — A says X, B says Y. Recommendation: note the supersession explicitly.

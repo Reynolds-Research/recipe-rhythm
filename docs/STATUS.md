@@ -4,10 +4,19 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-06-16 against `origin/main` @ `1e1177d` (reconciled in a Cowork planning session — see "Reconciliation 2026-06-16" below)
+**Last verified:** 2026-10-30 against `origin/main` @ `18b60cb` (project-system audit — see "Reconciliation 2026-10-30" below)
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 > **📍 Roadmap:** Near-term sequencing of what to do *next* lives in [`docs/ROADMAP.md`](./ROADMAP.md) (created 2026-06-16, stability-first, ~3 sprints). This file (STATUS.md) remains the source of truth for what has *shipped*.
+
+### Reconciliation 2026-10-30
+
+No PRD phase shipped after `1e1177d`; `origin/main` has been unchanged since 2026-06-16 (`18b60cb`). What merged after the last verification, and what that changes here:
+
+- **No phase moved.** #146 / #151 (roadmap + status reconcile, docs), #147 (PRD-006 doc), #149 (STATUS workflow), `e1d087a` (`lint:ds-allow` mechanism), `0443cb7` (PRD-005 loose-ends prompt), and Dependabot bumps.
+- **#148 — weekly E2E workflow** (`.github/workflows/weekly-e2e.yml`, Mondays): runs Playwright, sends results to Gemini 2.5 Flash for analysis and emails a summary. Uses the `GEMINI_API_KEY` and email secrets.
+- **⚠️ `main` is red on unit tests.** `7cebd16` bumped `react` to 19.2.7 without `react-dom` (still 19.2.6); 27 of 62 Vitest files now fail at import with "Incompatible React versions" (the 529 tests that load all pass). Nothing ran unit tests on PRs, so it went unnoticed. Fix tracked in `TASKS.md`.
+- **Corrected here:** PRD-006 P0.8 (Bite δ, #89) merged 2026-05-05 — the at-a-glance row and section header still said "in PR #89". PRD-007 (authored June, committed in `b2b3455`) had no row. The 06-16 note below that `CLAUDE.md` says Tailwind 3.4 is stale — it says 4.3.
 
 ### Reconciliation 2026-06-16
 
@@ -31,7 +40,8 @@
 | PRD-003 | Grocery Tracking | 🟡 **Phase 1 partially shipped** (Bite C-1) | P1 polish (auto-regenerate prompt, individual-item edit, plain-text export, custom section order, source-recipe captions, staple override) |
 | PRD-004 | Smarter Ingredient Filtering | ✅ **All P0 shipped** | P1 nice-to-haves (override review surface, frequency analytics, AI confidence, periodic re-classification) |
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 + P1.1 shipped** (Phases 1–8 + lint guardrail + BrainstormMode decomposition) | P1.2–P1.5 nice-to-haves |
-| PRD-006 | Structured Ingredients & Household Scaling | 🟡 **P0.1–P0.7 shipped; P0.8 (Bite δ) in PR #89** | P0.8 merge → v1.0; then P1 nice-to-haves |
+| PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** (P0.1–P0.8; P0.8 = #89) | P1 nice-to-haves |
+| PRD-007 | Mid-Period Leftovers | 📝 **Authored, no phase shipped** (verify against code before planning) | Plan Phase 1 |
 
 **PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86). P0.8 / Bite δ wires structured-ingredient quantities through to the grocery-list prompt (PR #89).
 
@@ -183,7 +193,7 @@ Nav simplification work that doesn't belong to any one PRD.
 
 ## PRD-006 — Structured Ingredients & Household Scaling
 
-[`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md) · **Draft v0.2** · 🟡 P0.1–P0.7 shipped, P0.8 (Bite δ) in PR #89
+[`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md) · **Draft v0.2** · ✅ P0.1–P0.8 shipped (P0.8 = #89, merged 2026-05-05)
 
 ### Shipped
 

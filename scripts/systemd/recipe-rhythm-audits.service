@@ -1,0 +1,13 @@
+# Recipe Rhythm audit runner on the Linux PC (replaces scripts/launchd/ on the
+# Mac). run-audits.sh decides which audits run today (daily / weekly /
+# biweekly / monthly, incl. the monthly PRD-drift + North Star audit on the 1st)
+# and posts each result as a GitHub issue. Installed by install.sh; not armed.
+[Unit]
+Description=Recipe Rhythm scheduled audits (headless Claude)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/recipe-rhythm
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/bash %h/projects/recipe-rhythm/scripts/run-audits.sh
+TimeoutStartSec=2h

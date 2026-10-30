@@ -1,5 +1,8 @@
 # Recipe-Rhythm — Roadmap
 
+> **⚠️ Superseded as the work list on 2026-10-30.** Open items now live in [`TASKS.md`](../TASKS.md), each with a
+> "Done when". This file stays for the sprint rationale and the full QA finding text (VP-IDs). Don't add new work here.
+
 > **Purpose:** Near-term sequencing of work, optimized for **stability first**. This complements `docs/STATUS.md` (which records what has *shipped*); this file records what to do *next* and in what order. Covers roughly the next 2–3 working sessions ("sprints").
 >
 > **Created:** 2026-06-16 (Cowork planning session) · **Horizon:** next 2–3 sprints · **Bias:** fix what's broken before building what's new.
@@ -36,6 +39,37 @@ Goal: the app is trustworthy and the repo is honest about its own state.
 | 1.6 | **Verify the Tailwind v4 + React 19.2.6 upgrade.** Run the test suite and eyeball key screens on `origin/main`. | Major CSS-framework version jump merged via Dependabot — confirm nothing broke visually or in CI. | Dependabot PR #119 |
 
 **Exit criteria:** STATUS reconciled; planning docs committed; the two P1 bugs fixed with tests; mobile drag works on a real device; Tailwind v4 confirmed clean.
+
+---
+
+## QA edge-case audit — 2026-08-02 (new findings)
+
+Second exploratory edge-case pass (scheduled task `edge-case-audit`), run live against production + grounded against `origin/main` @ `46009fc`. Full report: [`audits/2026-08-02-edge-case-audit.md`](../audits/2026-08-02-edge-case-audit.md). IDs continue the VP-N scheme from the 2026-06-02 audit. **VP-16 is the new top stability item** (escalated to P0), so it floats above Sprint 1's ordering.
+
+**Reconfirmations of still-open earlier items** (do not treat as fixed):
+
+- **VP-1** (morning "last night" off-by-one) — **still open.** Not re-tested this run (the run happened in the afternoon "tonight" case, which writes correctly). The morning path still writes `formatLocalDate()` = today at `LogMode.jsx:58`. Sprint 1 item 1.3 still stands.
+- **VP-2** (silent load/save failure) — **reconfirmed and broadened.** Now reproduced *live* by forcing the meal write to HTTP 500: the log sheet closed with zero user feedback. The pattern spans five surfaces (see VP-16 for the escalated meal-log case). Sprint 1 item 1.5 should cover all five, not just `fetchRecipes` + `finalizeSave`.
+- **VP-3** (no recipe-name length cap) — **reconfirmed and extended.** Still no cap client/server/schema (a 585-char name went to Haiku and into the DB). The visible symptom is VP-11.
+- **VP-8** (ErrorBoundary scope) — the boundary now wraps the whole authed tree (`App.jsx:74`), so the *original* VP-8 is largely addressed; the real gap is that failures don't throw, so the boundary never fires (that's VP-2/VP-16, not a boundary bug).
+
+| ID | Pri | Area | File | One-line |
+|----|-----|------|------|----------|
+| **VP-16** | **P0** | LogMode | `src/pages/LogMode.jsx:64` | Meal-log write failure is **totally silent** (reproduced live w/ forced 500) — sheet closes, no message, reads as success. Escalated from VP-2. |
+| **VP-10** | P1 | Cookbook | `src/pages/Vault/useVault.js:203-215` | Recipe photo upload can fail and the recipe saves anyway with no image + no warning (silent partial data loss). |
+| **VP-11** | P1 | LogMode / sheet | `src/pages/LogMode.jsx:238-247`, `MealNameConfirmSheet.jsx` | A long unbroken word in a meal name overflows layout to **9.7× viewport** (measured); pushes sheet buttons off-screen. Fix: `overflow-wrap:anywhere`. Ties to VP-3. |
+| **VP-12** | P1 | Cookbook | `src/pages/Vault/useVault.js:150-161` | Duplicate recipes reachable — guard is client-side check-then-insert, no unique index. **3 identical active rows exist in the test account now.** Fix: partial unique index on `(user_id, lower(name)) where deleted_at is null`. |
+| **VP-13** | P1 | Prep Table (AI) | `src/pages/BrainstormMode/useBrainstorm.js:280-297` | Swap-suggestions endpoint collapses every failure (429 / timeout / network) to `[]`, indistinguishable from "no ideas"; `res.json()` at :296 is also unguarded. |
+| **VP-14** | P2 | Legacy plans | `src/lib/mealPlanReader.js:22-34` | Legacy plan dates derived from a `timestamptz` read in local time → off-by-one day west of UTC (same class as the fixed U8; survived because it's a timestamp, not a date string). |
+| **VP-15** | P2 | Badges | `src/lib/dateUtils.js:56` | "N days ago" badge wrong by one across DST (ms-based day count → `Math.floor` shows "today" for yesterday). Fix: count calendar days. |
+| **VP-17** | P2 | Cookbook / Log | `vaultMatch.js:46`, `LogMode.jsx:193`, `useVault.js:155` | User text passed unescaped into `.ilike()` — `%`/`_` act as wildcards; the `LogMode.jsx:193` case is an `.update()` that can back-link the wrong meal. |
+
+**Housekeeping (not code bugs, but please read):**
+
+- **Test account has drifted off its documented baseline** — `.claude/test-credentials.md` says 0 recipes / 0 meals, but the account holds residue from prior audit runs (incl. `Forced Error Test Meal` ×3). The "renders empty state" smoke steps can't run against it. Needs a deliberate reseed.
+- **`.claude/test-credentials.md` smoke checklist is stale** — says 3 nav icons named Vault/Brainstorm/Log; the app has 4: Log / Prep Table / Calendar / Cookbook.
+- **PWA install prompt (`InstallPrompt.jsx`) overlaps the bottom nav + "Save to log"** on the Log screen and reappears after reload — blocked a nav tap during the run.
+- **"Last week's meals" label is misleading** — it's bounded by the prior *planning period*, not last week (`lastWeekSlots.js:30`), so it can show 2-month-old meals. Copy fix.
 
 ---
 
