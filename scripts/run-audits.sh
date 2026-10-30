@@ -33,7 +33,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # launchd starts with a minimal PATH. Make sure Homebrew binaries
 # (where `claude` and `gh` live on Apple Silicon and Intel Macs) are found.
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+# On the Linux PC (systemd, scripts/systemd/) `claude` lives in ~/.local/bin.
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 # Claude Code needs HOME set to find its OAuth credentials at ~/.claude/
 export HOME="${HOME:-/Users/Matt}"
@@ -152,7 +153,9 @@ run_audit() {
   if head -n 1 "$out_file" | grep -qE '^```' && \
      tail -n 1 "$out_file" | grep -qE '^```$'; then
     log "  · stripping outer markdown code fence from $slug output"
-    sed -i '' '1d;$d' "$out_file"
+    # Portable in-place edit: BSD sed (macOS) needs `-i ''`, GNU sed (Linux)
+    # rejects it; a backup suffix works on both.
+    sed -i.bak '1d;$d' "$out_file" && rm -f "$out_file.bak"
   fi
 
   # Post finding as a GitHub Issue.

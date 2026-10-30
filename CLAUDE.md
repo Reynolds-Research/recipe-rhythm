@@ -38,29 +38,31 @@ The app has three primary user-facing surfaces:
 - `api-server.mjs` — local-dev Express proxy holding the Anthropic key
 - `api/` — Vercel serverless port of the proxy (keep in sync with `api-server.mjs`)
 - `scripts/` — one-off and admin Node scripts: backfill jobs (`backfill-structured-ingredients.mjs`, `backfill-ingredients-classification.js`), classification eval tooling (`build-classification-truth-set.js`, `eval-classification-accuracy.js`), and git-hooks installation (`install-git-hooks.sh`). Some are wired up as npm scripts in `package.json` (e.g. `npm run backfill:structured-ingredients`).
+- `docs/NORTH-STAR.md` — the product goal, checkable success criteria and non-goals. The monthly PRD-drift audit checks against it.
+- `TASKS.md` — the single next-work list, each item with a **Done when**. `docs/ROADMAP.md` is superseded as a work list.
+- `docs/SESSION-LOG.md` — one row per session, newest on top; the handoff.
 - `docs/STATUS.md` — the canonical "where are we?" document. Single source of truth for which PRD phases have shipped vs. are pending. **Read this immediately after CLAUDE.md at the start of every session.** Updated as part of every PR that completes a PRD phase (see "Status etiquette" below). Replaces the legacy `RECIPE_TODOS.md`, which has been retired and should not be referenced.
 
 ## PRDs (the source of truth for what to build)
 
 When working on a feature, **read the relevant PRD first**. Do not invent requirements that aren't in the PRD. Always cross-reference against `docs/STATUS.md` to know which phases of each PRD have already shipped.
 
-1. **PRD-001 — Recipe Vault & Cooking Record** — [`docs/prds/PRD-001-recipe-vault-and-cooking-record.md`](docs/prds/PRD-001-recipe-vault-and-cooking-record.md). Restores the meals→vault link, soft-deletes vault recipes, centralizes enums. Dependency root for PRD-002 and PRD-003.
-2. **PRD-002 — Meal Planning** — [`docs/prds/PRD-002-meal-planning.md`](docs/prds/PRD-002-meal-planning.md). Brainstorm UX upgrade, household preferences (hard filter), `prep_time_minutes`, "maybe" / shortlist state. **Was hard-blocked on PRD-001 Phase 1 + P1.1; both shipped.**
-3. **PRD-003 — Grocery Tracking** — [`docs/prds/PRD-003-grocery-tracking.md`](docs/prds/PRD-003-grocery-tracking.md). AI-generated lists (Hybrid approach), pantry staples lite, the share-link primitive (token + public route + react-router).
-4. **PRD-004 — Smarter Ingredient Filtering** — [`docs/prds/PRD-004-smarter-ingredient-filtering.md`](docs/prds/PRD-004-smarter-ingredient-filtering.md). AI classifies vault ingredients as `essential` vs. `omittable`; preference filter gates only on essentials. Builds on PRD-002 P0.3. Paired with [ADR-002](docs/adr/ADR-002-ingredient-classification.md) and [ADR-003](docs/adr/ADR-003-implied-meat-dish-name-filter.md).
-5. **PRD-005 — Mobile UX, Spacing & Typography** — [`docs/prds/PRD-005-mobile-ux-spacing-typography.md`](docs/prds/PRD-005-mobile-ux-spacing-typography.md). Hygiene-only audit: spacing scale, typography scale, WCAG AA contrast, 44px touch targets, design-system primitive adoption, CI lint guardrail. Independent of feature PRDs.
-6. **PRD-006 — Structured Ingredients & Household Scaling** — [`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](docs/prds/PRD-006-structured-ingredients-and-household-scaling.md). Adds `vault.ingredients_structured jsonb`, `vault.servings`, `household_preferences.adults` / `.children`, a backfill script, chip-grounded re-extraction (Path D1), and an explicit truth-hierarchy prompt. P0.1–P0.6 shipped; P0.7 (Bite γ — re-parse on edit + grocery-list household scaling) pending.
+1. [PRD-001 — Recipe Vault & Cooking Record](docs/prds/PRD-001-recipe-vault-and-cooking-record.md) — dependency root for 002 and 003.
+2. [PRD-002 — Meal Planning](docs/prds/PRD-002-meal-planning.md)
+3. [PRD-003 — Grocery Tracking](docs/prds/PRD-003-grocery-tracking.md) — includes the share-link primitive.
+4. [PRD-004 — Smarter Ingredient Filtering](docs/prds/PRD-004-smarter-ingredient-filtering.md) — with ADR-002 and ADR-003.
+5. [PRD-005 — Mobile UX, Spacing & Typography](docs/prds/PRD-005-mobile-ux-spacing-typography.md) — hygiene only; owns the `lint:ds` guardrail.
+6. [PRD-006 — Structured Ingredients & Household Scaling](docs/prds/PRD-006-structured-ingredients-and-household-scaling.md)
+7. [PRD-007 — Mid-Period Leftovers](docs/prds/PRD-007-mid-period-leftovers.md)
 
-ADRs:
-- **ADR-001 — Planning Period Save State** — [`docs/adr/ADR-001-planning-period-save-state.md`](docs/adr/ADR-001-planning-period-save-state.md). Schema decisions for date-ranged planning periods, leftovers, end-of-period review.
-- **ADR-002 — Ingredient Classification** — [`docs/adr/ADR-002-ingredient-classification.md`](docs/adr/ADR-002-ingredient-classification.md). Rationale for the AI-classifier approach in PRD-004.
-- **ADR-003 — Implied-Meat Dish-Name Filter** — [`docs/adr/ADR-003-implied-meat-dish-name-filter.md`](docs/adr/ADR-003-implied-meat-dish-name-filter.md). App-layer dish-name keyword filter for vegetarian/vegan/pescatarian preferences; companion to PRD-004's essentiality classifier.
-- **ADR-004 — Server-side AI Response Cache** — [`docs/adr/ADR-004-server-side-ai-response-cache.md`](docs/adr/ADR-004-server-side-ai-response-cache.md). Two cross-user shared cache tables (`ingredient_classifications_cache`, `meal_name_normalizations_cache`) backing `/api/classify-ingredients` and `/api/normalize-meal-name`. First-answer-wins; SELECT open to anon+authenticated; writes service-role-only. Adds Supabase coupling to the API server (new env vars: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — same vars already used by backfill scripts).
+What has shipped per phase is in `docs/STATUS.md` — never in this file, so it can't go stale here.
+
+ADRs ([`docs/adr/`](docs/adr/)): ADR-001 planning-period save state · ADR-002 ingredient classification · ADR-003 implied-meat dish-name filter · ADR-004 server-side AI response cache (adds `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` to the API server) · ADR-005 recipe API buy-vs-build.
 
 ## Workflow conventions
 
 This repo uses a **two-surface workflow**:
-- **Claude.ai** (planning surface) authors PRDs, ADRs, and prompts. Outputs land in `docs/prds/`, `docs/adr/`, `docs/prompts/`.
+- **Claude.ai or Cowork** (planning surface) authors PRDs, ADRs, and prompts. Outputs land in `docs/prds/`, `docs/adr/`, `docs/prompts/`.
 - **Claude Code** (executor — that's you) reads a prompt from `docs/prompts/`, produces commits + tests + migrations, opens a PR.
 
 When given a prompt file, follow it literally. If something in the prompt doesn't match the codebase, **stop and ask the user** rather than guessing or improvising.
@@ -98,6 +100,22 @@ To compare branches: `git diff main..other-branch -- <path>`.
 - **Outdated `docs/STATUS.md` is a release blocker** — treat it the same as outdated `docs/schema.md`. If a reviewer notices drift between the file and what actually shipped, the PR doesn't merge until both are reconciled.
 - **At the start of every session, read `docs/STATUS.md` immediately after this file**, then run `git log --oneline -20` to spot-check that the file matches reality. If they don't match, reconciling is the first task — not the work that was originally requested.
 - **Bug-fix or refactor PRs that don't complete a PRD phase do not need to touch STATUS.md** — only phase-completing or P-numbered work.
+
+## Definition of done
+
+An item from `TASKS.md` (or a PRD phase) is done only when all of these hold. Until then, don't tick it,
+don't move it to Shipped in STATUS.md, and say "not done" in the PR.
+
+1. **Every acceptance criterion is covered:** each AC row (PRD table or the item's **Done when**) is
+   cited in the PR body next to the test or `verify_<timestamp>.sql` that would fail if it broke.
+2. **CI is green:** the `CI` workflow (Vitest + build) on the PR. Don't merge on red.
+3. **The `reviewer` subagent passed:** run it in a fresh context (`.claude/agents/reviewer.md`, give it
+   the PRD id + phase or the TASKS item) and paste its `Reviewer verdict: PASS` table into the PR.
+   You don't grade your own work; a FAIL goes back to step 1.
+4. **Records updated:** STATUS.md (phase-completing work), `docs/schema.md` (migrations), and one row in
+   `docs/SESSION-LOG.md` with the next item, so the next session starts clean.
+
+One item per session. If an item turns out bigger than one session, split it in `TASKS.md` first.
 
 ## MCP-powered verification (preview branches & deployments)
 
@@ -171,7 +189,7 @@ Lean on visuals to keep ideas legible — this project is built by a user resear
 
 ## When in doubt
 
-1. Read `docs/STATUS.md` to see which PRD phases have shipped vs. are pending
+1. Read `docs/NORTH-STAR.md`, then `docs/STATUS.md` (what shipped), then the top of `docs/SESSION-LOG.md` and `TASKS.md` (what's next)
 2. Read the PRD for the feature you're working on (`docs/prds/`)
 3. Read the prompt for your phase (`docs/prompts/`) if one exists
 4. Read `docs/schema.md` and `docs/architecture.md` for system context

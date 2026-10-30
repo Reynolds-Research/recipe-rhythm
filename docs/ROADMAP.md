@@ -1,5 +1,8 @@
 # Recipe-Rhythm — Roadmap
 
+> **⚠️ Superseded as the work list on 2026-10-30.** Open items now live in [`TASKS.md`](../TASKS.md), each with a
+> "Done when". This file stays for the sprint rationale and the full QA finding text (VP-IDs). Don't add new work here.
+
 > **Purpose:** Near-term sequencing of work, optimized for **stability first**. This complements `docs/STATUS.md` (which records what has *shipped*); this file records what to do *next* and in what order. Covers roughly the next 2–3 working sessions ("sprints").
 >
 > **Created:** 2026-06-16 (Cowork planning session) · **Horizon:** next 2–3 sprints · **Bias:** fix what's broken before building what's new.
