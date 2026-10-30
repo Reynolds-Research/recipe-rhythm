@@ -3,20 +3,24 @@
 # Recipe-Rhythm — Local Audit Runner
 #
 # Runs scheduled audits via the local `claude` CLI (uses your Max
-# subscription, not the API), then posts each finding as a GitHub Issue
-# via the `gh` CLI.
+# subscription, not the API) and saves each report LOCALLY on the PC.
+# Nothing is posted to GitHub: the repo is public and the security / RLS
+# audits describe weaknesses (decided 2026-10-30).
 #
 # WHEN THIS RUNS:
-#   - Automatically: launchd fires this script daily at 2am
-#     (see scripts/launchd/com.matt.recipe-rhythm.audits.plist)
+#   - Automatically: the systemd timer on the Linux PC fires this script
+#     daily at 02:10 (scripts/systemd/). The old Mac launchd plist is in
+#     scripts/launchd/ for reference only.
 #   - Manually:
 #       ./scripts/run-audits.sh             # run today's scheduled audits
 #       ./scripts/run-audits.sh --all       # run all 11 right now (testing)
 #       ./scripts/run-audits.sh --audit security   # run one specific audit
 #
 # OUTPUTS:
-#   - GitHub Issues labeled `audit` + audit-specific label
-#   - Logs and per-audit output captured in $REPO_ROOT/.audit-logs/
+#   - One report per audit run: $REPO_ROOT/.audit-logs/<audit>-<date>.md
+#   - $REPO_ROOT/.audit-logs/INDEX.md — every report, newest on top
+#   - Run log: $REPO_ROOT/.audit-logs/audit-run-<date>.log
+#   (.audit-logs/ is gitignored, so none of this is ever committed.)
 # =====================================================================
 
 # Stop on undefined vars; pipeline failures count as failures.
@@ -148,7 +152,7 @@ run_audit() {
   # Defensive post-processing: strip outer markdown code fence if Claude
   # wrapped the entire response in one (it sometimes does, mimicking the
   # ```markdown ... ``` example block shown in the prompt template).
-  # Without this strip, the GitHub Issue body renders as a single code
+  # Without this strip, the report renders as a single code
   # block with no formatting — readable but ugly.
   if head -n 1 "$out_file" | grep -qE '^```' && \
      tail -n 1 "$out_file" | grep -qE '^```$'; then
@@ -158,16 +162,17 @@ run_audit() {
     sed -i.bak '1d;$d' "$out_file" && rm -f "$out_file.bak"
   fi
 
-  # Post finding as a GitHub Issue.
-  if gh issue create \
-       --title "$title_prefix — $DATE" \
-       --label "audit,$label" \
-       --body-file "$out_file" >> "$RUN_LOG" 2>&1; then
-    log "✓ $slug: GitHub Issue created"
-  else
-    log "✗ $slug: gh issue create failed (label missing? gh not authenticated?)"
-    return 1
-  fi
+  # Reports stay LOCAL (decided 2026-10-30): this repo is public, and the
+  # security / RLS audits describe weaknesses, so nothing is posted as a
+  # GitHub issue any more. The report is $out_file (in the gitignored
+  # .audit-logs/), and .audit-logs/INDEX.md lists every run, newest on top.
+  # `$label` is kept in the index so reports stay easy to filter.
+  local index="$LOG_DIR/INDEX.md"
+  [ -f "$index" ] || printf '# Audit reports (local only)\n\nNewest on top. Each line: date · audit · report file.\n\n' > "$index"
+  local entry="- $DATE · $title_prefix (\`$label\`) · [$slug-$DATE.md]($slug-$DATE.md)"
+  # Insert below the 4-line header so the newest run is on top.
+  { head -n 4 "$index"; echo "$entry"; tail -n +5 "$index"; } > "$index.tmp" && mv "$index.tmp" "$index"
+  log "✓ $slug: report saved locally ($out_file); listed in $index"
 }
 
 # ---------------------------------------------------------------------

@@ -1,5 +1,10 @@
 # Recipe-Rhythm — Recurring Audit Kit
 
+> **Current setup (2026-10-30) — read this first; the guide below is the original Mac setup.**
+> - **Where it runs:** the Linux PC, as a systemd user timer (`scripts/systemd/`, daily 02:10; the script picks which audits are due). Install with `scripts/systemd/install.sh`, then `systemctl --user enable --now recipe-rhythm-audits.timer`.
+> - **Where findings go: local only.** Each report is `.audit-logs/<audit>-<date>.md` on the PC, listed newest-first in `.audit-logs/INDEX.md`. Nothing is posted to GitHub — this repo is public and the security / RLS audits describe weaknesses. `.audit-logs/` is gitignored.
+> - **Skip** Step 1b (GitHub labels) and the launchd steps below.
+
 This bundle gives you 11 recurring audits, each driven by the **local Claude Code CLI** (using your Claude Max subscription) and scheduled by **macOS launchd**. Findings are posted as **labeled GitHub Issues** in your code repo.
 
 > **History note.** This kit was originally built on the Gemini CLI in GitHub Actions, then ported to Claude Code in GitHub Actions, then ported again to local execution on 2026-05-11 — that last move so the user's existing Claude Max subscription covers the cost instead of paying per-token API fees. The prompts are unchanged across all three iterations.
@@ -49,7 +54,7 @@ Every day at 2am, macOS launchd fires:
     claude -p --permission-mode bypassPermissions < audits/prompts/NN-*.md
        (Claude reads your repo, writes findings to stdout)
     ↓
-    gh issue create --label audit,audit:* --body-file <findings>
+    save to .audit-logs/<audit>-<date>.md + add a line to .audit-logs/INDEX.md
     ↓
   Logs to .audit-logs/audit-run-YYYY-MM-DD.log
 ```
@@ -106,11 +111,11 @@ chmod +x scripts/run-audits.sh
 Before installing the scheduler, prove the runner works:
 
 ```bash
-# Run just one audit to verify the whole pipe (Claude → GitHub Issue) works
+# Run just one audit to verify the whole pipe (Claude → local report) works
 ./scripts/run-audits.sh --audit security
 ```
 
-You should see log lines streaming, then a new GitHub Issue titled "Security audit — YYYY-MM-DD" appears in your Issues tab.
+You should see log lines streaming, then `.audit-logs/security-YYYY-MM-DD.md` appears and is listed in `.audit-logs/INDEX.md`.
 
 If that works, optionally run the full suite once for a baseline:
 
