@@ -49,7 +49,7 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
   - **Done when:** a secret-scan workflow runs on every PR and a planted fake key makes it fail.
 
 - [ ] **Optional: rethink the launchd audit cadence** — `scripts/run-audits.sh` only runs when the laptop is awake at 02:00. For audits with a hard cadence requirement (e.g. weekly security), the trade-off now that the GitHub Actions copies are disabled is: (a) keep one `audit-security.yml`-style workflow re-enabled with `--model sonnet` pinned, or (b) run the Max-backed CLI under a hosted box that's always on. Not urgent — the local cadence has been working — but worth noting so the trade-off is visible if a missed-audit gap ever surfaces. Effort: M if pursued.
-  - **Done when:** superseded 2026-10-30 — the runner is ported to a systemd timer on the Linux PC (`scripts/systemd/`). Done when Matt decides where audit findings go (this repo is public; see the PR) and the timer is armed with one logged run.
+  - **Done when:** superseded 2026-10-30 — the runner is ported to a systemd timer on the Linux PC (`scripts/systemd/`). Matt decided 2026-10-30: reports stay local on the PC (`.audit-logs/`, listed in `INDEX.md`); nothing posts to GitHub. Done when the timer is armed and one run shows in `.audit-logs/INDEX.md`.
 
 ## UX / Accessibility
 
