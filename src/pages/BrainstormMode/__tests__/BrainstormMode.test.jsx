@@ -207,15 +207,22 @@ describe('BrainstormMode', () => {
       ymd(addDays(TODAY_DATE, 3)),
       ymd(addDays(TODAY_DATE, 4)),
     ]
-    for (const d of expected) {
-      const cell = screen.getByTestId(`date-strip-cell-${d}`)
-      expect(cell.dataset.selected).toBe('true')
-    }
+    // Both checks wait: the default selection is applied after the initial
+    // render, and `useBrainstorm` persists it in a passive effect, so an
+    // immediate read could still see the initial `[]` (flaked ~1 in 5 in CI).
+    await waitFor(() => {
+      for (const d of expected) {
+        const cell = screen.getByTestId(`date-strip-cell-${d}`)
+        expect(cell.dataset.selected).toBe('true')
+      }
+    })
 
     // Persisted to the new localStorage key.
-    expect(JSON.parse(localStorage.getItem('brainstorm_plan_dates'))).toEqual(
-      expected,
-    )
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem('brainstorm_plan_dates'))).toEqual(
+        expected,
+      )
+    })
   })
 
   it('migrates legacy brainstorm_plan_days into brainstorm_plan_dates and clears the old key', async () => {
