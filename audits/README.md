@@ -36,8 +36,6 @@ scripts/
 └── launchd/
     └── com.matt.recipe-rhythm.audits.plist   ← scheduler config (2am daily)
 
-.github/workflows/
-└── audit-*.yml                          ← LEGACY: kept as fallback during local validation; delete once local setup is proven
 ```
 
 ## How it works
@@ -224,15 +222,7 @@ rm ~/Library/LaunchAgents/com.matt.recipe-rhythm.audits.plist
 
 ## Decommissioning the legacy GitHub Actions workflows
 
-Once you've confirmed the local setup is working for a few cycles, retire the old workflows:
-
-```bash
-git rm .github/workflows/audit-*.yml
-git commit -m "chore(audits): remove GitHub Actions workflows in favor of local launchd runner"
-git push
-```
-
-You can also delete the `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` GitHub secrets if you're not using them elsewhere.
+**Done 2026-10-31.** The 11 `.github/workflows/audit-*.yml` workflows were removed. Their schedules had been off since 2026-05-19, but they could still be started by hand, and would then have spent `ANTHROPIC_API_KEY` credit and posted findings as public issues. No remaining workflow uses `ANTHROPIC_API_KEY`, so that GitHub secret can be deleted. `GEMINI_API_KEY` is still used by `weekly-e2e.yml`.
 
 ## Known limitations and things to verify
 
