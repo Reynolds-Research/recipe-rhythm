@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Sheet } from 'react-modal-sheet'
 import { X, RefreshCw, Bookmark, Sparkles, Plus, Loader2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -61,20 +61,34 @@ export default function DayPicker({
   shortlist = [],
   preferences = null,
 }) {
-  const [excludeNamesInThisSession, setExcludeNamesInThisSession] = useState([])
+  // Names already shown this open session, so Regenerate doesn't repeat them.
+  // A ref, not state: it's never rendered, only read by handleRegenerate.
+  const excludeNamesInThisSession = useRef([])
   const [candidates, setCandidates] = useState({ maybe: [], vault: [], ai: [] })
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // Loading is derived, not set inside an effect: the sheet is loading while
+  // it's open for a date whose candidates haven't arrived yet, or while a
+  // Regenerate is in flight.
+  const openKey = isOpen && date ? date : null
+  const [loadedFor, setLoadedFor] = useState(null)
+  const [regenerating, setRegenerating] = useState(false)
+  // On close, forget what was loaded (and any error), so reopening shows the
+  // spinner instead of the last session's list. Adjusting state during render
+  // is React's documented alternative to an effect for this.
+  if (openKey === null && (loadedFor !== null || error !== null)) {
+    setLoadedFor(null)
+    setError(null)
+  }
+  const loading = (openKey !== null && loadedFor !== openKey) || regenerating
   const { trigger } = useHaptics()
 
   const scheduledNames = plan.map((p) => p.name).filter(Boolean)
   const shortlistedNames = shortlist.map((s) => s.name).filter(Boolean)
 
-  const fetchCandidates = useCallback(
+  // Builds the candidate lists (vault picks + AI ideas). Returns them; sets
+  // no state, so callers decide how to apply the result.
+  const queryCandidates = useCallback(
     async (sessionExcludes) => {
-      setLoading(true)
-      setError(null)
-
       const excludeForVault = [
         ...scheduledNames,
         ...shortlistedNames,
@@ -135,8 +149,7 @@ export default function DayPicker({
         aiRecs = []
       }
 
-      setCandidates({ maybe: shortlist, vault: vaultRecs, ai: aiRecs })
-      setLoading(false)
+      return { maybe: shortlist, vault: vaultRecs, ai: aiRecs }
     },
     // The closure intentionally captures `scheduledNames` / `shortlistedNames`
     // / `plan` / `shortlist` snapshots at call time; we re-run when the sheet
@@ -145,13 +158,20 @@ export default function DayPicker({
     [vault, recentMeals, plan, shortlist, preferences],
   )
 
-  // Open: reset session excludes and fetch fresh.
+  // Open: reset session excludes and fetch fresh. The result is applied in
+  // the promise callback, and dropped if the sheet closes or the inputs change
+  // first.
   useEffect(() => {
-    if (!isOpen || !date) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset-on-open: clears the previous session's excludes when the sheet opens for a date; see TASKS "Move data fetching out of effects"
-    setExcludeNamesInThisSession([])
-    fetchCandidates([])
-  }, [isOpen, date, fetchCandidates])
+    if (!openKey) return
+    excludeNamesInThisSession.current = []
+    let cancelled = false
+    queryCandidates([]).then((next) => {
+      if (cancelled) return
+      setCandidates(next)
+      setLoadedFor(openKey)
+    })
+    return () => { cancelled = true }
+  }, [openKey, queryCandidates])
 
   const handleRegenerate = async () => {
     if (loading) return
@@ -160,9 +180,15 @@ export default function DayPicker({
       ...candidates.vault.map((v) => v.name),
       ...candidates.ai.map((a) => a.name),
     ].filter(Boolean)
-    const nextSession = [...excludeNamesInThisSession, ...justShownNames]
-    setExcludeNamesInThisSession(nextSession)
-    await fetchCandidates(nextSession)
+    const nextSession = [...excludeNamesInThisSession.current, ...justShownNames]
+    excludeNamesInThisSession.current = nextSession
+    setRegenerating(true)
+    setError(null)
+    try {
+      setCandidates(await queryCandidates(nextSession))
+    } finally {
+      setRegenerating(false)
+    }
   }
 
   const handleSelectMaybe = async (item) => {

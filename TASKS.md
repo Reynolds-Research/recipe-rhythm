@@ -54,8 +54,7 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
 ## Code health
 
 - [x] ~~**Lint errors to zero (LINT-REACT-1)**~~ ✅ _(2026-10-31: `useBrainstorm` mount effect moved below `loadData`; `canServe` is a plain expression; `DateRangePicker` resets overlap state in the tap handler, with a new test; `npx eslint .` now runs in CI.)_
-- [ ] **Move data fetching out of effects (FETCH-IN-EFFECT-1)** — four effects start a fetch that sets a loading flag before its network call (`App.jsx` recent meals, `useVault` recipes, `useBrainstorm` load, `DayPicker` reset-on-open). They carry a targeted `react-hooks/set-state-in-effect` disable with a reason. The real fix is a data-fetching layer (e.g. TanStack Query) or splitting each fetch so the effect only subscribes. Effort: M.
-  - **Done when:** none of the four disables remain and `npx eslint .` still reports 0 errors.
+- [x] ~~**Move data fetching out of effects (FETCH-IN-EFFECT-1)**~~ ✅ _(2026-10-31: the four suppressions are gone. Recent meals (`App.jsx`) and recipes (`useVault`) now use a plain query function whose result the effect applies in a callback with a cancel flag, the pattern `GapDayView` and `SharedGroceryList` already use. The meal-planning load runs without a leading `setLoading` on mount (`loading` starts true). The day picker derives `loading`, keeps its regenerate excludes in a ref, and resets on close during render; two new tests cover reopen and regenerate. No data-fetching library added.)_
 
 ## UX / Accessibility
 
