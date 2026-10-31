@@ -148,6 +148,7 @@ export default function DayPicker({
   // Open: reset session excludes and fetch fresh.
   useEffect(() => {
     if (!isOpen || !date) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset-on-open: clears the previous session's excludes when the sheet opens for a date; see TASKS "Move data fetching out of effects"
     setExcludeNamesInThisSession([])
     fetchCandidates([])
   }, [isOpen, date, fetchCandidates])

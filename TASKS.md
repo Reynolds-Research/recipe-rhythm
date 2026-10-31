@@ -53,8 +53,9 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
 
 ## Code health
 
-- [ ] **LINT-REACT-1 · 6 React lint errors (`eslint-plugin-react-hooks` 7 / React Compiler rules)** — the last 6 of `npx eslint .` after the 2026-10-30 lint cleanup. Each changes app code, so take them one at a time with a test: setState called synchronously inside an effect (`App.jsx:48`, `DayPicker.jsx:151`, `DateRangePicker.jsx:123`, `useVault.js:89`); a variable read before it's declared (`useBrainstorm.js:269`); memoization the compiler can't preserve (`useBrainstorm.js:799`). Effort: S each.
-  - **Done when:** `npx eslint .` reports 0 errors, and then `npx eslint .` is added as a step in `.github/workflows/ci.yml` so lint can't regress.
+- [x] ~~**Lint errors to zero (LINT-REACT-1)**~~ ✅ _(2026-10-31: `useBrainstorm` mount effect moved below `loadData`; `canServe` is a plain expression; `DateRangePicker` resets overlap state in the tap handler, with a new test; `npx eslint .` now runs in CI.)_
+- [ ] **Move data fetching out of effects (FETCH-IN-EFFECT-1)** — four effects start a fetch that sets a loading flag before its network call (`App.jsx` recent meals, `useVault` recipes, `useBrainstorm` load, `DayPicker` reset-on-open). They carry a targeted `react-hooks/set-state-in-effect` disable with a reason. The real fix is a data-fetching layer (e.g. TanStack Query) or splitting each fetch so the effect only subscribes. Effort: M.
+  - **Done when:** none of the four disables remain and `npx eslint .` still reports 0 errors.
 
 ## UX / Accessibility
 

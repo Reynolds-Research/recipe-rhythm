@@ -85,8 +85,11 @@ export function useVault(userId) {
     setLoading(false)
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchRecipes() }, [])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount: fetchRecipes sets a loading flag, then awaits the network; see TASKS "Move data fetching out of effects"
+    fetchRecipes()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // PRD-001 P0.7: migrate any legacy localStorage chip-picker values into
   // the vault_options table (one-time, idempotent — see vaultOptions.js),

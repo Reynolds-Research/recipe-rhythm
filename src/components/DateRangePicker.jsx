@@ -119,12 +119,10 @@ export default function DateRangePicker({
       clearTimeout(timerRef.current)
       timerRef.current = null
     }
-    if (!start || !end) {
-      setOverlap(null)
-      setChecking(false)
-      return
-    }
-    setChecking(true)
+    // `checking` and `overlap` are set by handleTap when the range changes, not
+    // here: setting state synchronously in an effect costs an extra render
+    // (react-hooks/set-state-in-effect). The effect only runs the timer.
+    if (!start || !end) return
     timerRef.current = setTimeout(async () => {
       try {
         const result = await checkPeriodOverlap(supabase, userId, start, end)
@@ -145,12 +143,17 @@ export default function DateRangePicker({
 
   const handleTap = (iso) => {
     if (!start || (start && end)) {
-      // First tap OR resetting after a complete range.
+      // First tap OR resetting after a complete range: no range, so nothing
+      // to check and no overlap to show.
       setStart(iso)
       setEnd(null)
+      setOverlap(null)
+      setChecking(false)
       return
     }
-    // Second tap: choose end. If earlier than start, swap.
+    // Second tap: choose end (if earlier than start, swap). A full range now
+    // exists, so the debounced overlap check in the effect above is pending.
+    setChecking(true)
     if (iso < start) {
       setEnd(start)
       setStart(iso)

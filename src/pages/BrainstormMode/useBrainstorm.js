@@ -265,11 +265,6 @@ export function useBrainstorm(userId) {
     })
   )
 
-  useEffect(() => {
-    loadData(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const fetchSwapSuggestions = async (currentPlan, recentMeals, excludeNames = [], count = AI_CANDIDATE_COUNT, prefs = null) => {
     const planNames = currentPlan.map(s => s.name).filter(n => n && !n.includes('Add meals')).join(', ')
     const recentNames = recentMeals.slice(0, 14).map(m => m.name).join(', ')
@@ -462,6 +457,14 @@ export function useBrainstorm(userId) {
 
     setLoading(false)
   }
+
+  // Load once on mount. Declared after loadData so the effect doesn't read
+  // it before it exists (react-hooks: "accessed before it is declared").
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount: loadData sets a loading flag, then awaits the network; see TASKS "Move data fetching out of effects"
+    loadData(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Optimistic cooked-toggle for items in the served plan list.
   const handleToggleCooked = async (itemId, nextCooked) => {
@@ -796,11 +799,10 @@ export function useBrainstorm(userId) {
   // Plan is servable when at least one date is selected and every selected
   // date has a real meal. The picker prevents selecting into existing periods,
   // so no overlap gate is needed in the button.
-  const canServe = useMemo(() => {
-    if (selectedDates.length === 0) return false
-    if (plan.length === 0) return false
-    return plan.every(hasRealMeal)
-  }, [plan, selectedDates])
+  // Plain expression, not useMemo: it's cheap, and the React Compiler couldn't
+  // preserve the manual memo (react-hooks/preserve-manual-memoization).
+  const canServe =
+    selectedDates.length > 0 && plan.length > 0 && plan.every(hasRealMeal)
 
   // Reset clears the loaded period entirely (deletes meal_plans row; items
   // cascade). Only enabled when the loaded plan is the most recent and not
