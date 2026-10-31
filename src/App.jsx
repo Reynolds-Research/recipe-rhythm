@@ -45,6 +45,7 @@ export default function App() {
   }
 
   useEffect(() => { 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-session: the fetch's state update happens after the network await; see TASKS "Move data fetching out of effects"
     if (session) fetchRecentMeals() 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])

@@ -90,6 +90,50 @@ describe('DateRangePicker', () => {
     expect(screen.getByTestId('picker-confirm')).toBeDisabled()
   })
 
+  it('a new first tap clears a stale overlap banner, and the next range is checked fresh', async () => {
+    // First range conflicts; the second (picked after a reset tap) is clear.
+    writer.checkPeriodOverlap.mockResolvedValueOnce({
+      overlaps: true,
+      conflictingPeriod: { period_start: '2026-05-04', period_end: '2026-05-08' },
+    })
+
+    render(
+      <DateRangePicker
+        userId="user-1"
+        initialStart="2026-05-01"
+        onCancel={() => {}}
+        onConfirm={() => {}}
+      />,
+    )
+
+    fireEvent.click(screen.getByTestId('calendar-day-2026-05-05'))
+    fireEvent.click(screen.getByTestId('calendar-day-2026-05-07'))
+    await waitFor(
+      () => expect(screen.getByTestId('overlap-banner')).toBeInTheDocument(),
+      { timeout: 2000 },
+    )
+
+    // Third tap starts a new range: the old banner must go away at once.
+    fireEvent.click(screen.getByTestId('calendar-day-2026-05-20'))
+    expect(screen.queryByTestId('overlap-banner')).not.toBeInTheDocument()
+    expect(screen.getByTestId('picker-confirm')).toBeDisabled()
+
+    // Completing the new range runs a new check and enables confirm.
+    fireEvent.click(screen.getByTestId('calendar-day-2026-05-22'))
+    await waitFor(
+      () => {
+        expect(writer.checkPeriodOverlap).toHaveBeenLastCalledWith(
+          expect.anything(),
+          'user-1',
+          '2026-05-20',
+          '2026-05-22',
+        )
+        expect(screen.getByTestId('picker-confirm')).not.toBeDisabled()
+      },
+      { timeout: 2000 },
+    )
+  })
+
   it('swaps start and end when the user picks an earlier second tap', async () => {
     const onConfirm = vi.fn()
     render(

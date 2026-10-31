@@ -34,6 +34,9 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
+      - name: Lint (ESLint, 0 errors required)
+        run: npx eslint .
+
       - name: Unit tests (Vitest)
         run: npx vitest run
 
