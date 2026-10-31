@@ -213,6 +213,45 @@ describe('DayPicker', () => {
     expect(optionsArg.excludeIds).toContain('v2')
   })
 
+  it('closing and reopening starts a fresh session: excludes reset, and it shows loading until the new list arrives', async () => {
+    const postedBodies = []
+    let releaseThird
+    globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
+      postedBodies.push(init?.body ? JSON.parse(init.body) : {})
+      const n = postedBodies.length
+      const ok = (names) => ({ ok: true, json: async () => ({ names }) })
+      // Hold the third request (the reopen) so the loading state is observable.
+      if (n === 3) return new Promise((resolve) => { releaseThird = () => resolve(ok(['AI E'])) })
+      return Promise.resolve(ok(n === 1 ? ['AI A'] : ['AI B']))
+    })
+
+    const { rerender } = render(<DayPicker {...baseProps} />)
+    await screen.findByText('AI A')
+    fireEvent.click(screen.getByLabelText('Regenerate suggestions'))
+    await waitFor(() => expect(postedBodies.length).toBe(2))
+    expect(postedBodies[1].excludeNames).toContain('AI A')
+
+    rerender(<DayPicker {...baseProps} isOpen={false} />)
+    rerender(<DayPicker {...baseProps} isOpen={true} />)
+
+    await waitFor(() => expect(postedBodies.length).toBe(3))
+    // Fresh session: nothing excluded from the earlier open.
+    expect(postedBodies[2].excludeNames).toEqual([])
+    // Still loading: Regenerate is disabled until the reopen's list lands.
+    expect(screen.getByLabelText('Regenerate suggestions')).toBeDisabled()
+
+    releaseThird()
+    await screen.findByText('AI E')
+    expect(screen.getByLabelText('Regenerate suggestions')).not.toBeDisabled()
+
+    // Regenerating in the new session excludes only what this session showed.
+    fireEvent.click(screen.getByLabelText('Regenerate suggestions'))
+    await waitFor(() => expect(postedBodies.length).toBe(4))
+    expect(postedBodies[3].excludeNames).toContain('AI E')
+    expect(postedBodies[3].excludeNames).not.toContain('AI A')
+    expect(postedBodies[3].excludeNames).not.toContain('AI B')
+  })
+
   it('renders an empty-state message when every section is empty', async () => {
     getRecommendations.mockReturnValue([])
     globalThis.fetch = vi.fn().mockResolvedValue({

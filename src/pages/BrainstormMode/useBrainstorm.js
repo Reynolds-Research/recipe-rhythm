@@ -300,9 +300,17 @@ export function useBrainstorm(userId) {
     }))
   }
 
+  // Refetch everything (after serve, reset, regenerate…): show loading, then
+  // run the load.
   const loadData = async (forceRegenerate = false) => {
     setLoading(true)
+    await runLoad(forceRegenerate)
+  }
 
+  // The load itself. Its first state update comes after the first network
+  // await, so the mount effect can call it without a synchronous setState;
+  // `loading` already starts true.
+  const runLoad = async (forceRegenerate) => {
     const today = new Date()
     const ninetyDaysAgo = addDays(today, -90)
 
@@ -461,8 +469,7 @@ export function useBrainstorm(userId) {
   // Load once on mount. Declared after loadData so the effect doesn't read
   // it before it exists (react-hooks: "accessed before it is declared").
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount: loadData sets a loading flag, then awaits the network; see TASKS "Move data fetching out of effects"
-    loadData(false)
+    runLoad(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

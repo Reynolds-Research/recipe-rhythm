@@ -8,6 +8,60 @@ import {
 } from '../../lib/vaultOptions'
 import { mergeWithUserOverrides, applyOverride } from '../../lib/classificationOverrides'
 
+// Cookbook rows for a user, each with its last-cooked date; null if the vault
+// query failed. A plain query (no React state), so the mount effect can apply
+// the result in a callback and refetches can share it.
+async function queryRecipes(userId) {
+  // Two independent queries, run in parallel:
+  //   1. The vault rows (existing).
+  //   2. The most-recent eaten_on per vault_id (PRD-001 P1.3).
+  // The merge happens client-side after both resolve. Each query is
+  // independently RLS-scoped to the authenticated user.
+  const [vaultRes, lastCookedRes] = await Promise.all([
+    supabase
+      .from('vault')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false }),
+
+    // PRD-001 P1.3: max(eaten_on) per vault_id. The (user_id, vault_id)
+    // index covers this query. NULL vault_ids are skipped — they're meal
+    // logs that never matched a cookbook recipe.
+    supabase
+      .from('meals')
+      .select('vault_id, eaten_on')
+      .eq('user_id', userId)
+      .not('vault_id', 'is', null)
+      .order('eaten_on', { ascending: false }),
+  ])
+
+  if (vaultRes.error) {
+    console.error('[Vault] fetchRecipes failed:', vaultRes.error.message)
+    return null
+  }
+  if (lastCookedRes.error) {
+    // Non-fatal — the page still renders without last-cooked badges.
+    console.error('[Vault] last-cooked fetch failed:', lastCookedRes.error.message)
+  }
+
+  // Build a Map<vault_id, latest eaten_on string>. The query is already
+  // ordered DESC by eaten_on, so the FIRST row for each vault_id is the
+  // most recent — using Map.set keeps the first value seen.
+  const lastCookedByVaultId = new Map()
+  for (const row of lastCookedRes.data ?? []) {
+    if (!row.vault_id) continue
+    if (lastCookedByVaultId.has(row.vault_id)) continue
+    lastCookedByVaultId.set(row.vault_id, row.eaten_on)
+  }
+
+  const merged = (vaultRes.data ?? []).map(r => ({
+    ...r,
+    last_cooked_on: lastCookedByVaultId.get(r.id) ?? null,
+  }))
+  return merged
+}
+
 /**
  * useVault — the data layer for the vault page. Owns Supabase fetches and
  * mutations: fetchRecipes, the vault_options migrate-then-fetch pair, plus
@@ -29,67 +83,29 @@ export function useVault(userId) {
   // imports any pre-existing legacy localStorage values).
   const [extrasByCategory, setExtrasByCategory] = useState({})
 
-  const fetchRecipes = async () => {
-    setLoading(true)
-
-    // Two independent queries, run in parallel:
-    //   1. The vault rows (existing).
-    //   2. The most-recent eaten_on per vault_id (PRD-001 P1.3).
-    // The merge happens client-side after both resolve. Each query is
-    // independently RLS-scoped to the authenticated user.
-    const [vaultRes, lastCookedRes] = await Promise.all([
-      supabase
-        .from('vault')
-        .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false }),
-
-      // PRD-001 P1.3: max(eaten_on) per vault_id. The (user_id, vault_id)
-      // index covers this query. NULL vault_ids are skipped — they're meal
-      // logs that never matched a cookbook recipe.
-      supabase
-        .from('meals')
-        .select('vault_id, eaten_on')
-        .eq('user_id', userId)
-        .not('vault_id', 'is', null)
-        .order('eaten_on', { ascending: false }),
-    ])
-
-    if (vaultRes.error) {
-      console.error('[Vault] fetchRecipes failed:', vaultRes.error.message)
-      setLoading(false)
-      return
-    }
-    if (lastCookedRes.error) {
-      // Non-fatal — the page still renders without last-cooked badges.
-      console.error('[Vault] last-cooked fetch failed:', lastCookedRes.error.message)
-    }
-
-    // Build a Map<vault_id, latest eaten_on string>. The query is already
-    // ordered DESC by eaten_on, so the FIRST row for each vault_id is the
-    // most recent — using Map.set keeps the first value seen.
-    const lastCookedByVaultId = new Map()
-    for (const row of lastCookedRes.data ?? []) {
-      if (!row.vault_id) continue
-      if (lastCookedByVaultId.has(row.vault_id)) continue
-      lastCookedByVaultId.set(row.vault_id, row.eaten_on)
-    }
-
-    const merged = (vaultRes.data ?? []).map(r => ({
-      ...r,
-      last_cooked_on: lastCookedByVaultId.get(r.id) ?? null,
-    }))
-
-    setRecipes(merged)
+  // The result of one recipes query: rows on success; on failure keep the
+  // current rows (the page shows what it had). Either way loading ends.
+  const applyRecipes = (merged) => {
+    if (merged) setRecipes(merged)
     setLoading(false)
   }
 
+  // Refetch after a change (save, delete, rating…): show loading, then apply.
+  const fetchRecipes = async () => {
+    setLoading(true)
+    applyRecipes(await queryRecipes(userId))
+  }
+
+  // First load. `loading` starts true, so nothing is set before the query;
+  // the result is applied in the callback, and dropped if the hook unmounts
+  // or the user changes first.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount: fetchRecipes sets a loading flag, then awaits the network; see TASKS "Move data fetching out of effects"
-    fetchRecipes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    let cancelled = false
+    queryRecipes(userId).then((merged) => {
+      if (!cancelled) applyRecipes(merged)
+    })
+    return () => { cancelled = true }
+  }, [userId])
 
   // PRD-001 P0.7: migrate any legacy localStorage chip-picker values into
   // the vault_options table (one-time, idempotent — see vaultOptions.js),

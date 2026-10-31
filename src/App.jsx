@@ -15,6 +15,18 @@ import About from './components/About'
 import MothersDayCard from './components/MothersDayCard'
 import InstallPrompt from './components/InstallPrompt'
 
+// The 10 most recent logged meals, newest first; null on error. A plain query
+// (no React state), so effects can apply the result in a callback.
+async function queryRecentMeals(userId) {
+  const { data, error } = await supabase
+    .from('meals')
+    .select('id, name, eaten_on')
+    .eq('user_id', userId)
+    .order('eaten_on', { ascending: false })
+    .limit(10)
+  return !error && data ? data : null
+}
+
 export default function App() {
   const [session, setSession]         = useState(null)
   const [loadingSession, setLoadingSession] = useState(true)
@@ -33,22 +45,25 @@ export default function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Refresh after LogMode saves a meal (passed as onSave).
   const fetchRecentMeals = async () => {
     if (!session?.user?.id) return
-    const { data, error } = await supabase
-      .from('meals')
-      .select('id, name, eaten_on')
-      .eq('user_id', session.user.id)
-      .order('eaten_on', { ascending: false })
-      .limit(10)
-    if (!error && data) setRecentMeals(data)
+    const rows = await queryRecentMeals(session.user.id)
+    if (rows) setRecentMeals(rows)
   }
 
-  useEffect(() => { 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-session: the fetch's state update happens after the network await; see TASKS "Move data fetching out of effects"
-    if (session) fetchRecentMeals() 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session])
+  // Load when the session appears. The query returns data and the effect
+  // applies it in the promise callback, with a cancel flag so a stale
+  // response can't land after sign-out or a session change.
+  const sessionUserId = session?.user?.id
+  useEffect(() => {
+    if (!sessionUserId) return
+    let cancelled = false
+    queryRecentMeals(sessionUserId).then((rows) => {
+      if (!cancelled && rows) setRecentMeals(rows)
+    })
+    return () => { cancelled = true }
+  }, [sessionUserId])
 
   if (loadingSession) {
     return <div className="min-h-screen bg-cream-50 flex items-center justify-center"><Loader2 className="animate-spin text-brand-500" size={32} /></div>
