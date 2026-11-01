@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-01 (later) — lockout found, household + calendar spec
+
+**Done:** Mapped the Prep Table flow from the code and built a Playwright lockout explorer on a stateful fake Supabase (PR #201): four traps reproduced, all from locked "period" boxes. Wrote PRD-008 (shared household + calendar planning: meals sit on dates, nothing locks, "Confirm the week" is her final say, Matt's nights, tested rollbacks). TASKS.md: PRD-008 phases + the parked Supabase two-connector fix. STATUS: PRD-008 row.
+
+**Verified:** Explorer 6/6 scenarios ran to completion; findings cross-checked against her production plan history (read-only). Confirmed which account is hers (read-only; emails kept out of the repo).
+
+**Open / owed (Matt):** ask her: Mon–Fri or Sun–Thu week view (OQ1); show her the suggestions-need-✓ change (D3); decide on the interim stopgap (OQ4). Merge PRs #200, #201 and this one.
+
+**Next:** PRD-008 phase 1 — household schema, setup migration, membership security rules, rollback script rehearsed on preview.
+
+---
+
 ## 2026-11-01 — Prep Table drag easier on phones
 
 **Done:** Requested by Matt's wife: moving meals between days wasn't discoverable and barely worked on a phone. Root cause: `PointerSensor` claimed touch presses and the browser cancelled them as a scroll, so press-and-hold never started a drag. Swapped to `MouseSensor` + `TouchSensor`; the whole meal card is now the handle (bigger, darker grip), with a buzz and lift on pickup and an outlined landing day. Served plans no longer show a grip that does nothing. PR on `feat/prep-drag-affordance`.

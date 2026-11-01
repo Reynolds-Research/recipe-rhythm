@@ -42,6 +42,7 @@ No PRD phase shipped after `1e1177d`; `origin/main` has been unchanged since 202
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 + P1.1 shipped** (Phases 1–8 + lint guardrail + BrainstormMode decomposition) | P1.2–P1.5 nice-to-haves |
 | PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** (P0.1–P0.8; P0.8 = #89) | P1 nice-to-haves |
 | PRD-007 | Mid-Period Leftovers | 📝 **Authored, no phase shipped** (verify against code before planning) | Plan Phase 1 |
+| PRD-008 | Shared Household & Calendar Planning | 📝 **Authored 2026-11-01, no phase shipped** | Phase 1 (household schema + security rules + rollback) |
 
 **PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86). P0.8 / Bite δ wires structured-ingredient quantities through to the grocery-list prompt (PR #89).
 
