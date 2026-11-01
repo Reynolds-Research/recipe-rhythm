@@ -38,3 +38,6 @@ test-results/
 audits/*security-audit*
 audits/*
 !audits/prompts/
+
+# Lockout explorer output (screenshots + JSON timelines)
+e2e-results/
