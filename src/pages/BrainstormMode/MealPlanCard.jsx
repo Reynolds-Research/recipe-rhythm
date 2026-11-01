@@ -111,6 +111,7 @@ export default function MealPlanCard({
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
+          onDragStart={() => trigger('light')}
           onDragEnd={onDragEnd}
         >
           <SortableContext

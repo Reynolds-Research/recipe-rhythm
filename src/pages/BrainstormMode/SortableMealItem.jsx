@@ -18,33 +18,44 @@ export default function SortableMealItem({ slot, isServed, onToggleCooked, onMov
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: slot.scheduled_date })
+    isOver,
+  } = useSortable({ id: slot.scheduled_date, disabled: isServed })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 'auto',
+    // Long-press is the touch drag gesture; stop iOS from opening its
+    // callout / text-selection menu on the same press.
+    WebkitTouchCallout: isServed ? undefined : 'none',
   }
+
+  // Pre-serve, the whole card is the drag handle (the grip alone was too
+  // small to find on a phone). Served plans are locked, so no grip is shown.
+  let dragState = 'border-cream-200 bg-white'
+  if (isDragging) dragState = 'border-brand-500 bg-brand-50 shadow-lg scale-[1.03] relative'
+  else if (isOver) dragState = 'border-dashed border-brand-400 bg-brand-50'
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 py-3 bg-white ${
-        isDragging ? 'opacity-50 shadow-lg relative rounded-xl border-brand-200' : ''
-      }`}
+      {...(isServed ? {} : listeners)}
+      className={
+        isServed
+          ? 'flex items-center gap-3 py-3 bg-white'
+          : `flex items-center gap-3 my-2 pr-3 min-h-[56px] rounded-xl border-2 select-none cursor-grab active:cursor-grabbing transition-[background-color,border-color,box-shadow,scale] ${dragState}`
+      }
     >
-      <div
-        {...(isServed ? {} : { ...attributes, ...listeners })}
-        aria-label={isServed ? undefined : `Drag to reorder ${slot.name}`}
-        className={
-          isServed
-            ? 'w-11 h-11 -ml-2 flex items-center justify-center text-gray-500 cursor-not-allowed shrink-0'
-            : 'w-11 h-11 -ml-2 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-500 hover:text-brand-700 shrink-0'
-        }
-      >
-        <GripVertical size={20} strokeWidth={2} />
-      </div>
+      {!isServed && (
+        <div
+          {...attributes}
+          aria-label={`Drag ${slot.name} to another day`}
+          className="w-11 h-11 flex items-center justify-center text-gray-700 shrink-0"
+        >
+          <GripVertical size={24} strokeWidth={2.25} />
+        </div>
+      )}
       <span
         className={`flex-1 min-w-0 font-medium leading-snug flex flex-col items-start gap-1 text-base ${
           showCookedToggle && slot.cooked
