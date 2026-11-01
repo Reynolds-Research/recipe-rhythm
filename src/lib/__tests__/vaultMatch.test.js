@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { matchVaultByName } from '../vaultMatch'
+import { getHouseholdId } from '../household'
 
 // Helper: build a minimal supabase mock where:
 //   - .from('vault').select().eq().is().ilike().limit() resolves to `exactRows`
@@ -37,9 +38,16 @@ describe('matchVaultByName', () => {
     expect(result.confidence).toBe('exact')
     expect(result.matches).toEqual([exactRow])
     expect(from).toHaveBeenCalledWith('vault')
-    expect(fromChain.eq).toHaveBeenCalledWith('user_id', 'user-1')
+    expect(fromChain.eq).toHaveBeenCalledWith('household_id', 'hh-user-1')
     expect(fromChain.is).toHaveBeenCalledWith('deleted_at', null)
     expect(fromChain.ilike).toHaveBeenCalledWith('name', 'carnitas tacos')
+  })
+
+  it('PRD-008: matches across the household and fails soft when the lookup fails', async () => {
+    getHouseholdId.mockRejectedValueOnce(new Error('offline'))
+    const { client, from } = makeSupabase({ exact: { data: [{ id: 'v1', name: 'Tacos' }], error: null } })
+    await expect(matchVaultByName(client, 'user-1', 'tacos')).resolves.toEqual({ matches: [], confidence: 'none' })
+    expect(from).not.toHaveBeenCalled()
   })
 
   it('PRD-001 P0.5: the exact-match chain filters soft-deleted rows', async () => {

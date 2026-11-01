@@ -51,6 +51,12 @@ CREATE TABLE IF NOT EXISTS public.household_members (
 ALTER TABLE public.households        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.household_members ENABLE ROW LEVEL SECURITY;
 
+-- Explicit grants (don't rely on the project's default privileges): members may
+-- only read; logged-out visitors get nothing.
+REVOKE ALL ON public.households, public.household_members FROM anon, authenticated;
+GRANT SELECT ON public.households, public.household_members TO authenticated;
+GRANT ALL    ON public.households, public.household_members TO service_role;
+
 -- Helpers. SECURITY DEFINER = they read household_members with the owner's
 -- rights, so the membership table's own rule can't block (or loop on) the check.
 -- search_path is pinned so a caller can't swap in look-alike tables.

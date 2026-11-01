@@ -8,12 +8,12 @@ import {
 // Supabase fake — narrow shape, only the chains mealPlanItems.js exercises.
 //
 //   meal_plans (active-period lookup):
-//     .select('id').eq('user_id', ...).lte('period_start', ...)
+//     .select('id').eq('household_id', ...).lte('period_start', ...)
 //       .gte('period_end', ...).is('finalized_at', null)
 //       .order(...).limit(1).maybeSingle()
 //
 //   meal_plan_items (active-period items):
-//     .select(joinedCols).eq('user_id', ...).eq('meal_plan_id', ...) → thenable
+//     .select(joinedCols).eq('household_id', ...).eq('meal_plan_id', ...) → thenable
 //
 //   meal_plan_items (delete):
 //     .delete({ count: 'exact' }).in('id', ids) → thenable
@@ -115,7 +115,7 @@ describe('getActivePeriodItems', () => {
     // Items query should not have been issued.
     expect(supabase.calls).toHaveLength(1)
     expect(supabase.calls[0].table).toBe('meal_plans')
-    expect(supabase.calls[0].eqs).toMatchObject({ user_id: USER })
+    expect(supabase.calls[0].eqs).toMatchObject({ household_id: `hh-${USER}` })
     expect(supabase.calls[0].ises).toMatchObject({ finalized_at: null })
   })
 
@@ -186,7 +186,7 @@ describe('getActivePeriodItems', () => {
     // Items query was scoped to the active plan + caller user.
     const itemsCall = supabase.calls.find(c => c.table === 'meal_plan_items')
     expect(itemsCall).toBeDefined()
-    expect(itemsCall.eqs).toMatchObject({ user_id: USER, meal_plan_id: 'plan-1' })
+    expect(itemsCall.eqs).toMatchObject({ household_id: `hh-${USER}`, meal_plan_id: 'plan-1' })
   })
 
   it('handles the array-shaped vault join defensively', async () => {

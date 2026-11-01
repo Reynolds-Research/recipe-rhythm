@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { BookOpen, Pencil, Loader2, Menu, CalendarDays } from 'lucide-react'
 import ChefKnife from './components/ChefKnife'
 import { supabase } from './lib/supabase'
+import { getHouseholdId, clearHouseholdCache } from './lib/household'
 import Auth from './components/Auth'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
@@ -15,13 +16,19 @@ import About from './components/About'
 import MothersDayCard from './components/MothersDayCard'
 import InstallPrompt from './components/InstallPrompt'
 
-// The 10 most recent logged meals, newest first; null on error. A plain query
-// (no React state), so effects can apply the result in a callback.
+// The household's 10 most recent logged meals, newest first; null on error.
+// A plain query (no React state), so effects can apply the result in a callback.
 async function queryRecentMeals(userId) {
+  let householdId
+  try {
+    householdId = await getHouseholdId(supabase, userId)
+  } catch {
+    return null
+  }
   const { data, error } = await supabase
     .from('meals')
     .select('id, name, eaten_on')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .order('eaten_on', { ascending: false })
     .limit(10)
   return !error && data ? data : null
@@ -39,7 +46,9 @@ export default function App() {
       setSession(session)
       setLoadingSession(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // A different account may be signing in: forget the remembered household.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') clearHouseholdCache()
       setSession(session)
     })
     return () => subscription.unsubscribe()

@@ -22,6 +22,8 @@
 
 // Local 'YYYY-MM-DD' formatter — mirrors mealPlanReader / dateUtils so the
 // today comparison is timezone-stable (AUDIT U8).
+import { getHouseholdId } from './household'
+
 function formatLocalYmd(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -73,11 +75,12 @@ function flattenItem(row) {
  */
 export async function getActivePeriodItems(userId, supabase) {
   const todayYmd = formatLocalYmd(new Date())
+  const householdId = await getHouseholdId(supabase, userId)
 
   const { data: plan, error: planError } = await supabase
     .from('meal_plans')
     .select('id')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .lte('period_start', todayYmd)
     .gte('period_end', todayYmd)
     .is('finalized_at', null)
@@ -93,7 +96,7 @@ export async function getActivePeriodItems(userId, supabase) {
     .select(
       'id, scheduled_date, is_shortlisted, name, vault_id, vault:vault_id (cuisine_type, prep_time_minutes, proteins, vegetables, fruits, dairy_components, main_carb, dietary_tags)',
     )
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .eq('meal_plan_id', plan.id)
 
   if (itemsError) throw itemsError

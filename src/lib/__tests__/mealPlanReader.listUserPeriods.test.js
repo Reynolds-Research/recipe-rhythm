@@ -41,13 +41,13 @@ describe('listUserPeriods', () => {
     ])
   })
 
-  it('filters by user_id and excludes NULL-bound rows at the query level', async () => {
+  it('filters by household and excludes NULL-bound rows at the query level', async () => {
     const supabase = makeSupabase({ data: [] })
     await listUserPeriods(supabase, 'user-1')
 
     const state = supabase.calls.meal_plans
     expect(state.select).toBe('period_start, period_end')
-    expect(state.eqs).toContainEqual(['user_id', 'user-1'])
+    expect(state.eqs).toContainEqual(['household_id', 'hh-user-1'])
     // Both NULL-bound exclusions must be in place — the writer enforces them
     // for the EXCLUDE constraint to apply.
     expect(state.nots).toContainEqual(['period_start', 'is', null])

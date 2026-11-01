@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import { getHouseholdId } from '../../lib/household'
 import { analyzeRecipe } from '../../lib/analyzeRecipe'
 import {
   fetchVaultOptions,
@@ -15,23 +16,30 @@ async function queryRecipes(userId) {
   // Two independent queries, run in parallel:
   //   1. The vault rows (existing).
   //   2. The most-recent eaten_on per vault_id (PRD-001 P1.3).
-  // The merge happens client-side after both resolve. Each query is
-  // independently RLS-scoped to the authenticated user.
+  // The merge happens client-side after both resolve. Both are scoped to
+  // the household (PRD-008): the shared cookbook and the shared meal log.
+  let householdId
+  try {
+    householdId = await getHouseholdId(supabase, userId)
+  } catch (err) {
+    console.error('[Vault] fetchRecipes failed: no household:', err?.message || err)
+    return null
+  }
   const [vaultRes, lastCookedRes] = await Promise.all([
     supabase
       .from('vault')
       .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
 
-    // PRD-001 P1.3: max(eaten_on) per vault_id. The (user_id, vault_id)
+    // PRD-001 P1.3: max(eaten_on) per vault_id. The (household_id, vault_id)
     // index covers this query. NULL vault_ids are skipped — they're meal
     // logs that never matched a cookbook recipe.
     supabase
       .from('meals')
       .select('vault_id, eaten_on')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .not('vault_id', 'is', null)
       .order('eaten_on', { ascending: false }),
   ])
@@ -169,7 +177,7 @@ export function useVault(userId) {
     const { data: existing } = await supabase
       .from('vault')
       .select('id')
-      .eq('user_id', userId)
+      .eq('household_id', await getHouseholdId(supabase, userId))
       .is('deleted_at', null)
       .ilike('name', finalName)
       .limit(1)
@@ -292,7 +300,7 @@ export function useVault(userId) {
     await supabase.from('vault')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
-      .eq('user_id', userId)
+      .eq('household_id', await getHouseholdId(supabase, userId))
     setRecipes(prev => prev.filter(r => r.id !== id))
   }
 
@@ -304,7 +312,7 @@ export function useVault(userId) {
       notes:          fields.notes.trim()        || null,
       recipe_url:     fields.recipe_url.trim()   || null,
       auto_completed: false,
-    }).eq('id', id).eq('user_id', userId)
+    }).eq('id', id).eq('household_id', await getHouseholdId(supabase, userId))
     await fetchRecipes()
   }
 
@@ -366,7 +374,7 @@ export function useVault(userId) {
       .from('vault')
       .update(update)
       .eq('id', recipeId)
-      .eq('user_id', userId)
+      .eq('household_id', await getHouseholdId(supabase, userId))
       .select()
       .single()
 
@@ -406,7 +414,7 @@ export function useVault(userId) {
       .from('vault')
       .update({ ingredients_classified: next })
       .eq('id', recipeId)
-      .eq('user_id', userId)
+      .eq('household_id', await getHouseholdId(supabase, userId))
 
     if (error) {
       console.error('[Vault] setIngredientEssentiality failed:', error.message)
@@ -430,7 +438,7 @@ export function useVault(userId) {
       .from('vault')
       .update({ family_rating: newRating })
       .eq('id', recipeId)
-      .eq('user_id', userId)
+      .eq('household_id', await getHouseholdId(supabase, userId))
 
     if (error) {
       console.error('[Vault] handleRatingChange failed:', error.message)

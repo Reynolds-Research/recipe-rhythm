@@ -16,6 +16,7 @@ import { analyzeRecipe } from '../../lib/analyzeRecipe'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 import Logo from '../Logo'
 import { useHaptics } from '../../hooks/useHaptics'
+import { getHouseholdId } from '../../lib/household'
 
 /**
  * Preferences page (PRD-002 P0.2). Per-section auto-save: each chip toggle,
@@ -276,10 +277,18 @@ export default function Preferences({ userId, onOpenAbout }) {
   // upstream rate limits.
   const runBackfill = async () => {
     if (backfillState.running) return
+    let householdId
+    try {
+      householdId = await getHouseholdId(supabase, userId)
+    } catch (err) {
+      console.error('[Preferences] backfill: no household:', err?.message || err)
+      setBackfillState({ running: false, current: 0, total: 0, succeeded: 0, failed: 0, done: true })
+      return
+    }
     const { data: rows, error } = await supabase
       .from('vault')
       .select('id, name, recipe_url, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, prep_time_minutes')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .is('deleted_at', null)
     if (error) {
       console.error('[Preferences] backfill: failed to load vault:', error.message)
@@ -324,7 +333,7 @@ export default function Preferences({ userId, onOpenAbout }) {
           .from('vault')
           .update(update)
           .eq('id', row.id)
-          .eq('user_id', userId)
+          .eq('household_id', householdId)
         if (upErr) throw new Error(upErr.message)
         succeeded += 1
       } catch (err) {

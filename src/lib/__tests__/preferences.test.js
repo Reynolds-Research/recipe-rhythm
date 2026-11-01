@@ -8,7 +8,7 @@ import {
 // ---------------------------------------------------------------------------
 // Supabase fake — narrow shape, only the chains preferences.js exercises.
 //
-//   .from('household_preferences').select('*').eq('user_id', id).single()
+//   .from('household_preferences').select('*').eq('household_id', id).single()
 //   .from('household_preferences').upsert(row, opts).select().single()
 //
 // Each chain resolves to whatever was preconfigured for its `op` key.
@@ -81,7 +81,7 @@ describe('getPreferences', () => {
     expect(prefs).toEqual(SAMPLE_ROW)
     const call = supabase.calls[0]
     expect(call.table).toBe('household_preferences')
-    expect(call.filter).toEqual({ user_id: USER })
+    expect(call.filter).toEqual({ household_id: `hh-${USER}` })
   })
 
   it('returns the defaults object when no row exists (PGRST116)', async () => {
@@ -151,7 +151,7 @@ describe('getPreferences', () => {
 // ---------------------------------------------------------------------------
 
 describe('upsertPreferences', () => {
-  it('upserts a valid patch with user_id merged in and returns the row', async () => {
+  it('upserts a valid patch with household_id + user_id merged in and returns the row', async () => {
     const expectedRow = { ...SAMPLE_ROW, max_prep_time_minutes: 30 }
     const supabase = makeSupabase({
       'household_preferences.upsert': { data: expectedRow, error: null },
@@ -172,12 +172,13 @@ describe('upsertPreferences', () => {
     expect(call.table).toBe('household_preferences')
     expect(call.op).toBe('upsert')
     expect(call.payload).toMatchObject({
+      household_id: `hh-${USER}`,
       user_id: USER,
       dietary_restrictions: ['vegetarian'],
       excluded_cuisines: ['Indian'],
       max_prep_time_minutes: 30,
     })
-    expect(call.upsertOpts).toEqual({ onConflict: 'user_id' })
+    expect(call.upsertOpts).toEqual({ onConflict: 'household_id' })
   })
 
   it('throws InvalidPreferenceError for an unknown dietary_restriction id (no DB call)', async () => {

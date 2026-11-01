@@ -4,6 +4,11 @@
 // deprecated meal_plans.{week_label, days, items} columns. Those columns
 // will be dropped in ADR-001 Phase 7 after a 1–2 week stability window.
 
+import { getHouseholdId } from './household'
+
+// PRD-008: inserts set user_id ("who added it") and leave household_id to
+// the database default (the caller's household). Reads and bulk updates
+// filter by household so both partners see and edit the same plan.
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -274,10 +279,13 @@ function rangesOverlap(aStart, aEnd, bStart, bEnd) {
  * @returns {Promise<{ overlaps: boolean, conflictingPeriod?: { period_start: string, period_end: string } }>}
  */
 export async function checkPeriodOverlap(supabase, userId, periodStart, periodEnd) {
+  // PRD-008: periods can't overlap within a household (the database rule
+  // is per household), so check against both partners' periods.
+  const householdId = await getHouseholdId(supabase, userId)
   const { data, error } = await supabase
     .from('meal_plans')
     .select('period_start, period_end')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .not('period_start', 'is', null)
     .not('period_end', 'is', null)
 
@@ -376,6 +384,7 @@ export async function startNewPeriod(
     }
   }
 
+  const householdId = await getHouseholdId(supabase, userId)
   const daysAvailable = daysBetweenInclusive(periodStart, periodEnd)
   const toMove = ids.slice(0, daysAvailable)
   const overflow = ids.length - toMove.length
@@ -393,7 +402,7 @@ export async function startNewPeriod(
         .from('meal_plan_items')
         .update({ meal_plan_id: planRow.id, scheduled_date: scheduled })
         .eq('id', toMove[i])
-        .eq('user_id', userId)
+        .eq('household_id', householdId)
       if (updateError) {
         const err = new Error(
           `Failed to roll forward leftover: ${updateError.message ?? 'unknown error'}`,

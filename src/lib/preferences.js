@@ -25,6 +25,7 @@
  */
 
 import { CUISINE_OPTIONS, DIETARY_RESTRICTIONS } from './constants'
+import { getHouseholdId } from './household'
 
 const TABLE = 'household_preferences'
 
@@ -85,10 +86,12 @@ function normalizeIngredients(values) {
 }
 
 export async function getPreferences(userId, supabase) {
+  // PRD-008: one preferences row per household, shared by both partners.
+  const householdId = await getHouseholdId(supabase, userId)
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .single()
 
   if (error) {
@@ -129,7 +132,9 @@ export async function upsertPreferences(userId, patch, supabase) {
     }
   }
 
-  const row = { user_id: userId, ...patch }
+  const householdId = await getHouseholdId(supabase, userId)
+  // user_id = who saved it last; the household owns the row.
+  const row = { household_id: householdId, user_id: userId, ...patch }
   if (Array.isArray(patch.excluded_ingredients)) {
     row.excluded_ingredients = normalizeIngredients(patch.excluded_ingredients)
   }
@@ -139,7 +144,7 @@ export async function upsertPreferences(userId, patch, supabase) {
 
   const { data, error } = await supabase
     .from(TABLE)
-    .upsert(row, { onConflict: 'user_id' })
+    .upsert(row, { onConflict: 'household_id' })
     .select()
     .single()
 

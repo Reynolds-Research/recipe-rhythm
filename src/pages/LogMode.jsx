@@ -186,6 +186,8 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     // have set deliberately, and the recommendation engine only needs recent
     // signal to start working.
     if (!insertErr && newVault?.id) {
+      // Deliberately user_id, not household (PRD-008): this back-links the
+      // meal THIS person just logged, never a partner's entry of the same name.
       await supabase
         .from('meals')
         .update({ vault_id: newVault.id })

@@ -18,6 +18,8 @@
  * migration can't run twice.
  */
 
+import { getHouseholdId } from './household'
+
 /**
  * The nine canonical category names. Must match the CHECK constraint in
  * supabase/migrations/20260426000002_vault_options_table.sql AND the
@@ -65,10 +67,17 @@ const LEGACY_STORAGE_KEY_TO_CATEGORY = {
  */
 export async function fetchVaultOptions(supabase, userId) {
   if (!userId) return {}
+  let householdId
+  try {
+    householdId = await getHouseholdId(supabase, userId)
+  } catch (error) {
+    console.error('[vaultOptions] fetch failed:', error)
+    return {}
+  }
   const { data, error } = await supabase
     .from('vault_options')
     .select('category, value')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
   if (error) {
     console.error('[vaultOptions] fetch failed:', error)
     return {}
@@ -93,11 +102,20 @@ export async function addVaultOption(supabase, userId, category, value) {
   if (!userId) return { error: 'no-user' }
   const trimmed = typeof value === 'string' ? value.trim() : ''
   if (!trimmed) return { error: 'empty' }
+  let householdId
+  try {
+    householdId = await getHouseholdId(supabase, userId)
+  } catch (error) {
+    console.error('[vaultOptions] upsert failed:', error)
+    return { error: error.message || 'no-household' }
+  }
+  // One vocabulary per household (PRD-008): the same tag added by either
+  // partner is one row. user_id records who added it.
   const { error } = await supabase
     .from('vault_options')
     .upsert(
-      { user_id: userId, category, value: trimmed },
-      { onConflict: 'user_id,category,value' }
+      { household_id: householdId, user_id: userId, category, value: trimmed },
+      { onConflict: 'household_id,category,value' }
     )
   if (error) {
     console.error('[vaultOptions] upsert failed:', error)
@@ -114,10 +132,17 @@ export async function addVaultOption(supabase, userId, category, value) {
  */
 export async function removeVaultOption(supabase, userId, category, value) {
   if (!userId) return { error: 'no-user' }
+  let householdId
+  try {
+    householdId = await getHouseholdId(supabase, userId)
+  } catch (error) {
+    console.error('[vaultOptions] delete failed:', error)
+    return { error: error.message || 'no-household' }
+  }
   const { error } = await supabase
     .from('vault_options')
     .delete()
-    .match({ user_id: userId, category, value })
+    .match({ household_id: householdId, category, value })
   if (error) {
     console.error('[vaultOptions] delete failed:', error)
     return { error: error.message || 'delete-failed' }

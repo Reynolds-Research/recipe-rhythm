@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { mockHousehold } from './support/household.js';
 
 test.describe('Brainstorm E2E', () => {
   test.beforeEach(async ({ page }) => {
+    await mockHousehold(page);
     await page.route('**/rest/v1/vault*', async route => {
       await route.fulfill({
         status: 200,

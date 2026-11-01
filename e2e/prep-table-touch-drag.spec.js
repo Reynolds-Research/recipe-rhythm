@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockHousehold } from './support/household.js';
 
 // Guards the phone drag on Prep Table. PointerSensor used to claim touch
 // presses, the browser cancelled them as a scroll, and press-and-hold-to-drag
@@ -6,6 +7,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Prep Table touch drag', () => {
   test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
   test.beforeEach(async ({ page }) => {
+    await mockHousehold(page);
     await page.route('**/rest/v1/vault*', async route => {
       await route.fulfill({
         status: 200,

@@ -23,6 +23,7 @@ import {
   deleteMealPlanItem,
   resetCurrentPlan,
 } from '../../lib/mealPlanWriter'
+import { getHouseholdId } from '../../lib/household'
 import { AI_CANDIDATE_COUNT } from '../../lib/constants'
 import {
   fetchPlanDraft,
@@ -395,11 +396,15 @@ export function useBrainstorm(userId) {
       ? Promise.resolve(null)
       : fetchPlanDraft(supabase, userId).catch(() => null)
 
+    // PRD-008: suggestions draw on the whole household's log and cookbook.
+    // A failed lookup becomes a failed query below (handled like any other
+    // load error) rather than a stuck spinner.
+    const householdId = await getHouseholdId(supabase, userId).catch(() => null)
     const [mealsRes, vaultRes, planRes] = await Promise.all([
       supabase
         .from('meals')
         .select('id, name, cuisine_type, flavor_profile, vault_id, eaten_on')
-        .eq('user_id', userId)
+        .eq('household_id', householdId)
         .gte('eaten_on', formatLocalYmd(ninetyDaysAgo))
         .order('eaten_on', { ascending: false }),
       // PRD-001 P0.5: filter soft-deleted vault rows out of brainstorm /
@@ -407,7 +412,7 @@ export function useBrainstorm(userId) {
       supabase
         .from('vault')
         .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits, family_rating, prep_time_minutes, ingredients_classified')
-        .eq('user_id', userId)
+        .eq('household_id', householdId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       fetchMostRecentPlan(supabase, userId),
