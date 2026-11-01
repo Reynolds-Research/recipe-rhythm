@@ -21,6 +21,7 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
   - **Done when:** Remove asks to confirm, and an undo snackbar restores the recipe by clearing `deleted_at`; a test covers both paths (= ROADMAP VP-5).
 - [ ] **P0-3 · Brand orange fails AA contrast on every primary button** — white on `#EF4D23` = 3.64:1 (need 4.5:1); as 12px text on cream = 3.46:1. Hits `.btn-primary` app-wide. Fix: darken the brand fill token to ~`#C63D1C` (note `index.html:10` already uses the darker `#D74520` for `theme-color`). Effort: XS (one token) + extend `lint:ds` to guard the pair.
   - **Done when:** white on the primary fill measures ≥ 4.5:1, and `lint:ds` fails if the old `#EF4D23` pair comes back.
+  - **Deferred 2026-11-01 (PR #203):** darkening to `brand-700` was tried and declined — Matt prefers the original orange; failure accepted for now (also covers `.chip-selected`, white on `brand-600` = 4.41:1). Runner-up if revisited: keep the orange and switch the label to near-black `gray-900` (4.89:1). **Revisit when:** a household member reports the button is hard to read, or before any accessibility pass / wider sharing of the app.
 
 ## Security
 

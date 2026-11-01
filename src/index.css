@@ -20,7 +20,7 @@
   }
 
   .btn-primary {
-    @apply w-full py-3.5 rounded-2xl bg-brand-700 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-800 disabled:bg-gray-200 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
+    @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
   }
 
   /* Secondary button — white bg, brand-700 outline + text. Pair with .btn-primary
@@ -61,7 +61,7 @@
     @apply inline-flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full bg-white border border-cream-200 text-sm text-gray-700 font-medium transition-all active:scale-95;
   }
   .chip-selected {
-    @apply bg-brand-700 text-white border-brand-700;
+    @apply bg-brand-600 text-white border-brand-600;
   }
 
   /* Section heading — uppercase tracking + correct contrast. Use instead of
