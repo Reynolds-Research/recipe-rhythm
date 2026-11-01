@@ -20,6 +20,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-01 — plan draft syncs to the account
+
+**Done:** Her in-progress plan now saves to her account (~1 s after each edit), so it follows her across devices; on load the newer copy wins (device or account); serving or resetting deletes the draft. A status line under "Serve This Plan" says "Draft saved to your account" or "…on this device only". New table `plan_drafts` (separate from `meal_plans` on purpose — every `meal_plans` reader assumes "served"). Ticked the stale React-mismatch blocker (fixed in `5ff8dd4`). PR: see `feat/plan-draft-sync`.
+
+**Verified:** 762/762 Vitest (13 new data-layer tests, 5 new BrainstormMode tests), `npx eslint .` 0 errors, `lint:ds` clean, `npm run build` ok. Migration applied to **prod** by Matt via SQL Editor (meant for preview; harmless — additive, empty table); live check: 4 columns, RLS on, 4 owner policies, 0 rows. Not applied to the preview branch. Supabase MCP `apply_migration` confirmations timed out 3× (prompt never reached Matt); read-only `execute_sql` works without a prompt.
+
+**Open / owed:** after merge, check on two devices that a draft started on one appears on the other. Still separate accounts: Matt can't see her draft until the household spec ships.
+
+**Next:** write the household-sharing spec (shared plan, Matt's nights as slots she hands him), then the silent meal-log save failure (P0-1).
+
+---
+
 ## 2026-11-01 — Prep Table drag easier on phones
 
 **Done:** Requested by Matt's wife: moving meals between days wasn't discoverable and barely worked on a phone. Root cause: `PointerSensor` claimed touch presses and the browser cancelled them as a scroll, so press-and-hold never started a drag. Swapped to `MouseSensor` + `TouchSensor`; the whole meal card is now the handle (bigger, darker grip), with a buzz and lift on pickup and an outlined landing day. Served plans no longer show a grip that does nothing. PR on `feat/prep-drag-affordance`.

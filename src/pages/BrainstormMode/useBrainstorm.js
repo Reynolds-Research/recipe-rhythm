@@ -24,11 +24,21 @@ import {
   resetCurrentPlan,
 } from '../../lib/mealPlanWriter'
 import { AI_CANDIDATE_COUNT } from '../../lib/constants'
+import {
+  fetchPlanDraft,
+  savePlanDraft,
+  clearPlanDraft,
+  pickNewerDraft,
+  LOCAL_SAVED_AT_KEY,
+} from '../../lib/planDraft'
 
 // --- Module-level constants ------------------------------------------------
 
 const PLAN_HORIZON_MAX_DAYS = 14
 const DEFAULT_SELECTION_COUNT = 5
+// P2-6: wait this long after the last edit before saving the draft to the
+// account, so a burst of drags becomes one save instead of ten.
+export const DRAFT_SAVE_DEBOUNCE_MS = 800
 // STOPGAP (PRD-008 open question 4, 2026-11-01): once the last week has ended —
 // locked in or not — open straight into the suggested-week view, exactly like a
 // first-time user, instead of "Your period has ended" → lock in → gap day →
@@ -228,6 +238,43 @@ export function useBrainstorm(userId) {
   const [loading, setLoading] = useState(true)
   const [sharing, setSharing] = useState(false)
 
+  // P2-6: where the pre-serve draft is saved.
+  // 'idle' (nothing to report) | 'saving' | 'saved' (in the account) |
+  // 'local' (the account save failed — this device only).
+  const [draftSync, setDraftSync] = useState('idle')
+
+  // P2-6: mirror the pre-serve draft to the account, debounced. Skipped while
+  // loading — so this device's possibly stale copy can't overwrite a newer
+  // account copy before the load has compared them — and once served, when
+  // the served plan becomes the source of truth. The local save time and the
+  // account's updated_at share one timestamp, so pickNewerDraft can tell the
+  // two copies apart on the next load (and a failed account save leaves this
+  // device's copy the newer one).
+  useEffect(() => {
+    if (loading || isServed || !userId) return
+    const timer = setTimeout(async () => {
+      const now = new Date()
+      localStorage.setItem(LOCAL_SAVED_AT_KEY, now.toISOString())
+      setDraftSync('saving')
+      try {
+        await savePlanDraft(supabase, userId, { plan, selectedDates }, now)
+        setDraftSync('saved')
+      } catch {
+        setDraftSync('local')
+      }
+    }, DRAFT_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [plan, selectedDates, isServed, loading, userId])
+
+  // P2-6: drop both copies of the draft once it is no longer a draft (served
+  // or reset). Best-effort: a leftover account row is harmless, because the
+  // next load finds a served plan and calls this again.
+  const discardDraft = () => {
+    localStorage.removeItem(LOCAL_SAVED_AT_KEY)
+    setDraftSync('idle')
+    clearPlanDraft(supabase, userId).catch(() => {})
+  }
+
   // PRD-002 P0.6: "Maybe" / shortlist state.
   // - activeTab toggles between the day-grid view and the shortlist tray.
   // - shortlist holds the active period's is_shortlisted=TRUE rows.
@@ -342,6 +389,12 @@ export function useBrainstorm(userId) {
     }
     setPreferences(prefs)
 
+    // P2-6: start the account-draft check alongside the other loads so it adds
+    // no wait before the planner appears. Failure = no account copy.
+    const draftPromise = forceRegenerate
+      ? Promise.resolve(null)
+      : fetchPlanDraft(supabase, userId).catch(() => null)
+
     const [mealsRes, vaultRes, planRes] = await Promise.all([
       supabase
         .from('meals')
@@ -408,6 +461,7 @@ export function useBrainstorm(userId) {
     if (state === 'active' || state === 'ended_unfinalized') {
       // Restore the served plan as authoritative; lock the UI
       localStorage.removeItem('brainstorm_plan')
+      discardDraft()
       setPlan(mostRecentPlan.items)
       setSelectedDates(mostRecentPlan.scheduledDates ?? [])
       setServedAt(mostRecentPlan.served_at)
@@ -417,7 +471,23 @@ export function useBrainstorm(userId) {
       setServedAt(null)
 
       // Determine selection seed.
+      // P2-6: if the account holds a newer draft (e.g. one built on another
+      // device), adopt it before seeding. A forced regenerate skips this —
+      // the user asked for a fresh plan.
+      let currentPlan = plan
       let seed = selectedDates
+      if (!forceRegenerate) {
+        try {
+          const remote = await draftPromise
+          if (pickNewerDraft(localStorage.getItem(LOCAL_SAVED_AT_KEY), remote) === 'remote') {
+            currentPlan = remote.plan
+            seed = remote.selectedDates
+            setPlan(remote.plan)
+          }
+        } catch {
+          // Account copy unreachable — keep this device's draft.
+        }
+      }
       // Drop any past or now-disabled dates from the persisted selection.
       seed = seed.filter((d) => d >= todayYmd && !disabled.has(d))
 
@@ -441,23 +511,23 @@ export function useBrainstorm(userId) {
       const sortedSeed = [...seed].sort()
       setSelectedDates(sortedSeed)
 
-      if (forceRegenerate || plan.length === 0 || seed.length !== plan.length) {
+      if (forceRegenerate || currentPlan.length === 0 || seed.length !== currentPlan.length) {
         const servedMeals = mostRecentPlan?.items ?? []
         // PRD-002 P0.8: forward prior-batch names so the AI doesn't re-suggest
         // anything we already showed in the previous regeneration.
         const aiExcludeNames = [
           ...lastBatchAiNames,
-          ...plan.map(s => s.name).filter(Boolean),
+          ...currentPlan.map(s => s.name).filter(Boolean),
         ]
         // Pull fresh AI candidates from /api/swap-suggestions to mix alongside
         // vault hits. fetchSwapSuggestions returns [] on failure, so the
         // recommendation engine silently falls back to 100% vault picks.
-        const wildcardCandidates = await fetchSwapSuggestions(plan, recentMeals, aiExcludeNames, AI_CANDIDATE_COUNT, prefs)
+        const wildcardCandidates = await fetchSwapSuggestions(currentPlan, recentMeals, aiExcludeNames, AI_CANDIDATE_COUNT, prefs)
         // PRD-002 P0.8: union of current plan ids + last batch ids so the
         // engine never returns a recipe that's already in the plan or that
         // we just suggested in the prior regeneration.
         const excludeIds = [
-          ...plan.map(s => s.id).filter(Boolean),
+          ...currentPlan.map(s => s.id).filter(Boolean),
           ...lastBatchVaultIds,
         ]
         const suggestions = getRecommendations(
@@ -589,6 +659,7 @@ export function useBrainstorm(userId) {
       // clean slate (no stale draft plan or selected dates).
       localStorage.removeItem('brainstorm_plan')
       localStorage.removeItem('brainstorm_plan_dates')
+      discardDraft()
       setPlan([])
       setSelectedDates([])
       await loadData(true)
@@ -732,6 +803,7 @@ export function useBrainstorm(userId) {
       setIsServed(true)
       setJustServed(true)
       localStorage.removeItem('brainstorm_plan')
+      discardDraft()
       // Refresh disabled dates so the just-served period blocks itself if the
       // user immediately tries to plan more (rare but possible mid-session).
       try {
@@ -884,6 +956,7 @@ export function useBrainstorm(userId) {
     servedAt,
     servingPlan,
     serveError,
+    draftSync,
     justServed, setJustServed,
     serveSheetOpen, setServeSheetOpen,
     groceriesOpen, setGroceriesOpen,

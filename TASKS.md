@@ -8,7 +8,7 @@
 
 ## ⛔ Blocker — main is red
 
-- [ ] **FIX-REACT-PAIR · `react` 19.2.7 vs `react-dom` 19.2.6** — `7cebd16` (Dependabot) bumped `react` alone; 27 of 62 Vitest files fail at import ("Incompatible React versions"). Fix: bump `react-dom` to the same version (and keep Dependabot grouping them). Effort: XS.
+- [x] ~~**FIX-REACT-PAIR · `react` 19.2.7 vs `react-dom` 19.2.6**~~ ✅ _(fixed in `5ff8dd4`; both pinned to 19.2.7, Dependabot groups React; CI green on `main` 2026-10-31. Ticked 2026-11-01.)_ — `7cebd16` (Dependabot) bumped `react` alone; 27 of 62 Vitest files fail at import ("Incompatible React versions"). Fix: bump `react-dom` to the same version (and keep Dependabot grouping them). Effort: XS.
   - **Done when:** `npm ls react react-dom` shows one version; the `CI` workflow is green (62/62 test files load).
 
 ## 🔴 P0 — ship first
@@ -106,7 +106,7 @@ _Moved to the **🔴 P0 — ship first** section at the top of this file: P0-1 (
   - **Done when:** each control named in P1-2 has one line of helper text.
 - [ ] **P2-5 · Misc a11y** — `react-modal-sheet` backdrop is a nameless button (axe `button-name` critical, library-owned); calendar out-of-range day numbers render at 2.56:1 (`#9D9FA4` on `#FCFBFA`), removing the day's identity not just its emphasis. Effort: S.
   - **Done when:** out-of-range calendar days measure ≥ 4.5:1 and the sheet backdrop has an accessible name.
-- [ ] **P2-6 · Pre-serve plan is device-local, unmarked** — `handleDragEnd`/plan state persist to `localStorage` only (`useBrainstorm.js:213`), so a plan built on a phone won't appear on a laptop until served — yet the sign-in screen promises "sync your meal plan safely." Fix: mark "saved on this device" vs "saved to your account," or persist pre-serve. Effort: M.
+- [x] ~~**P2-6 · Pre-serve plan is device-local, unmarked**~~ ✅ _(2026-11-01, `feat/plan-draft-sync`: draft saved to the account via new `plan_drafts` table, newer copy wins on load, status line under Serve says where it's saved. Moved up per the North Star — step one toward Matt filling his nights.)_ — `handleDragEnd`/plan state persist to `localStorage` only (`useBrainstorm.js:213`), so a plan built on a phone won't appear on a laptop until served — yet the sign-in screen promises "sync your meal plan safely." Fix: mark "saved on this device" vs "saved to your account," or persist pre-serve. Effort: M.
   - **Done when:** the plan shows whether it's saved on this device or to the account, or pre-serve plans persist to the account.
 
 ## Folded from `docs/ROADMAP.md` (2026-10-30)

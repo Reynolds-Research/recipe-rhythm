@@ -28,6 +28,7 @@ _Last verified: **2026-04-19** via [`supabase/audits/c3_rls_verification.sql`](.
 | `ingredient_classifications_cache` | ✅ true | ✅ `ingredient_classifications_cache_select_all` — `USING (true)`, roles `authenticated, anon` | ❌ no policy (service-role-only writes; anon/authenticated INSERT blocked by design) | ❌ no policy (service-role-only) | ❌ no policy (service-role-only) | Added 2026-05-06 via [ADR-004 migration](../supabase/migrations/20260506000002_ai_response_caches.sql). **Cross-user shared cache** — non-sensitive AI classifications (recipe + ingredient → essentiality). Open SELECT is intentional. The deliberate absence of write policies enforces the security boundary: only the API server (using `SUPABASE_SERVICE_ROLE_KEY`, which bypasses RLS) can write. Anyone with the public anon key can read but cannot poison the cache. |
 | `meal_name_normalizations_cache` | ✅ true | ✅ `meal_name_normalizations_cache_select_all` — `USING (true)`, roles `authenticated, anon` | ❌ no policy (service-role-only writes) | ❌ no policy (service-role-only) | ❌ no policy (service-role-only) | Added 2026-05-06 via [ADR-004 migration](../supabase/migrations/20260506000002_ai_response_caches.sql). Same security model as `ingredient_classifications_cache`. Stores normalized user-input → AI-corrected meal name pairs. |
 | `api_rate_limits` | ✅ true | ❌ no policy (service-role only) | ❌ no policy (service-role only) | ❌ no policy (service-role only) | ❌ no policy (service-role only) | Added 2026-05-30 via [PRD-001 P1.6 migration](../supabase/migrations/20260530000001_api_rate_limits.sql). Tracks per-user API request counts by (user_id, endpoint, window_start). Written exclusively by the API server via service-role key using the `increment_api_rate_limit` RPC. No client-facing policies — default-deny for all non-service roles. PK: `(user_id, endpoint, window_start)`. FK: `user_id → auth.users(id) ON DELETE CASCADE`. |
+| `plan_drafts` | ✅ true | ✅ `plan_drafts_select_own` — `USING (auth.uid() = user_id)`, role `authenticated` | ✅ `plan_drafts_insert_own` — `WITH CHECK (auth.uid() = user_id)` | ✅ `plan_drafts_update_own` — USING + WITH CHECK both `(auth.uid() = user_id)` | ✅ `plan_drafts_delete_own` — `USING (auth.uid() = user_id)` | Added 2026-10-31 via [P2-6 migration](../supabase/migrations/20261031000001_plan_drafts.sql). One row per user: the pre-serve plan draft, synced across devices. Applied to prod 2026-11-01 (live-verified: 4 columns, RLS on, 4 owner policies). |
 | `profiles` | ❌ **false — but empty (0 rows)** | N/A (RLS off) | N/A (RLS off) | N/A (RLS off) | N/A (RLS off) | Not referenced anywhere in `src/` and contains 0 rows. Confirmed as a starter-template remnant. Recommended action: drop the table — see [`supabase/audits/c3_remediation_drop_profiles.sql`](../supabase/audits/c3_remediation_drop_profiles.sql). |
 
 Legend for each policy column: write either the policy name (if present)
@@ -263,6 +264,18 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 - `meal_name_normalizations_cache_select_all` — SELECT, roles `authenticated, anon`, `USING (true)`.
 - **No INSERT/UPDATE/DELETE policies** (same service-role-only-writes pattern as `ingredient_classifications_cache`).
 
+### `public.plan_drafts`
+**Added 2026-10-31** via [migration](../supabase/migrations/20261031000001_plan_drafts.sql) (TASKS.md: plan saved only on one device, P2-6). The pre-serve meal-plan draft, mirrored from localStorage so it follows the user across devices. Deliberately separate from `meal_plans`: every reader of `meal_plans` assumes a row there is a served plan. The row is deleted when the plan is served or reset.
+
+| Column | Type | Notes |
+|---|---|---|
+| `user_id` | `uuid` NOT NULL | PK (one draft per user). References `auth.users(id)` `ON DELETE CASCADE`. RLS key. |
+| `plan` | `jsonb` NOT NULL | Default `'[]'`. Array of slots in the client's `brainstorm_plan` shape (`scheduled_date`, `name`, `id`, `is_wildcard`, `source_url`, `source`). CHECK: must be a JSON array. |
+| `selected_dates` | `jsonb` NOT NULL | Default `'[]'`. Array of `YYYY-MM-DD` strings (the client's `brainstorm_plan_dates`). CHECK: must be a JSON array. |
+| `updated_at` | `timestamptz` NOT NULL | Default `now()`. Set by the client to the same timestamp it writes to localStorage `brainstorm_plan_saved_at`, so the load path can tell which copy is newer (`pickNewerDraft` in `src/lib/planDraft.js`). |
+
+**RLS:** four owner-scoped per-operation policies (`plan_drafts_{select,insert,update,delete}_own`), role `authenticated`, keyed on `auth.uid() = user_id`. The household spec (North Star: "the plan doesn't stall on Matt") will move ownership from a user to a household.
+
 ## Views
 
 ### `public.current_leftovers`
@@ -334,6 +347,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260530000001.sql`](../supabase/migrations/verify_20260530000001.sql) | 2026-05-30 | Read-only verification queries for the rate-limits migration: column shapes, RLS-enabled bit, no-anon/auth-policy assertion, window index existence, RPC function existence. |
 | [`20260530000002_current_leftovers_exclude_shortlist.sql`](../supabase/migrations/20260530000002_current_leftovers_exclude_shortlist.sql) | 2026-05-30 | Hotfix: replaces the `current_leftovers` view definition to add `AND mpi.is_shortlisted = false`. The original view (from `20260418000001`) predates PRD-002 P0.6 and leaked shortlisted rows (which have `scheduled_date = NULL`) into the leftovers query. Those NULL dates crashed `LeftoverPicker.parseIso` and triggered the global ErrorBoundary right after the user confirmed dates for a new planning period. `CREATE OR REPLACE VIEW`, idempotent. |
 | [`verify_20260530000002.sql`](../supabase/migrations/verify_20260530000002.sql) | 2026-05-30 | Read-only verification queries for the shortlist-exclude hotfix: view definition contains the new filter, no NULL `scheduled_date` rows survive, no shortlisted rows survive, view row count matches an inline simulation of the same WHERE clause. |
+| [`20261031000001_plan_drafts.sql`](../supabase/migrations/20261031000001_plan_drafts.sql) | 2026-10-31 | TASKS.md P2-6: creates `public.plan_drafts` (PK `user_id`, `plan jsonb`, `selected_dates jsonb`, `updated_at`), JSON-array CHECKs, RLS with four owner-scoped policies for `authenticated`. Idempotent. Applied to prod 2026-11-01. |
+| [`verify_20261031000001.sql`](../supabase/migrations/verify_20261031000001.sql) | 2026-10-31 | Read-only checks: 4 columns, RLS enabled, exactly 4 owner-scoped policies for `authenticated`, `user_id` is the PK. Note: the SQL Editor shows only the last result set — run checks one at a time, or as one combined SELECT. |
 
 ## Related audit items + ADRs
 

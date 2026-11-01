@@ -51,6 +51,16 @@ test.describe('Brainstorm E2E', () => {
     // getPreferences() maps to defaults. Leaving this unmocked used to fail
     // fast, but supabase-js >= 2.118 retries network errors (1s+2s+4s),
     // which pushes the page past the 5s assertion timeout.
+    // P2-6: the planner checks for a draft saved to the account. No draft here.
+    await page.route('**/rest/v1/plan_drafts*', async (route) => {
+      const method = route.request().method();
+      await route.fulfill({
+        status: method === 'GET' ? 200 : 201,
+        contentType: 'application/json',
+        body: method === 'GET' ? '[]' : '',
+      });
+    });
+
     await page.route('**/rest/v1/household_preferences*', async (route) => {
       await route.fulfill({
         status: 406,
