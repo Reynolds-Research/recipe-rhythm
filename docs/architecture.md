@@ -175,7 +175,7 @@ building blocks. New buttons / inputs / cards / chips compose these rather
 than reinventing the styling:
 
 - `.mobile-screen` — page shell with safe-area top, `pb-16` bottom nav clearance.
-- `.btn-primary` — full-width primary action; white-on-`brand-600`.
+- `.btn-primary` — full-width primary action; white-on-`brand-700`.
 - `.btn-secondary` — full-width secondary action; `brand-700` outline + text on white.
 - `.btn-icon` / `.btn-icon-brand` — 44×44 round icon buttons (neutral / brand).
 - `.btn-text` — inline text-action with brand-700; meets 44px touch target via `py-3`.
