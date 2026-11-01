@@ -63,7 +63,11 @@ const LEFTOVERS = [
   },
 ];
 
-test.describe('New period flow (ADR-001 Phase 5)', () => {
+// SKIPPED (2026-11-01): the stopgap in useBrainstorm.js (PRD-008 open question 4)
+// opens an ended week straight into the suggested-week view, so the gap-day →
+// date picker → leftover picker path is no longer reachable from the UI. Its code
+// stays until PRD-008 phase 4 retires periods; delete this spec then.
+test.describe.skip('New period flow (ADR-001 Phase 5)', () => {
   test.beforeEach(async ({ page }) => {
     // Freeze "today" inside the fixture's timeline. The fixtures are dated
     // (a period ending 2026-04-18, a new period picked in May 2026), and the

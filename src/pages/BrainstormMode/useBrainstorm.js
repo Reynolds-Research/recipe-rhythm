@@ -29,6 +29,13 @@ import { AI_CANDIDATE_COUNT } from '../../lib/constants'
 
 const PLAN_HORIZON_MAX_DAYS = 14
 const DEFAULT_SELECTION_COUNT = 5
+// STOPGAP (PRD-008 open question 4, 2026-11-01): once the last week has ended —
+// locked in or not — open straight into the suggested-week view, exactly like a
+// first-time user, instead of "Your period has ended" → lock in → gap day →
+// calendar → an empty locked week. Fixes lockout traps 3 and 4 (and the lock-in
+// half of trap 1) found in docs/research/2026-11-01-prep-table-lockout.md.
+// Removed when PRD-008 retires periods.
+const STOPGAP_FRESH_START_STATES = new Set(['ended_unfinalized', 'gap'])
 // The legacy seed shape: prefer Sun–Thu (a full work week) when available.
 const DEFAULT_WEEKDAY_PREFERENCE = [0, 1, 2, 3, 4] // Sun, Mon, Tue, Wed, Thu
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
@@ -372,9 +379,14 @@ export function useBrainstorm(userId) {
 
     setStoredRecentMeals(recentMeals)
 
-    const state = classifyPlanState(mostRecentPlan, today)
+    const classified = classifyPlanState(mostRecentPlan, today)
+    // STOPGAP: an ended week routes like "no plan yet". The old plan is NOT
+    // kept as loadedPlan, so pickers can't write new meals into last week's
+    // record, and its Maybe list isn't attached to the fresh week.
+    const freshStart = STOPGAP_FRESH_START_STATES.has(classified)
+    const state = freshStart ? 'no_plan' : classified
     setPlanState(state)
-    setLoadedPlan(mostRecentPlan)
+    setLoadedPlan(freshStart ? null : mostRecentPlan)
 
     // Compute disabled dates for the strip picker. The currently-loaded
     // active/ended_unfinalized plan's own dates are NOT disabled (the user is
@@ -391,7 +403,7 @@ export function useBrainstorm(userId) {
     setDisabledDates(disabled)
 
     // PRD-002 P0.6: shortlist tray reflects the active plan's shortlisted rows.
-    setShortlist(mostRecentPlan?.shortlist ?? [])
+    setShortlist(freshStart ? [] : (mostRecentPlan?.shortlist ?? []))
 
     if (state === 'active' || state === 'ended_unfinalized') {
       // Restore the served plan as authoritative; lock the UI

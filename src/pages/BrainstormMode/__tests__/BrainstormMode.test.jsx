@@ -106,6 +106,7 @@ import {
 } from '../../../lib/mealPlanReader'
 import {
   createServedPlan,
+  finalizePlan,
   addScheduledItem,
   addShortlistItem,
   scheduleShortlistItem,
@@ -298,30 +299,63 @@ describe('BrainstormMode', () => {
     expect(opts).toEqual({ feedback: 'positive' })
   })
 
-  it("planState === 'gap' routes to GapDayView (regression guard)", async () => {
-    fetchMostRecentPlan.mockResolvedValue({
-      plan: {
-        id: 'plan-old',
-        period_start: '2026-04-05',
-        period_end: '2026-04-12',
-        finalized_at: '2026-04-13T00:00:00Z',
-        served_at: '2026-04-05T00:00:00Z',
-        items: [],
-        scheduledDates: [],
-        source: 'new',
-      },
+  // STOPGAP (PRD-008 open question 4): an ended week — locked in ("gap") or
+  // not ("ended_unfinalized") — opens straight into the suggested-week view,
+  // like a first-time user. Replaces the old "gap routes to GapDayView" guard.
+  describe('stopgap: an ended week opens the suggested-week view', () => {
+    const OLD_PLAN = {
+      id: 'plan-old',
+      period_start: '2026-04-05',
+      period_end: '2026-04-09',
+      served_at: '2026-04-05T00:00:00Z',
+      items: [{ scheduled_date: '2026-04-06', name: 'Old Lasagna', id: 'v9', item_id: 'i9', cooked: false }],
+      shortlist: [{ scheduled_date: null, name: 'Old Maybe Soup', item_id: 'm1', is_shortlisted: true }],
+      scheduledDates: ['2026-04-06'],
+      source: 'new',
+    }
+
+    for (const [state, finalized_at] of [
+      ['gap', '2026-04-10T00:00:00Z'],
+      ['ended_unfinalized', null],
+    ]) {
+      it(`${state}: shows the date strip, fresh suggestions and Serve — no lock-in, no gap screen`, async () => {
+        fetchMostRecentPlan.mockResolvedValue({ plan: { ...OLD_PLAN, finalized_at } })
+        classifyPlanState.mockReturnValue(state)
+
+        render(<BrainstormMode userId="user-1" />)
+        await waitFor(() => {
+          expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+        })
+
+        expect(screen.getByTestId('date-strip-picker')).toBeInTheDocument()
+        expect(await screen.findByRole('button', { name: /Serve This Plan/i })).toBeInTheDocument()
+        expect(screen.queryByTestId('start-new-period-btn')).not.toBeInTheDocument()
+        expect(screen.queryByText(/Your period has ended/i)).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /Lock in as-is/i })).not.toBeInTheDocument()
+        // A fresh week of suggestions, not last week's meals rolled forward.
+        expect(getRecommendations).toHaveBeenCalled()
+        expect(screen.queryByText('Old Lasagna')).not.toBeInTheDocument()
+        // Last week's Maybe list isn't attached to the fresh week.
+        expect(screen.queryByText('Old Maybe Soup')).not.toBeInTheDocument()
+        // Nothing gets written to the old plan.
+        expect(finalizePlan).not.toHaveBeenCalled()
+      })
+    }
+
+    it('an active week still opens locked (unchanged)', async () => {
+      fetchMostRecentPlan.mockResolvedValue({
+        plan: { ...OLD_PLAN, period_start: '2026-04-19', period_end: '2026-04-23', finalized_at: null },
+      })
+      classifyPlanState.mockReturnValue('active')
+
+      render(<BrainstormMode userId="user-1" />)
+      await waitFor(() => {
+        expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
+      })
+
+      expect(screen.queryByTestId('date-strip-picker')).not.toBeInTheDocument()
+      expect(screen.getByText(/^Served on/)).toBeInTheDocument()
     })
-    classifyPlanState.mockReturnValue('gap')
-
-    render(<BrainstormMode userId="user-1" />)
-
-    await waitFor(() => {
-      expect(screen.queryByText('Building your plan…')).not.toBeInTheDocument()
-    })
-
-    // GapDayView shows the new-period CTA. We don't depend on a specific
-    // button label here — just that the date-strip picker is NOT rendered.
-    expect(screen.queryByTestId('date-strip-picker')).not.toBeInTheDocument()
   })
 
   it('regenerates plan on button click', async () => {
