@@ -12,7 +12,9 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 **Verified:** Explorer 6/6 scenarios ran to completion; findings cross-checked against her production plan history (read-only). Confirmed which account is hers (read-only; emails kept out of the repo).
 
-**Open / owed (Matt):** ask her: Mon–Fri or Sun–Thu week view (OQ1); show her the suggestions-need-✓ change (D3); decide on the interim stopgap (OQ4). Merge PRs #200, #201 and this one.
+**Answered (her):** week = Sun–Thu with Fri/Sat on demand; fine with tapping ✓ on suggestions; yes to the stopgap — shipped as PR #205 (ended week opens straight into the suggested-week view; explorer rerun: Friday → brainstorm, next week from fresh suggestions, week 1 history intact; still locked mid-week until PRD-008).
+
+**Open / owed (Matt):** merge PRs #200, #201, #204, #205 (order doesn't matter; #205 is independent). #199 (jest-dom 7) needs its own look.
 
 **Next:** PRD-008 phase 1 — household schema, setup migration, membership security rules, rollback script rehearsed on preview.
 

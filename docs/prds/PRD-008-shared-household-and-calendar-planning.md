@@ -1,6 +1,6 @@
 # PRD-008: Shared Household & Calendar Planning
 
-**Status:** Draft v0.3
+**Status:** Draft v0.4
 **Author:** Matt (with Cowork)
 **Date:** 2026-11-01
 **North Star criteria moved:** "The plan doesn't stall on Matt" and "She plans in the app"
@@ -33,8 +33,9 @@ into the SQL Editor is the only place they appear.
 ## 2. Goals
 
 1. **Nothing locks.** She can plan any upcoming date at any time. (CONFIRMED: option A)
-2. **Her week, her way.** Prep Table shows a week grid, Mon–Fri by default, with ← / →
-   to move between weeks. (CONFIRMED need; the Mon–Fri default is to be confirmed with her)
+2. **Her week, her way.** Prep Table shows a week grid, Sun–Thu by default, with Fri and
+   Sat available whenever they cook on a weekend, and ← / → to move between weeks.
+   (CONFIRMED: "We generally cook Sun–Thu but occasionally … Friday or Saturday")
 3. **She has the final say.** "Confirm the week" is her sign-off and triggers the grocery
    list. It is a stamp, not a lock: later edits are allowed and prompt "update the grocery
    list?" (CONFIRMED)
@@ -63,7 +64,7 @@ into the SQL Editor is the only place they appear.
 
 ## 4. How a week works (user view)
 
-1. Prep Table opens on **this week** (Mon–Fri). Past days show as history (cooked /
+1. Prep Table opens on **this week** (Sun–Thu, with Fri/Sat one tap away). Past days show as history (cooked /
    not cooked). Empty upcoming days offer **+ add** or **✨ suggest**. "Suggest" fills the
    empty days of the visible week, avoiding repeats within it. (INFERRED UI)
 2. She taps a day → **"Matt's night"** to hand it to him. She texts him. (CONFIRMED)
@@ -89,8 +90,7 @@ into the SQL Editor is the only place they appear.
   stays useful only until the new Prep Table ships. (INFERRED)
 - **D3 — Suggestions aren't saved until accepted.** "✨ Suggest" shows proposals on empty
   days; tapping ✓ saves them. That way the history only holds what she chose. This changes
-  her current habit (today the planner auto-fills a week), so show her the mockup before
-  building. (INFERRED)
+  her current habit (today the planner auto-fills a week). (CONFIRMED: she's fine with it)
 - **D4 — Confirmations are stamps.** A `week_confirmations` row (household, start, end,
   confirmed_by, confirmed_at) links to its grocery list. "Changed since confirmed" means
   a meal in that range was edited after confirmed_at. (INFERRED)
@@ -101,8 +101,10 @@ into the SQL Editor is the only place they appear.
 - **D7 — Every account gets a household.** Solo households for test and demo accounts,
   one shared household for Matt and his wife, and a trigger that gives each new sign-up
   a solo household. (INFERRED)
-- **D8 — Week shape is a household setting:** which days the grid shows (default Mon–Fri;
-  Sun–Thu or all 7 as options). (INFERRED; her past plans mostly started on Sundays)
+- **D8 — Weeks run Sunday to Saturday; Sun–Thu always show, Fri and Sat show as slim
+  "+ weekend" rows that expand when used.** A Fri/Sat with a meal on it always shows in
+  full. No setting needed. (CONFIRMED need: "keep it flexible for all options"; INFERRED
+  layout)
 - **D9 — Every schema or security migration ships with a tested undo.** A paired
   `rollback_<timestamp>.sql` restores the previous state exactly (tables, columns,
   policies). It is run on preview — apply, verify, roll back, verify the old state, apply
@@ -150,16 +152,15 @@ into the SQL Editor is the only place they appear.
 - **An outsider sees 0 rows on every kitchen table.** (INFERRED)
 
 ## 8. Open questions
-- **OQ1 — Her week shape:** Mon–Fri, or Sun–Thu like her past plans? (Non-blocking;
-  it's a setting.)
+- ~~**OQ1 — Her week shape.**~~ Answered 2026-11-01: Sun–Thu, Fri/Sat when needed (D8).
 - **OQ2 — Should ✨ suggest fill Matt's nights too, or leave them for him?** (Non-blocking;
   proposed: leave them.)
 - **OQ3 — Should meals she logs in the meal log mark the planned meal "cooked"
   automatically?** (Non-blocking; proposed: yes, matched by date and name. Note the log
   has barely been used — 1 entry — so this is low priority.)
-- **OQ4 — Interim stopgap?** Making "Start new planning period" open the suggested-week
-  view would fix traps 1 and 3 for a few weeks, then be thrown away. Only worth it if she
-  wants to plan before phase 2 ships. (Matt's call)
+- ~~**OQ4 — Interim stopgap?**~~ Answered 2026-11-01: yes. PR #205 opens an ended week
+  straight into the suggested-week view (fixes traps 3 and 4 and the lock-in half of
+  trap 1). Removed in phase 4.
 
 ## 9. Phasing
 Each phase is one or more sessions; the whole spec is several weeks of work.
@@ -176,7 +177,7 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 5. **Measurement** (P1).
 
 ## 10. Testing
-- **Vitest:** week-range helpers (including the week-shape setting); suggestion scoring
+- **Vitest:** week-range helpers (including weekend rows appearing when used); suggestion scoring
   for a week and for assigned nights; "changed since confirmed"; the "Didn't get to these"
   query; household-scoped data helpers.
 - **Verify SQL** (one combined query per migration, so the SQL Editor shows every result):
@@ -189,6 +190,8 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v0.4 (2026-11-01):** her answers: Sun–Thu default with Fri/Sat on demand (D8, no
+  setting); D3 confirmed; stopgap approved (OQ4 → PR #205).
 - **v0.3 (2026-11-01):** added tested rollback scripts (D9, P0.9); corrected "nothing is
   lost" to "nothing more is lost" (non-goal 7, P0.3); merged calendar data and the new
   Prep Table into one phase to avoid a window of unmigrated plans.
