@@ -24,6 +24,26 @@ BEGIN
   END;
 END $$;
 
+-- Sign-up: a brand-new account gets its own solo household (the trigger).
+CREATE OR REPLACE FUNCTION pg_temp.rr_signup_gets_household()
+RETURNS text LANGUAGE plpgsql AS $$
+DECLARE n bigint;
+BEGIN
+  BEGIN
+    INSERT INTO auth.users (instance_id, id, aud, role, email)
+    VALUES ('00000000-0000-0000-0000-000000000000', 'a0000000-0000-4000-8000-0000000000aa',
+            'authenticated', 'authenticated', 'signup-check@example.test');
+    SELECT count(*) INTO n FROM public.household_members m JOIN public.households h ON h.id = m.household_id
+    WHERE m.user_id = 'a0000000-0000-4000-8000-0000000000aa' AND h.created_for = m.user_id;
+    RAISE EXCEPTION 'rr_rollback:%', n;          -- always undo
+  EXCEPTION WHEN OTHERS THEN
+    IF SQLERRM LIKE 'rr_rollback:%' THEN
+      RETURN CASE WHEN split_part(SQLERRM, ':', 2) = '1' THEN 'ok' ELSE 'missing' END;
+    END IF;
+    RETURN 'error: ' || SQLERRM;
+  END;
+END $$;
+
 WITH ids AS (
   SELECT 'a0000000-0000-4000-8000-000000000001'::uuid AS her,
          'a0000000-0000-4000-8000-000000000002'::uuid AS matt,
@@ -60,5 +80,6 @@ attempts(ord, attempt, expected, actual) AS (
          pg_temp.rr_try(other, format('INSERT INTO public.household_members (household_id, user_id) VALUES (%L, %L)', home, other)) FROM ids
   UNION ALL SELECT 13, 'Matt plans a period overlapping one of HERS (one household → refused)', 'denied',
          pg_temp.rr_try(matt, format('INSERT INTO public.meal_plans (user_id, period_start, period_end) VALUES (%L, current_date - 6, current_date - 4)', matt)) FROM ids
+  UNION ALL SELECT 14, 'A new sign-up gets its own solo household (trigger)', 'ok', pg_temp.rr_signup_gets_household()
 )
 SELECT attempt, expected, actual, (expected = actual) AS pass FROM attempts ORDER BY ord;
