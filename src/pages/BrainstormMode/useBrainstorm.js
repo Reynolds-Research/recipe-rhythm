@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  PointerSensor,
+  MouseSensor,
   useSensor,
   useSensors,
   TouchSensor,
@@ -254,10 +254,12 @@ export function useBrainstorm(userId) {
   const [lastBatchVaultIds, setLastBatchVaultIds] = useState([])
   const [lastBatchAiNames,  setLastBatchAiNames]  = useState([])
 
-  // PRD-002 P0.7: PointerSensor distance is 8px so a single tap on a day cell
-  // never starts a drag. TouchSensor uses a delay-based constraint already.
+  // PRD-002 P0.7: MouseSensor distance is 8px so a single click on a day cell
+  // never starts a drag. Touch goes only to TouchSensor (press-and-hold).
+  // Not PointerSensor: it also claims touch presses, and the browser then
+  // cancels them as a scroll before a drag can start.
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {

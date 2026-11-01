@@ -69,7 +69,7 @@ vi.mock('../../../components/GroceryListSheet', () => ({
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({ children }) => <div>{children}</div>,
   closestCenter: vi.fn(),
-  PointerSensor: vi.fn(),
+  MouseSensor: vi.fn(),
   TouchSensor: vi.fn(),
   useSensor: vi.fn(),
   useSensors: vi.fn(),

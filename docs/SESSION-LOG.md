@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-01 — Prep Table drag easier on phones
+
+**Done:** Requested by Matt's wife: moving meals between days wasn't discoverable and barely worked on a phone. Root cause: `PointerSensor` claimed touch presses and the browser cancelled them as a scroll, so press-and-hold never started a drag. Swapped to `MouseSensor` + `TouchSensor`; the whole meal card is now the handle (bigger, darker grip), with a buzz and lift on pickup and an outlined landing day. Served plans no longer show a grip that does nothing. PR on `feat/prep-drag-affordance`.
+
+**Verified:** New Vitest (`MealPlanCard.test.jsx`) and a new Playwright test (`e2e/prep-table-touch-drag.spec.js`) that drives real touch events at phone size against the mocked backend; both fail without the fix. Full Vitest 747/747, all 5 e2e, build, `lint:ds`. Not tried on a real phone yet.
+
+**Open / owed:** Moving meals after a plan is served is a bigger change (DB writes); revisit with the lockout findings. `TASKS.md` still lists "main is red" (react/react-dom mismatch), but Vitest is fully green on `origin/main` @ `9aa2276` after #197; close that item after checking.
+
+**Next:** close the react-pair blocker if confirmed, then P0-1 (meal-log save fails silently).
+
+---
+
 ## 2026-10-31 — North Star ratified
 
 **Done:** Replaced the draft `docs/NORTH-STAR.md` (which was reverse-engineered from the shipped PRDs) with one built from a facilitated interview with Matt, including his wife's own priority ranking. Goal: every week she plans is fully covered, varied, and shopped for, and the app helps close the gaps, including Matt's nights. Five outcome criteria, three non-goals, a "not now" list, and drift signals for the monthly PRD-drift audit. Every line is tagged CONFIRMED or INFERRED.
