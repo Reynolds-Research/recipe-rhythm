@@ -6,6 +6,20 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-01 (later) — lockout found, household + calendar spec
+
+**Done:** Mapped the Prep Table flow from the code and built a Playwright lockout explorer on a stateful fake Supabase (PR #201): four traps reproduced, all from locked "period" boxes. Wrote PRD-008 (shared household + calendar planning: meals sit on dates, nothing locks, "Confirm the week" is her final say, Matt's nights, tested rollbacks). TASKS.md: PRD-008 phases + the parked Supabase two-connector fix. STATUS: PRD-008 row.
+
+**Verified:** Explorer 6/6 scenarios ran to completion; findings cross-checked against her production plan history (read-only). Confirmed which account is hers (read-only; emails kept out of the repo).
+
+**Answered (her):** week = Sun–Thu with Fri/Sat on demand; fine with tapping ✓ on suggestions; yes to the stopgap — shipped as PR #205 (ended week opens straight into the suggested-week view; explorer rerun: Friday → brainstorm, next week from fresh suggestions, week 1 history intact; still locked mid-week until PRD-008).
+
+**Open / owed (Matt):** merge PRs #200, #201, #204, #205 (order doesn't matter; #205 is independent). #199 (jest-dom 7) needs its own look.
+
+**Next:** PRD-008 phase 1 — household schema, setup migration, membership security rules, rollback script rehearsed on preview.
+
+---
+
 ## 2026-11-01 — plan draft syncs to the account
 
 **Done:** Her in-progress plan now saves to her account (~1 s after each edit), so it follows her across devices; on load the newer copy wins (device or account); serving or resetting deletes the draft. A status line under "Serve This Plan" says "Draft saved to your account" or "…on this device only". New table `plan_drafts` (separate from `meal_plans` on purpose — every `meal_plans` reader assumes "served"). Ticked the stale React-mismatch blocker (fixed in `5ff8dd4`). PR: see `feat/plan-draft-sync`.
@@ -15,6 +29,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 **Open / owed:** after merge, check on two devices that a draft started on one appears on the other. Still separate accounts: Matt can't see her draft until the household spec ships.
 
 **Next:** write the household-sharing spec (shared plan, Matt's nights as slots she hands him), then the silent meal-log save failure (P0-1).
+
+---
+
+## 2026-11-01 — Prep Table drag easier on phones
+
+**Done:** Requested by Matt's wife: moving meals between days wasn't discoverable and barely worked on a phone. Root cause: `PointerSensor` claimed touch presses and the browser cancelled them as a scroll, so press-and-hold never started a drag. Swapped to `MouseSensor` + `TouchSensor`; the whole meal card is now the handle (bigger, darker grip), with a buzz and lift on pickup and an outlined landing day. Served plans no longer show a grip that does nothing. PR on `feat/prep-drag-affordance`.
+
+**Verified:** New Vitest (`MealPlanCard.test.jsx`) and a new Playwright test (`e2e/prep-table-touch-drag.spec.js`) that drives real touch events at phone size against the mocked backend; both fail without the fix. Full Vitest 747/747, all 5 e2e, build, `lint:ds`. Not tried on a real phone yet.
+
+**Open / owed:** Moving meals after a plan is served is a bigger change (DB writes); revisit with the lockout findings. `TASKS.md` still lists "main is red" (react/react-dom mismatch), but Vitest is fully green on `origin/main` @ `9aa2276` after #197; close that item after checking.
+
+**Next:** close the react-pair blocker if confirmed, then P0-1 (meal-log save fails silently).
 
 ---
 

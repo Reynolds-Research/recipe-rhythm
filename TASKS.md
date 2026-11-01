@@ -22,6 +22,18 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
 - [ ] **P0-3 · Brand orange fails AA contrast on every primary button** — white on `#EF4D23` = 3.64:1 (need 4.5:1); as 12px text on cream = 3.46:1. Hits `.btn-primary` app-wide. Fix: darken the brand fill token to ~`#C63D1C` (note `index.html:10` already uses the darker `#D74520` for `theme-color`). Effort: XS (one token) + extend `lint:ds` to guard the pair.
   - **Done when:** white on the primary fill measures ≥ 4.5:1, and `lint:ds` fails if the old `#EF4D23` pair comes back.
 
+## 🧭 Shared household & calendar planning (PRD-008)
+
+_Spec: [`docs/prds/PRD-008-shared-household-and-calendar-planning.md`](docs/prds/PRD-008-shared-household-and-calendar-planning.md). Evidence: [`docs/research/2026-11-01-prep-table-lockout.md`](docs/research/2026-11-01-prep-table-lockout.md). One phase per item; each phase may take more than one session._
+
+- [ ] **Phase 1 · Household** — schema, setup migration, membership security rules, rollback script rehearsed on preview.
+  - **Done when:** verify SQL (one combined query) shows every kitchen row has a household and an outsider sees 0 rows; the rollback was rehearsed on preview (apply → roll back → apply); Matt applied it to prod.
+- [ ] **Phase 2 · Calendar data + new Prep Table** — `planned_meals`, `week_confirmations`, data copy at switch-over, week grid, Confirm the week, grocery list per confirmed week.
+  - **Done when:** every old plan item exists as a dated meal; the new Prep Table is live; the lockout explorer's four traps don't reproduce on the new screens.
+- [ ] **Phase 3 · Matt's nights** — assign a day, "pick something", suggestions that account for her nights.
+- [ ] **Phase 4 · Retire the old flow** — periods, gap-day screen, lock-in, review, leftovers picker, plan drafts, overlap constraint.
+- [ ] **Phase 5 · Measurement** — handoff-timing query, "added by" labels.
+
 ## Security
 
 - [ ] **Fix high-severity Vite vulnerability** (reported 2026-04-18 by `npm audit`)
@@ -35,6 +47,9 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
   - Impact: dev-server only — no production exposure, but still worth patching.
 
 ## CI / Infrastructure
+
+- [ ] **Supabase connector: split into preview (writable) + prod (read-only)** — the connector's approval pop-up never reaches Matt in Cowork (3 timeouts on 2026-10-31/11-01; Supabase documents this as a client not showing form elicitations). Fix: two custom connectors — preview `https://mcp.supabase.com/mcp?project_ref=<preview-ref>&skip_elicitations=apply_migration,execute_sql`, prod `https://mcp.supabase.com/mcp?project_ref=mbhgornybnedsloqzdhz&read_only=true` — so prod can't be changed by Claude by construction. Until then Matt applies migrations by hand. Also consider replacing the leftover `feat/api-auth-rate-limit` preview branch with one persistent `dev` branch.
+  - **Done when:** Claude can apply a migration to preview without a pop-up, and a write attempt against prod is refused by the connector.
 
 - [x] ~~**Disable scheduled CI audit workflows + pin Sonnet on manual runs**~~ ✅ _(2026-05-19, `chore/disable-audit-crons-pin-sonnet`, merged 2026-05-19)_
   - **Why this shipped:** the Anthropic API spend audit on 2026-05-19 (full diagnosis in the matching indigo-flow `SESSION-LOG.md` row) traced ~$17 of May spend on this repo to 11 scheduled `audit-*.yml` workflows running `claude -p` on the default model (Opus). The same audits already run locally via `scripts/run-audits.sh` (launchd, daily at 02:00) against the Max subscription for free — see the script's header comment: _"Uses your Max subscription, not the API."_ So the GitHub Actions copies were paying for audits the launchd job was running anyway. The May 11 spike (~95 Opus requests/min rate-limited) was specifically the `audit-dependencies` cron, which runs daily, racing through the codebase.
