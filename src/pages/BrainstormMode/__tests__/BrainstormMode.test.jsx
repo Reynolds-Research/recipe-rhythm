@@ -59,6 +59,15 @@ vi.mock('../../../lib/preferences', () => ({
   getPreferences: vi.fn(),
 }))
 
+// P2-6: the account copy of the draft. pickNewerDraft + the localStorage key
+// stay real so the "which copy wins" rule is exercised end to end.
+vi.mock('../../../lib/planDraft', async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchPlanDraft: vi.fn(),
+  savePlanDraft: vi.fn(),
+  clearPlanDraft: vi.fn(),
+}))
+
 vi.mock('../../../components/GroceryListSheet', () => ({
   default: ({ isOpen, onClose }) =>
     isOpen
@@ -114,6 +123,7 @@ import {
 } from '../../../lib/mealPlanWriter'
 import { getRecommendations } from '../../../lib/recommendations'
 import { getPreferences } from '../../../lib/preferences'
+import { fetchPlanDraft, savePlanDraft, clearPlanDraft } from '../../../lib/planDraft'
 
 // --- Time control ---------------------------------------------------------
 
@@ -177,6 +187,9 @@ describe('BrainstormMode', () => {
       excluded_cuisines: [],
       max_prep_time_minutes: null,
     })
+    fetchPlanDraft.mockResolvedValue(null)
+    savePlanDraft.mockResolvedValue('2026-04-19T12:00:00.000Z')
+    clearPlanDraft.mockResolvedValue(undefined)
     getRecommendations.mockReturnValue([
       { id: 'v1', name: 'Roast',  is_wildcard: false, source_url: null },
       { id: 'v2', name: 'Tacos',  is_wildcard: false, source_url: null },
@@ -1124,6 +1137,92 @@ describe('BrainstormMode', () => {
       fireEvent.click(checkbox)
 
       expect(mockTrigger).toHaveBeenCalled()
+    })
+  })
+  // --- P2-6: draft saved to the account ----------------------------------
+
+  describe('draft sync (P2-6)', () => {
+    // The save is debounced (DRAFT_SAVE_DEBOUNCE_MS = 800) on real timers,
+    // so these waits need more than waitFor's 1s default.
+    const SLOW = { timeout: 3000 }
+
+    it('restores a newer draft from the account (built on another device)', async () => {
+      fetchPlanDraft.mockResolvedValue({
+        plan: [
+          { scheduled_date: ymd(TODAY_DATE), name: 'Phone Chili', id: 'v9', is_wildcard: false, source_url: null },
+          { scheduled_date: ymd(addDays(TODAY_DATE, 1)), name: 'Phone Pho', id: 'v8', is_wildcard: false, source_url: null },
+        ],
+        selectedDates: [ymd(TODAY_DATE), ymd(addDays(TODAY_DATE, 1))],
+        updatedAt: '2026-04-19T09:00:00Z',
+      })
+
+      render(<BrainstormMode userId="user-1" />)
+
+      expect(await screen.findByText('Phone Chili')).toBeInTheDocument()
+      expect(screen.getByText('Phone Pho')).toBeInTheDocument()
+      // The account draft fully covered the selection, so nothing was regenerated.
+      expect(getRecommendations).not.toHaveBeenCalled()
+    })
+
+    it('keeps this device\'s draft when it saved more recently than the account', async () => {
+      localStorage.setItem('brainstorm_plan', JSON.stringify([
+        { scheduled_date: ymd(TODAY_DATE), name: 'Laptop Lasagna', id: 'v7', is_wildcard: false, source_url: null },
+      ]))
+      localStorage.setItem('brainstorm_plan_dates', JSON.stringify([ymd(TODAY_DATE)]))
+      localStorage.setItem('brainstorm_plan_saved_at', '2026-04-19T11:00:00Z')
+      fetchPlanDraft.mockResolvedValue({
+        plan: [{ scheduled_date: ymd(TODAY_DATE), name: 'Older Phone Soup', id: 'v6', is_wildcard: false, source_url: null }],
+        selectedDates: [ymd(TODAY_DATE)],
+        updatedAt: '2026-04-19T08:00:00Z',
+      })
+
+      render(<BrainstormMode userId="user-1" />)
+
+      expect(await screen.findByText('Laptop Lasagna')).toBeInTheDocument()
+      expect(screen.queryByText('Older Phone Soup')).not.toBeInTheDocument()
+    })
+
+    it('saves the draft to the account after loading and says so', async () => {
+      render(<BrainstormMode userId="user-1" />)
+
+      await waitFor(() => {
+        expect(savePlanDraft).toHaveBeenCalledWith(
+          expect.anything(),
+          'user-1',
+          expect.objectContaining({
+            selectedDates: [
+              ymd(TODAY_DATE),
+              ymd(addDays(TODAY_DATE, 1)),
+              ymd(addDays(TODAY_DATE, 2)),
+              ymd(addDays(TODAY_DATE, 3)),
+              ymd(addDays(TODAY_DATE, 4)),
+            ],
+          }),
+          expect.any(Date),
+        )
+      }, SLOW)
+      expect(await screen.findByText('Draft saved to your account', {}, SLOW)).toBeInTheDocument()
+    })
+
+    it('says "this device only" when the account save fails', async () => {
+      savePlanDraft.mockRejectedValue(new Error('network'))
+
+      render(<BrainstormMode userId="user-1" />)
+
+      expect(
+        await screen.findByText(/Draft saved on this device only/i, {}, SLOW),
+      ).toBeInTheDocument()
+    })
+
+    it('discards the account draft once the plan is served', async () => {
+      render(<BrainstormMode userId="user-1" />)
+
+      fireEvent.click(await screen.findByRole('button', { name: /Serve This Plan/i }))
+      fireEvent.click(await screen.findByRole('button', { name: /Looks great/i }))
+
+      await waitFor(() => expect(createServedPlan).toHaveBeenCalled())
+      await waitFor(() => expect(clearPlanDraft).toHaveBeenCalledWith(expect.anything(), 'user-1'))
+      expect(localStorage.getItem('brainstorm_plan_saved_at')).toBeNull()
     })
   })
 })

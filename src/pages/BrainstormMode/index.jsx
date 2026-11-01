@@ -30,6 +30,7 @@ export default function BrainstormMode({ userId }) {
     servedAt,
     servingPlan,
     serveError,
+    draftSync,
     justServed, setJustServed,
     serveSheetOpen, setServeSheetOpen,
     groceriesOpen, setGroceriesOpen,
@@ -307,6 +308,20 @@ export default function BrainstormMode({ userId }) {
 
           {serveError && (
             <p className="text-xs text-red-600 text-center">{serveError}</p>
+          )}
+
+          {/* P2-6: say where the draft lives, so a plan that only exists on
+              this phone is never mistaken for one that synced. */}
+          {!isServed && draftSync !== 'idle' && (
+            <p
+              role="status"
+              data-testid="draft-sync-status"
+              className={`text-xs text-center ${draftSync === 'local' ? 'text-amber-700' : 'text-gray-600'}`}
+            >
+              {draftSync === 'saving' && 'Saving draft…'}
+              {draftSync === 'saved' && 'Draft saved to your account'}
+              {draftSync === 'local' && "Draft saved on this device only — couldn't reach your account"}
+            </p>
           )}
 
           {isServed && justServed && (
