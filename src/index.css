@@ -47,7 +47,7 @@
 
   /* Text input — standard form field. */
   .input-base {
-    @apply w-full rounded-xl border border-cream-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all;
+    @apply w-full rounded-xl border border-cream-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all;
   }
 
   /* Content card. */
