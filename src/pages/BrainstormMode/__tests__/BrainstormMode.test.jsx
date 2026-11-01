@@ -243,9 +243,14 @@ describe('BrainstormMode', () => {
 
     // Mon = 2026-04-20, Wed = 2026-04-22, Fri = 2026-04-24.
     const expected = ['2026-04-20', '2026-04-22', '2026-04-24']
-    expect(JSON.parse(localStorage.getItem('brainstorm_plan_dates'))).toEqual(
-      expected,
-    )
+    // Wait: the migrated selection is persisted in a passive effect, so an
+    // immediate read can still see the pre-load value (flaked in CI on #205,
+    // same race as the default-selection test above).
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem('brainstorm_plan_dates'))).toEqual(
+        expected,
+      )
+    })
     // Legacy key cleared.
     expect(localStorage.getItem('brainstorm_plan_days')).toBeNull()
   })
