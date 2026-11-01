@@ -180,27 +180,6 @@ async function serve(page) {
   await expect(page.getByText(/^Served on/)).toBeVisible()
 }
 
-async function lockInAsIs(page) {
-  await page.getByRole('button', { name: /Lock in as-is/i }).click()
-  await expect(page.getByRole('button', { name: /Lock in as-is/i })).toHaveCount(0, { timeout: 15000 })
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 15000 })
-  await page.waitForTimeout(500) // let the reload settle on its final screen
-}
-
-async function startNewPeriod(page, start, end) {
-  await page.getByTestId('start-new-period-btn').click()
-  await navigateCalendarTo(page, start)
-  await page.getByTestId(`calendar-day-${start}`).click()
-  await page.getByTestId(`calendar-day-${end}`).click()
-  await expect(page.getByTestId('picker-confirm')).toBeEnabled()
-  await page.getByTestId('picker-confirm').click()
-  if (await visible(page.getByTestId('leftover-picker'))) await page.getByTestId('leftover-confirm').click()
-  await expect(page.getByTestId('date-range-picker')).toHaveCount(0)
-  await expect(page.getByTestId('start-new-period-btn')).toHaveCount(0, { timeout: 15000 })
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 15000 })
-  await page.waitForTimeout(500)
-}
-
 async function resetPlan(page) {
   await page.getByRole('button', { name: /Reset this plan/i }).click()
   await page.getByRole('button', { name: /^Reset plan$/ }).click()
@@ -242,6 +221,8 @@ function lockedInWeek(id, start, end, meals = ['Chicken Tacos', 'Veggie Curry'])
 test.describe('Lockout explorer', () => {
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }))
 
+  // Updated after the #205 stopgap: an ended week opens straight into the
+  // suggested-week view, so there is no lock-in / gap-day / calendar step.
   test('A · a normal week, then planning the next one', async ({ page }) => {
     const ctx = await setup(page)
     Object.assign(ctx, { id: 'A-normal-cycle', title: 'Serve week 1, then try to plan week 2 at each point' })
@@ -252,14 +233,15 @@ test.describe('Lockout explorer', () => {
     await record(page, ctx, 'Sun wk1: served default Sun–Thu', { wants: day(7) })
     await goToDay(page, ctx, day(3))
     await record(page, ctx, 'Wed wk1: wants to plan next week early', { wants: day(7) })
-    await goToDay(page, ctx, day(4))
-    await record(page, ctx, 'Thu wk1 (last day of the week)', { wants: day(7) })
     await goToDay(page, ctx, day(5))
-    await record(page, ctx, 'Fri wk1: week over, not locked in', { wants: day(7) })
-    await lockInAsIs(page)
-    await record(page, ctx, 'Fri wk1: after "Lock in as-is"', { wants: day(7) })
-    await startNewPeriod(page, day(7), day(11))
-    await record(page, ctx, 'Fri wk1: started week 2 (Sun–Thu) via calendar', { wants: day(8) })
+    const fri = await record(page, ctx, 'Fri wk1: week over', { wants: day(7) })
+    expect(fri.screen).toBe('brainstorm') // stopgap: no lock-in step
+    await selectOnly(page, [day(7), day(8), day(9), day(10), day(11)])
+    await serve(page)
+    await record(page, ctx, 'Fri wk1: served week 2 from fresh suggestions', { wants: day(8) })
+    // Week 1's meals stay in its history (finding 4 no longer reproduces).
+    const wk1 = ctx.db.tables.meal_plans.find((p) => p.period_start === day(0))
+    expect(ctx.db.tables.meal_plan_items.filter((i) => i.meal_plan_id === wk1.id)).toHaveLength(5)
     save(ctx)
   })
 
@@ -283,14 +265,17 @@ test.describe('Lockout explorer', () => {
       start: day(0),
       seed: { meal_plans: [w0.plan], meal_plan_items: w0.items },
     })
-    Object.assign(ctx, { id: 'C-reset', title: 'Previous week locked in; start this week, then reset it' })
+    Object.assign(ctx, { id: 'C-reset', title: 'Previous week locked in; serve this week, then reset it' })
     fs.mkdirSync(path.join(OUT, ctx.id), { recursive: true })
 
-    await record(page, ctx, 'Sun wk1: last week locked in (gap day)', { wants: day(0) })
-    await startNewPeriod(page, day(0), day(4))
-    await record(page, ctx, 'Sun wk1: started this week via calendar', { wants: day(0) })
+    const first = await record(page, ctx, 'Sun wk1: last week locked in', { wants: day(0) })
+    expect(first.screen).toBe('brainstorm') // stopgap: no gap-day screen
+    await serve(page)
+    await goToDay(page, ctx, day(1)) // Reset only appears after a reload
+    await record(page, ctx, 'Mon wk1: this week served', { wants: day(1) })
     await resetPlan(page)
-    await record(page, ctx, 'Sun wk1: after "Reset this plan"', { wants: day(0) })
+    const after = await record(page, ctx, 'Mon wk1: after "Reset this plan"', { wants: day(1) })
+    expect(after.screen).toBe('brainstorm')
     save(ctx)
   })
 
@@ -301,11 +286,10 @@ test.describe('Lockout explorer', () => {
 
     await serve(page)
     await goToDay(page, ctx, day(24)) // Wed, three weeks later
-    await record(page, ctx, 'Wed wk4: back after 3 weeks', { wants: day(24) })
-    await lockInAsIs(page)
-    await record(page, ctx, 'Wed wk4: locked in old week', { wants: day(24) })
-    await startNewPeriod(page, day(24), day(28))
-    await record(page, ctx, 'Wed wk4: started Wed–Sun', { wants: day(25) })
+    const back = await record(page, ctx, 'Wed wk4: back after 3 weeks', { wants: day(25) })
+    expect(back.screen).toBe('brainstorm') // stopgap: no "lock in the old week" chore
+    await serve(page)
+    await record(page, ctx, 'Wed wk4: served from fresh suggestions', { wants: day(25) })
     save(ctx)
   })
 
