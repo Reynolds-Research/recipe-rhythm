@@ -43,6 +43,8 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 - Then on both phones: sign out and back in, check you both see the same Cookbook and plan.
 - The prod setup file with real emails is in `~/rr-sql/` (outside the repo). Delete it, plus `.env.preview`, when you no longer need them.
 
+**Postscript (2026-11-02):** after merging, Matt's Cookbook was empty: the new app never deployed (Vercel isn't linked to GitHub; prod was still on #202, which filters by `user_id`). Matt deployed `main` by hand → live at `d65771c`, shared Cookbook confirmed by Matt. TASKS: reconnect Vercel to GitHub.
+
 **Next:** PRD-008 phase 2 — calendar data + new Prep Table (`TASKS.md` "Phase 2").
 
 ---
