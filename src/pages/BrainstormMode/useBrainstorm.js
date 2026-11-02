@@ -411,7 +411,7 @@ export function useBrainstorm(userId) {
       // recommendation candidates.
       supabase
         .from('vault')
-        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits, family_rating, prep_time_minutes, ingredients_classified')
+        .select('id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, vegetables, dairy_components, fruits, family_rating, prep_time_minutes, ingredients_classified, dietary_tags, notes')
         .eq('household_id', householdId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),

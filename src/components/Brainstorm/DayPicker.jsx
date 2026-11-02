@@ -11,6 +11,8 @@ import {
 } from '../../lib/mealPlanWriter'
 import { AI_CANDIDATE_COUNT, PICKER_VAULT_COUNT } from '../../lib/constants'
 import { useHaptics } from '../../hooks/useHaptics'
+import { searchRecipes } from '../../lib/recipeSearch'
+import RecipeSearchInput from '../RecipeSearchInput'
 
 /**
  * PRD-002 P0.7 — tap-a-day → bottom-sheet picker.
@@ -19,6 +21,11 @@ import { useHaptics } from '../../hooks/useHaptics'
  *   1. From your Maybe list   — currently shortlisted items (UPDATEs the row)
  *   2. Top from your vault    — `PICKER_VAULT_COUNT` recommendations (INSERTs)
  *   3. New ideas              — `AI_CANDIDATE_COUNT` AI suggestions (INSERTs)
+ *
+ * A search box sits above them. While it has text, the three sections are
+ * replaced by "From your cookbook" (a `searchRecipes` filter over `vault`,
+ * ignoring preferences — a typed search is an explicit request) plus an
+ * `Add "<query>" as-is` row for a one-off meal. Searching makes no AI call.
  *
  * Why two recommender calls instead of the merged P0.9 one: the merged call
  * sorts vault + AI into one ranked list. The picker needs them visually
@@ -72,12 +79,14 @@ export default function DayPicker({
   const openKey = isOpen && date ? date : null
   const [loadedFor, setLoadedFor] = useState(null)
   const [regenerating, setRegenerating] = useState(false)
-  // On close, forget what was loaded (and any error), so reopening shows the
-  // spinner instead of the last session's list. Adjusting state during render
-  // is React's documented alternative to an effect for this.
-  if (openKey === null && (loadedFor !== null || error !== null)) {
+  const [query, setQuery] = useState('')
+  // On close, forget what was loaded (and any error and search text), so
+  // reopening shows the spinner instead of the last session's list. Adjusting
+  // state during render is React's documented alternative to an effect for this.
+  if (openKey === null && (loadedFor !== null || error !== null || query !== '')) {
     setLoadedFor(null)
     setError(null)
+    setQuery('')
   }
   const loading = (openKey !== null && loadedFor !== openKey) || regenerating
   const { trigger } = useHaptics()
@@ -252,6 +261,18 @@ export default function DayPicker({
       })
     : ''
 
+  const trimmedQuery = query.trim()
+  const searching = trimmedQuery !== ''
+  const searchResults = searching ? searchRecipes(vault, trimmedQuery) : []
+
+  const handleAddAsIs = () =>
+    handleSelectScheduled({
+      id: null,
+      name: trimmedQuery,
+      is_wildcard: true,
+      source_url: null,
+    })
+
   const allEmpty =
     candidates.maybe.length === 0 &&
     candidates.vault.length === 0 &&
@@ -280,7 +301,7 @@ export default function DayPicker({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleRegenerate}
-                  disabled={loading}
+                  disabled={loading || searching}
                   aria-label="Regenerate suggestions"
                   className="btn-icon disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -300,12 +321,53 @@ export default function DayPicker({
               </div>
             </div>
 
+            <RecipeSearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Search your cookbook"
+              className="mb-4"
+            />
+
             {error && (
               <p className="text-xs text-red-600 text-center mb-3">{error}</p>
             )}
 
             <div className="max-h-[60vh] overflow-y-auto space-y-5">
-              {allEmpty && !loading && (
+              {searching && (
+                <section>
+                  <p className="section-heading mb-2">
+                    From your cookbook
+                  </p>
+                  {searchResults.length === 0 && (
+                    <p className="helper-text mb-2">
+                      No cookbook recipes match &quot;{trimmedQuery}&quot;
+                    </p>
+                  )}
+                  <div className="bg-white border border-cream-100 rounded-2xl divide-y divide-cream-50 shadow-sm">
+                    {searchResults.map((recipe) => (
+                      <CandidateRow
+                        key={recipe.id}
+                        item={{ ...recipe, source: 'vault', is_wildcard: false }}
+                        onSelect={handleSelectScheduled}
+                        onBookmark={planId ? handleAddToMaybe : null}
+                      />
+                    ))}
+                    <div className="flex items-center gap-2 px-5 py-2 first:rounded-t-2xl last:rounded-b-2xl">
+                      <button
+                        onClick={handleAddAsIs}
+                        className="flex-1 flex items-center gap-2 min-h-[44px] py-2 text-left hover:text-brand-700 transition-colors min-w-0"
+                      >
+                        <Plus size={16} strokeWidth={2.5} className="text-brand-700 shrink-0" />
+                        <span className="text-base font-medium text-gray-900 truncate">
+                          Add &quot;{trimmedQuery}&quot; as-is
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {!searching && allEmpty && !loading && (
                 <div className="bg-white border border-cream-100 rounded-2xl px-5 py-6 text-center shadow-sm">
                   <p className="helper-text">
                     No suggestions left for this day. Try regenerating or adding a
@@ -314,7 +376,7 @@ export default function DayPicker({
                 </div>
               )}
 
-              {candidates.maybe.length > 0 && (
+              {!searching && candidates.maybe.length > 0 && (
                 <section>
                   <p className="section-heading mb-2">
                     From your Maybe list
@@ -341,7 +403,7 @@ export default function DayPicker({
                 </section>
               )}
 
-              {candidates.vault.length > 0 && (
+              {!searching && candidates.vault.length > 0 && (
                 <section>
                   <p className="section-heading mb-2">
                     Top from your vault
@@ -359,7 +421,7 @@ export default function DayPicker({
                 </section>
               )}
 
-              {candidates.ai.length > 0 && (
+              {!searching && candidates.ai.length > 0 && (
                 <section>
                   <div className="mb-2 flex items-baseline gap-2">
                     <p className="section-heading">
