@@ -6,6 +6,25 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-01 (late) — Recipe search (P2-1, search half)
+
+**Done:** PR #209 (open, not merged).
+- `searchRecipes(recipes, query)` in `src/lib/recipeSearch.js`: every word must match name / tags / notes; accent- and case-insensitive; ranked name-prefix → all words in name → the rest. Pure, so PRD-008 phase 2's "+ add" can reuse it.
+- `RecipeSearchInput` (× and Escape clear; 16px text, no iOS zoom).
+- Prep Table day picker: typing swaps the three sections for "From your cookbook" plus `Add "<query>" as-is` (one-off meal, not saved). No AI call while searching.
+- Cookbook: filters the list, "N of M recipes", no-match message + Clear search, starter suggestions hidden while searching.
+- The Prep Table's vault query now also loads `dietary_tags, notes` so search can see them.
+
+**Verified:** Vitest — all new tests pass; lint, `lint:ds`, build green. Reviewer subagent: PASS (table in PR). Not yet clicked through on a preview deploy.
+
+**Open / owed:**
+- Matt: try both search boxes on the preview deploy, then merge #209.
+- Two `RecipeCard.test.jsx` last-cooked tests fail locally on `main` too: "N days ago" is built by subtracting 24h steps, which crosses the 2026-11-01 DST change. CI (UTC) is unaffected. Follow-up, not fixed here.
+
+**Next:** PRD-008 phase 2 — calendar data + new Prep Table (`TASKS.md` "Phase 2"); P2-1 sort + seed collapse remain open.
+
+---
+
 ## 2026-11-01 (evening) — PRD-008 phase 1: shared household live
 
 **Done:** PR #208.
