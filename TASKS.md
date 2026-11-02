@@ -26,7 +26,7 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
 
 _Spec: [`docs/prds/PRD-008-shared-household-and-calendar-planning.md`](docs/prds/PRD-008-shared-household-and-calendar-planning.md). Evidence: [`docs/research/2026-11-01-prep-table-lockout.md`](docs/research/2026-11-01-prep-table-lockout.md). One phase per item; each phase may take more than one session._
 
-- [ ] **Phase 1 · Household** — schema, setup migration, membership security rules, rollback script rehearsed on preview.
+- [x] ~~**Phase 1 · Household** — schema, setup migration, membership security rules, rollback script rehearsed on preview.~~ ✅ _(2026-11-01, PR #208; applied to prod the same day)_
   - **Done when:** verify SQL (one combined query) shows every kitchen row has a household and an outsider sees 0 rows; the rollback was rehearsed on preview (apply → roll back → apply); Matt applied it to prod.
 - [ ] **Phase 2 · Calendar data + new Prep Table** — `planned_meals`, `week_confirmations`, data copy at switch-over, week grid, Confirm the week, grocery list per confirmed week.
   - **Done when:** every old plan item exists as a dated meal; the new Prep Table is live; the lockout explorer's four traps don't reproduce on the new screens.
@@ -48,7 +48,9 @@ _Spec: [`docs/prds/PRD-008-shared-household-and-calendar-planning.md`](docs/prds
 
 ## CI / Infrastructure
 
-- [ ] **Supabase connector: split into preview (writable) + prod (read-only)** — the connector's approval pop-up never reaches Matt in Cowork (3 timeouts on 2026-10-31/11-01; Supabase documents this as a client not showing form elicitations). Fix: two custom connectors — preview `https://mcp.supabase.com/mcp?project_ref=<preview-ref>&skip_elicitations=apply_migration,execute_sql`, prod `https://mcp.supabase.com/mcp?project_ref=mbhgornybnedsloqzdhz&read_only=true` — so prod can't be changed by Claude by construction. Until then Matt applies migrations by hand. Also consider replacing the leftover `feat/api-auth-rate-limit` preview branch with one persistent `dev` branch.
+- [ ] **Move Matt's email out of the public repo** — it's in the LogMode feedback `mailto:` (`src/pages/LogMode.jsx`) and `QA-EDGE-CASE-AUDIT-2026-06-02.md` (pre-existing, found during PRD-008 phase 1). Fix: a `VITE_FEEDBACK_EMAIL` env var (or a form), and redact the audit doc. Note: git history keeps it either way.
+  - **Done when:** `git grep` finds no real email address in the working tree.
+- [ ] **Supabase connector: split into preview (writable) + prod (read-only)** — the connector's approval pop-up never reaches Matt in Cowork (3 timeouts on 2026-10-31/11-01; Supabase documents this as a client not showing form elicitations). Fix: two custom connectors — preview `https://mcp.supabase.com/mcp?project_ref=<preview-ref>&skip_elicitations=apply_migration,execute_sql`, prod `https://mcp.supabase.com/mcp?project_ref=mbhgornybnedsloqzdhz&read_only=true` — so prod can't be changed by Claude by construction. Until then Matt applies migrations by hand. **Interim since 2026-11-01:** Claude runs preview SQL from Matt's PC via `~/rr-sql/run.mjs` and the gitignored `.env.preview` (refuses any non-preview URL). Also consider replacing the leftover `feat/api-auth-rate-limit` preview branch with one persistent `dev` branch.
   - **Done when:** Claude can apply a migration to preview without a pop-up, and a write attempt against prod is refused by the connector.
 
 - [x] ~~**Disable scheduled CI audit workflows + pin Sonnet on manual runs**~~ ✅ _(2026-05-19, `chore/disable-audit-crons-pin-sonnet`, merged 2026-05-19)_
