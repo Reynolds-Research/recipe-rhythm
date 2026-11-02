@@ -310,6 +310,41 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 
 **RLS:** four owner-scoped per-operation policies (`plan_drafts_{select,insert,update,delete}_own`), role `authenticated`, keyed on `auth.uid() = user_id`. The household spec (North Star: "the plan doesn't stall on Matt") will move ownership from a user to a household.
 
+### `public.planned_meals` (PRD-008 phase 2a)
+**Added 2026-11-02** via [migration](../supabase/migrations/20261102000001_calendar_data.sql). One row per meal on a date (D1, D2) — replaces `meal_plans` + `meal_plan_items` at the phase 2c switch-over. Nothing in the app reads it until then. Kitchen table: household-owned, the four membership rules.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` | PK. |
+| `household_id` | `uuid` NOT NULL | Default `current_household_id()`. FK `households` `ON DELETE CASCADE`. |
+| `planned_on` | `date` nullable | The day. **`NULL` = the Maybe list** (replaces `is_shortlisted`). Indexed `(household_id, planned_on)` + partial index for Maybe rows. |
+| `position` | `int` NOT NULL | Default 0. Order within the day. |
+| `name` | `text` NOT NULL | Snapshot of the meal name. CHECK not blank. |
+| `vault_id` | `uuid` nullable | FK `vault` `ON DELETE SET NULL`. |
+| `is_wildcard`, `source_url` | `bool` NOT NULL default false, `text` | As on `meal_plan_items`. |
+| `cooked`, `cooked_at` | `bool` NOT NULL default false, `timestamptz` | CHECKs: `cooked_at` only when cooked; a Maybe row can't be cooked. Past + not cooked = "planned, not cooked" (goal 7). |
+| `assigned_to`, `assigned_at` | `uuid` → `auth.users` `ON DELETE SET NULL`, `timestamptz` | "Matt's night" (phase 3). CHECK: no `assigned_at` without `assigned_to`. |
+| `user_id` | `uuid` nullable | Who added it (PRD `added_by`). Default `auth.uid()`; FK `ON DELETE SET NULL` so a deleted account doesn't take household meals with it. The insert rule requires it to be the caller. |
+| `created_at`, `updated_at` | `timestamptz` NOT NULL | `updated_at` kept by the `planned_meals_set_updated_at` trigger. |
+| `legacy_item_id`, `legacy_synced_at` | `uuid` UNIQUE, `timestamptz` | The `meal_plan_items` row it was copied from, and when the copy last wrote it. `updated_at > legacy_synced_at` = edited on the new screens since (the copy then leaves it alone). Dropped in phase 4. |
+
+### `public.week_confirmations` (PRD-008 phase 2a)
+**Added 2026-11-02**, same migration. "Confirm the week" as a stamp on a date range (D4), not a lock.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` | PK. |
+| `household_id` | `uuid` NOT NULL | As above. |
+| `starts_on`, `ends_on` | `date` NOT NULL | Inclusive. CHECK `ends_on >= starts_on`; UNIQUE `(household_id, starts_on, ends_on)`. New weeks will be Sun–Sat (D8); copied ones keep their old period range. |
+| `user_id` | `uuid` nullable | Who confirmed (PRD `confirmed_by`). Same rules as `planned_meals.user_id`. |
+| `confirmed_at` | `timestamptz` NOT NULL | Default `now()`. Copied rows: the old `served_at`. |
+| `changed_at` | `timestamptz` nullable | Stamped by the `planned_meals_mark_week_changed` trigger when a meal in the range is added, removed, renamed, re-linked to another recipe, or moved in/out. Not by ticking cooked, reordering or assigning. **"Changed since confirmed" = `changed_at > confirmed_at`.** |
+| `grocery_list_id` | `uuid` UNIQUE nullable | FK `grocery_lists` `ON DELETE SET NULL`. The week's list (P0.6). Copied rows: the list that was tied to the old plan. |
+| `created_at`, `updated_at` | `timestamptz` NOT NULL | Trigger-maintained `updated_at`. |
+| `legacy_plan_id`, `legacy_synced_at` | `uuid` UNIQUE, `timestamptz` | The served `meal_plans` row it was copied from. Dropped in phase 4. |
+
+**Functions (2a):** `rr_set_updated_at()` (trigger), `rr_mark_week_changed()` (trigger; skipped while the copy runs, via the `rr.legacy_copy` setting), `rr_copy_legacy_plans()` — admin-only (not executable by `authenticated`/`anon`), run in the SQL Editor; re-runnable; mirrors the old tables (adds new, updates changed, removes deleted) but never touches a copied row edited on the new screens; returns counts as JSON.
+
 ## Views
 
 ### `public.current_leftovers`
@@ -388,6 +423,9 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`20261101000002_household_security_rules.sql`](../supabase/migrations/20261101000002_household_security_rules.sql) | 2026-11-01 (applied to prod 2026-11-01) | PRD-008 P0.2: membership rules on all kitchen tables + `grocery_list_items` via its list; `current_leftovers` → `security_invoker`, anon grant revoked; `vault_fuzzy_match` household-scoped. Undo: [`rollback_20261101000002.sql`](../supabase/migrations/rollback_20261101000002.sql) (run before rollback 1). |
 | [`verify_20261101000002.sql`](../supabase/migrations/verify_20261101000002.sql) | 2026-11-01 | One SELECT (after a throwaway `pg_temp` helper that switches to the app's role): rules in place, an outsider and a logged-out visitor see 0 rows, a member sees all of their household and none of anyone else's. |
 | [`supabase/rehearsal/`](../supabase/rehearsal/README.md) | 2026-11-01 | Preview-only rehearsal kit: prod-shaped schema rebuilt from prod's catalog, fake accounts, and a write-permission check (`03_write_checks.sql`). Every script refuses to run on a project with real accounts. |
+| [`20261102000001_calendar_data.sql`](../supabase/migrations/20261102000001_calendar_data.sql) | 2026-11-02 (not yet on prod) | PRD-008 P0.3 (phase 2a): `planned_meals`, `week_confirmations`, membership rules, updated_at + "changed since confirmed" triggers, `rr_copy_legacy_plans()`. Additive; nothing reads the tables until the 2c switch-over. Undo: [`rollback_20261102000001.sql`](../supabase/migrations/rollback_20261102000001.sql). |
+| [`verify_20261102000001.sql`](../supabase/migrations/verify_20261102000001.sql) | 2026-11-02 | One SELECT, 19 checks: structure + rules, every old plan item copied (Maybe → no date), every served period → a confirmation with its grocery list, outsider sees 0, member sees exactly their household. Re-run after each copy. |
+| [`supabase/rehearsal/04_calendar_checks.sql`](../supabase/rehearsal/04_calendar_checks.sql), [`fingerprint_public.sql`](../supabase/rehearsal/fingerprint_public.sql) | 2026-11-02 | Preview-only: 23 scenarios (who can write, "changed since confirmed", re-running the copy) all undone; whole-`public` schema + data fingerprint for before/after-rollback comparison. |
 
 ## Related audit items + ADRs
 

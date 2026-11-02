@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-11-01 against `feat/prd-008-household` (PR #208) + prod catalog, read-only — PRD-008 phase 1. Previous: 2026-10-30 @ `18b60cb`.
+**Last verified:** 2026-11-02 against `feat/prd-008-calendar-data` + the preview project — PRD-008 phase 2a (data only). Previous: 2026-11-01 (PR #208, phase 1).
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 > **📍 Roadmap:** Near-term sequencing of what to do *next* lives in [`docs/ROADMAP.md`](./ROADMAP.md) (created 2026-06-16, stability-first, ~3 sprints). This file (STATUS.md) remains the source of truth for what has *shipped*.
@@ -42,9 +42,11 @@ No PRD phase shipped after `1e1177d`; `origin/main` has been unchanged since 202
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 + P1.1 shipped** (Phases 1–8 + lint guardrail + BrainstormMode decomposition) | P1.2–P1.5 nice-to-haves |
 | PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** (P0.1–P0.8; P0.8 = #89) | P1 nice-to-haves |
 | PRD-007 | Mid-Period Leftovers | 📝 **Authored, no phase shipped** (verify against code before planning) | Plan Phase 1 |
-| PRD-008 | Shared Household & Calendar Planning | 🚧 **Phase 1 shipped 2026-11-01** (PR #208; migrations applied to prod) | Phase 2 (calendar data + new Prep Table) |
+| PRD-008 | Shared Household & Calendar Planning | 🚧 **Phase 1 shipped 2026-11-01** (PR #208; migrations applied to prod). Phase 2a (calendar data) rehearsed on preview 2026-11-02, not yet on prod | Phase 2b (new Prep Table behind a switch), then 2c switch-over |
 
 **PRD-008 Phase 1 — Household** (PR #208, P0.1 + P0.2 + P0.9): `households` + `household_members` (one per account), `household_id` on the 8 kitchen tables, membership security rules via the `is_household_member` SECURITY DEFINER helper, sign-up trigger, shared household (Matt + his wife), `current_leftovers` security fix, app filters scoped by household (`src/lib/household.js`). Rehearsed on preview (apply → verify → roll back → fingerprint identical → apply). Applied to prod 2026-11-01; read-only checks: 44/44 setup checks pass, both accounts see the same 34 recipes / 7 plans, an outsider sees 0 rows. Rollbacks: `rollback_20261101000002.sql` then `rollback_20261101000001.sql`.
+
+**PRD-008 Phase 2a — Calendar data** (P0.3 + P0.9 for P0.3; phase 2 split into 2a/2b/2c in TASKS.md): `planned_meals` (Maybe = no date) and `week_confirmations` with membership rules, a "changed since confirmed" trigger, and the admin-only, re-runnable `rr_copy_legacy_plans()`. Migration `20261102000001_calendar_data.sql` + verify + rollback. Rehearsed on preview from a fresh rebuild: verify 19/19, rehearsal scenarios 23/23, rollback fingerprint identical, second copy all zeros. **Not phase-complete:** nothing reads the tables until 2c; the copy runs for real at switch-over.
 
 **PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86). P0.8 / Bite δ wires structured-ingredient quantities through to the grocery-list prompt (PR #89).
 
