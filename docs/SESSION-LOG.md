@@ -6,6 +6,26 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-02 — PRD-008 phase 2a: calendar data
+
+**Done:** PR #211 (open, not merged). Phase 2 split into 2a data / 2b screens / 2c switch-over (`TASKS.md`).
+- `planned_meals` (one row per meal; no date = Maybe) and `week_confirmations` (a stamp on a date range, linked to its grocery list), with the household membership rules.
+- "Changed since confirmed": a trigger stamps `changed_at` when a meal in a confirmed range is added, removed, renamed, re-linked or moved; ticking cooked / reordering / assigning don't.
+- `rr_copy_legacy_plans()`: admin-only, re-runnable, mirrors the old tables (Matt's choice) but never overwrites, removes or re-adds a meal touched on the new screens (`rr_legacy_copied` ledger).
+- No app change.
+
+**Verified:** preview, from a fresh rebuild: verify 21/21; rehearsal scenarios 27/27 (writes, "changed since confirmed", re-run mirroring); rollback → schema + data fingerprint identical; applying twice and copying twice are no-ops. Vitest 802/802, build green. Reviewer subagent: PASS; its flags 1, 2, 4 and 5 fixed in the second commit. Prod data checked read-only: 21 dated + 3 Maybe items and 10 served plans, none of which break the new rules.
+
+**Open / owed:**
+- Matt: review + merge the PR; optionally apply to prod now (steps in the PR). The real copy runs again at 2c either way.
+- Confirm the D4 narrowing (cooked / reorder / assign don't mark a week changed), marked INFERRED in the PRD.
+- Week shape for 2b: she must be able to show fewer days as well as more. Decide on a mockup.
+- Known, not fixed: one meal edit stops a copied confirmation from mirroring (safe side); update rules let a member rewrite "who added it" (same as phase 1).
+
+**Next:** 2b, the new Prep Table behind an off switch. Start with the week-grid mockup.
+
+---
+
 ## 2026-11-01 (late) — Recipe search (P2-1, search half)
 
 **Done:** PR #209 (open, not merged).

@@ -21,3 +21,22 @@ rebuilds prod's shape from prod's live catalog instead of replaying old migratio
 
 The fingerprint in step 5 is checked read-only through the Supabase connector (a hash of every
 column, constraint, index, rule, function body, view, grant and row owner).
+
+## PRD-008 phase 2a — calendar data (2026-11-02)
+
+Starts from the end of the table above (phase 1 applied). `fingerprint_public.sql` hashes the whole
+`public` schema (tables, columns, constraints, indexes, rules, function bodies + grants, triggers, views,
+table grants) and the kitchen rows; it is read-only and can be pasted in the SQL Editor.
+
+| Step | Run | Expect |
+|---|---|---|
+| A | `fingerprint_public.sql` | one row — note it |
+| 1 | `../migrations/20261102000001_calendar_data.sql` | "Success" |
+| 2 | `SELECT public.rr_copy_legacy_plans();` | seed: meals added 6, confirmations added 4 |
+| 3 | `../migrations/verify_20261102000001.sql` | 21 checks, every `pass` = true |
+| 4 | `04_calendar_checks.sql` | 27 scenarios, every `pass` = true (all undone) |
+| 5 | `../migrations/rollback_20261102000001.sql` | one row, all false |
+| B | `fingerprint_public.sql` | **identical** to step A; phase 1's `verify_20261101000002.sql` still 37/37 |
+| 6 | steps 1 (twice — idempotent), 2, 2 again (all zeros), 3, 4 | as above |
+
+Rehearsed 2026-11-02 from a fresh rebuild (0a → phase 1 → A → 1–6), after the reviewer's fixes: see the PR.

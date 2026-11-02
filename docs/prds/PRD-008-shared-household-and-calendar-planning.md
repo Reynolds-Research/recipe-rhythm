@@ -1,6 +1,6 @@
 # PRD-008: Shared Household & Calendar Planning
 
-**Status:** Draft v0.4
+**Status:** Draft v0.5
 **Author:** Matt (with Cowork)
 **Date:** 2026-11-01
 **North Star criteria moved:** "The plan doesn't stall on Matt" and "She plans in the app"
@@ -129,6 +129,12 @@ into the SQL Editor is the only place they appear.
   old served periods become confirmations. Everything currently in the database is carried
   over; meals the old flow already erased are not recoverable (non-goal 7). Maybe/shortlist
   items become a household Maybe list.
+  (Phase 2a build, 2026-11-02 — CONFIRMED by Matt: the Maybe list is `planned_meals` rows with no date,
+  so moving a Maybe onto a day only fills in the date; re-running the copy at switch-over mirrors the
+  old tables — adds, updates and removes — but never touches a meal edited on the new screens.
+  INFERRED: `date` is `planned_on`; `added_by` / `confirmed_by` are `user_id`, the "who added it"
+  column every kitchen table already has; "changed since confirmed" is a `changed_at` stamp set by a
+  trigger, so removing a meal counts too, and ticking cooked / reordering / assigning doesn't.)
 - **P0.4 New Prep Table.** Week grid with ← / →, week-shape setting, + add, ✨ suggest,
   the Maybe tab, the "Didn't get to these" tray, and Confirm the week.
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
@@ -193,6 +199,10 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v0.5 (2026-11-02):** phase 2 split into 2a data / 2b screens / 2c switch-over (TASKS.md); P0.3 build
+  notes (Maybe = no date, mirroring re-run). Open for the 2b mockup: Matt wants her to be able to show
+  *fewer* days as well as more ("include more or less days to fit a changing schedule"); P0.4's
+  "week-shape setting" vs D8's "no setting" is decided there.
 - **v0.4 (2026-11-01):** her answers: Sun–Thu default with Fri/Sat on demand (D8, no
   setting); D3 confirmed; stopgap approved (OQ4 → PR #205).
 - **v0.3 (2026-11-01):** added tested rollback scripts (D9, P0.9); corrected "nothing is
