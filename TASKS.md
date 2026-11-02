@@ -100,6 +100,7 @@ _Moved to the **🔴 P0 — ship first** section at the top of this file: P0-1 (
 
 - [ ] **P2-1 · Cookbook has no search / sort / filter** — invisible at 4 recipes, primary complaint at 40; seed suggestions occupy ~60% of the screen and should demote to a single entry point once the vault is non-empty. Effort: M.
   - **Done when:** the Cookbook can be searched by name and sorted; seed suggestions collapse to one entry once the vault is non-empty.
+  - **Progress:** search shipped (PR #209 — Cookbook + Prep Table day picker, shared `src/lib/recipeSearch.js`); sort + seed collapse still open.
 - [ ] **P2-2 · Read-path errors are silent or raw** — Auth passes Supabase's message straight through (`Auth.jsx:22,30`); Vault fetch failures only `console.error` (`useVault.js:60,66`) despite a wired-up `vaultError` banner (`index.jsx:233-238`), so a failed load looks identical to an empty Cookbook. Fix: map provider errors; populate `vaultError` on the fetch path. Effort: S.
   - **Done when:** a failed vault fetch shows the `vaultError` banner, and Auth shows mapped messages, not raw provider text (covers ROADMAP 1.5 / VP-2).
 - [ ] **P2-3 · Sole surviving `alert()`** — `BrainstormMode/index.jsx:95` clipboard-copy fallback (fires on desktop, where a blocking native dialog looks worst). Replace with an inline banner. _(This is the tail of `AUDIT.md` M8, otherwise closed.)_ Effort: XS.

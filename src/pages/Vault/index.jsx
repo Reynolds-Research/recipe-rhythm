@@ -7,6 +7,8 @@ import RecipeCard from './RecipeCard'
 import { useVault } from './useVault'
 import { chipsRequireReExtraction } from '../../lib/chipDiff'
 import SkeletonRecipeCard from '../../components/SkeletonRecipeCard'
+import RecipeSearchInput from '../../components/RecipeSearchInput'
+import { searchRecipes } from '../../lib/recipeSearch'
 
 // PRD-006 D1: how long the success banner stays visible after a chip-driven
 // re-extraction completes. Errors stick until manually dismissed.
@@ -66,7 +68,13 @@ export default function Vault({ userId }) {
   // PRD-004 Phase D: inline save notice for ingredient essentiality toggle.
   // Shape: { recipeId: string, kind: 'saved' | 'error' } | null.
   const [ingredientSaveNotice, setIngredientSaveNotice] = useState(null)
+  // Search text. Page state only — not in the URL or localStorage.
+  const [query, setQuery] = useState('')
   const { trigger } = useHaptics()
+
+  const trimmedQuery = query.trim()
+  const searching = trimmedQuery !== ''
+  const visibleRecipes = searching ? searchRecipes(recipes, trimmedQuery) : recipes
 
   // Form-submit handler bridges the form's onSubmit callback to the data
   // hook. Returns `{ ok }` so the form can reset on success.
@@ -214,6 +222,7 @@ export default function Vault({ userId }) {
             <Logo className="w-8 h-8 mb-2" />
             <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
             <p className="text-lg text-gray-900 mt-1 font-serif italic">
+              {searching && `${visibleRecipes.length} of `}
               {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
             </p>
           </div>
@@ -229,6 +238,12 @@ export default function Vault({ userId }) {
           </button>
         </div>
       </div>
+
+      {recipes.length > 0 && (
+        <div className="px-5 pt-4">
+          <RecipeSearchInput value={query} onChange={setQuery} placeholder="Search recipes" />
+        </div>
+      )}
 
       {vaultError && (
         <div className="mx-5 mt-4 px-4 py-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100 flex items-center justify-between">
@@ -285,8 +300,18 @@ export default function Vault({ userId }) {
           </div>
         )}
 
+        {/* No search matches */}
+        {searching && visibleRecipes.length === 0 && (
+          <div className="text-center py-12 space-y-1">
+            <p className="body-text">No recipes match &quot;{trimmedQuery}&quot;</p>
+            <button onClick={() => setQuery('')} className="btn-text">
+              Clear search
+            </button>
+          </div>
+        )}
+
         {/* Recipe list */}
-        {recipes.map(recipe => (
+        {visibleRecipes.map(recipe => (
           <RecipeCard
             key={recipe.id}
             recipe={recipe}
@@ -308,8 +333,8 @@ export default function Vault({ userId }) {
           />
         ))}
 
-        {/* Starter suggestions — shown while vault is sparse */}
-        {(() => {
+        {/* Starter suggestions — shown while vault is sparse, hidden during a search */}
+        {!searching && (() => {
           const vaultNames = new Set(recipes.map(r => r.name.toLowerCase().trim()))
           const available = STARTER_SUGGESTIONS.filter(s => !vaultNames.has(s.toLowerCase()))
           if (available.length === 0 || recipes.length >= 15) return null

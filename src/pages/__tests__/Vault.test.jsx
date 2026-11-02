@@ -489,3 +489,69 @@ describe('Vault — PRD-001 P0.7 vault_options', () => {
     errSpy.mockRestore()
   })
 })
+
+// Recipe search (TASKS.md P2-1, search half).
+describe('Vault — recipe search', () => {
+  const recipes = [
+    { id: 'r1', name: 'Fish Tacos', cuisine_type: 'Mexican', created_at: '2026-10-01T00:00:00Z' },
+    { id: 'r2', name: 'Green Curry', cuisine_type: 'Thai', proteins: ['Chicken'], created_at: '2026-10-02T00:00:00Z' },
+    { id: 'r3', name: 'Roast', notes: 'Sunday tradition', created_at: '2026-10-03T00:00:00Z' },
+  ]
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    supabase.from.mockImplementation(buildVaultFromMock({ recipes }).fromImpl)
+  })
+
+  const renderLoaded = async () => {
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    await waitFor(() => expect(screen.getByText('Fish Tacos')).toBeInTheDocument())
+    return { user, search: screen.getByRole('searchbox', { name: 'Search recipes' }) }
+  }
+
+  it('typing filters the list and updates the count text', async () => {
+    const { user, search } = await renderLoaded()
+    expect(screen.getByText('3 recipes')).toBeInTheDocument()
+    expect(search).toHaveAttribute('placeholder', 'Search recipes')
+
+    await user.type(search, 'thai')
+
+    expect(screen.getByText('1 of 3 recipes')).toBeInTheDocument()
+    expect(screen.getByText('Green Curry')).toBeInTheDocument()
+    expect(screen.queryByText('Fish Tacos')).not.toBeInTheDocument()
+    expect(screen.queryByText('Roast')).not.toBeInTheDocument()
+  })
+
+  it('a no-match query shows the empty message, and Clear search restores the full list', async () => {
+    const { user, search } = await renderLoaded()
+
+    await user.type(search, 'lasagna')
+    expect(screen.getByText('No recipes match "lasagna"')).toBeInTheDocument()
+    expect(screen.getByText('0 of 3 recipes')).toBeInTheDocument()
+
+    // The text button under the message (the × in the box shares its accessible name).
+    await user.click(screen.getByText('Clear search'))
+    expect(screen.queryByText(/No recipes match/)).not.toBeInTheDocument()
+    expect(screen.getByText('3 recipes')).toBeInTheDocument()
+    for (const r of recipes) expect(screen.getByText(r.name)).toBeInTheDocument()
+  })
+
+  it('hides the starter suggestions during a search', async () => {
+    const { user, search } = await renderLoaded()
+    expect(screen.getByText('Need a head start?')).toBeInTheDocument()
+
+    await user.type(search, 'roast')
+    expect(screen.queryByText('Need a head start?')).not.toBeInTheDocument()
+
+    await user.clear(search)
+    expect(screen.getByText('Need a head start?')).toBeInTheDocument()
+  })
+
+  it('hides the search box when the cookbook is empty', async () => {
+    supabase.from.mockImplementation(buildVaultFromMock({ recipes: [] }).fromImpl)
+    render(<Vault userId="test-user" />)
+    await waitFor(() => expect(screen.getByText('Your vault is empty')).toBeInTheDocument())
+    expect(screen.queryByRole('searchbox', { name: 'Search recipes' })).not.toBeInTheDocument()
+  })
+})

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import DayPicker from '../DayPicker'
 
 vi.mock('../../../lib/supabase', () => ({
@@ -322,6 +323,151 @@ describe('DayPicker', () => {
       // The Maybe header renders and the violator is visible in it.
       expect(await screen.findByText(/From your Maybe list/i)).toBeInTheDocument()
       expect(await screen.findByText('Beef Tacos')).toBeInTheDocument()
+    })
+  })
+
+  // Recipe search (TASKS.md P2-1, search half).
+  describe('search', () => {
+    const searchProps = {
+      ...baseProps,
+      vault: [
+        { id: 'v1', name: 'Roast' },
+        { id: 'v2', name: 'Tacos' },
+        { id: 'v3', name: 'Curry' },
+        { id: 'v9', name: 'Jalapeño Poppers', proteins: ['Pork'] },
+      ],
+      shortlist: [{ item_id: 'maybe-1', name: 'Saved A', is_shortlisted: true }],
+    }
+
+    const typeQuery = async (user, text) => {
+      await user.type(screen.getByRole('searchbox', { name: 'Search recipes' }), text)
+    }
+
+    it('typing an existing name shows it under "From your cookbook" and hides the three default sections', async () => {
+      const user = userEvent.setup()
+      render(<DayPicker {...searchProps} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, 'jalapeno')
+
+      expect(screen.getByText('From your cookbook')).toBeInTheDocument()
+      expect(screen.getByText('Jalapeño Poppers')).toBeInTheDocument()
+      expect(screen.queryByText(/From your Maybe list/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Top from your vault/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/New ideas/i)).not.toBeInTheDocument()
+      // Search runs over the full vault, not the 5 ranked picks.
+      expect(screen.queryByText('Roast')).not.toBeInTheDocument()
+    })
+
+    it('tapping a search result schedules that vault id (not a wildcard)', async () => {
+      const user = userEvent.setup()
+      const onScheduled = vi.fn()
+      render(<DayPicker {...searchProps} onScheduled={onScheduled} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, 'poppers')
+      await user.click(screen.getByText('Jalapeño Poppers'))
+
+      await waitFor(() => expect(addScheduledItem).toHaveBeenCalledTimes(1))
+      const [, userIdArg, planIdArg, scheduledDate, item] = addScheduledItem.mock.calls[0]
+      expect(userIdArg).toBe('user-1')
+      expect(planIdArg).toBe('plan-1')
+      expect(scheduledDate).toBe(DATE)
+      expect(item).toEqual({ id: 'v9', name: 'Jalapeño Poppers', is_wildcard: false, source_url: null })
+      await waitFor(() => expect(onScheduled).toHaveBeenCalled())
+    })
+
+    it('the bookmark on a search result still adds it to Maybe', async () => {
+      const user = userEvent.setup()
+      render(<DayPicker {...searchProps} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, 'poppers')
+      await user.click(screen.getByLabelText('Add to Maybe'))
+
+      await waitFor(() => expect(addShortlistItem).toHaveBeenCalledTimes(1))
+      const [, , , item] = addShortlistItem.mock.calls[0]
+      expect(item).toEqual({ id: 'v9', name: 'Jalapeño Poppers', is_wildcard: false, source_url: null })
+    })
+
+    it('a non-existent name shows the no-match line and an Add-as-is row that schedules a one-off meal', async () => {
+      const user = userEvent.setup()
+      render(<DayPicker {...searchProps} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, '  Mystery Stew ')
+
+      expect(screen.getByText('No cookbook recipes match "Mystery Stew"')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /Add "Mystery Stew" as-is/ }))
+
+      await waitFor(() => expect(addScheduledItem).toHaveBeenCalledTimes(1))
+      const [, , , scheduledDate, item] = addScheduledItem.mock.calls[0]
+      expect(scheduledDate).toBe(DATE)
+      expect(item).toEqual({ id: null, name: 'Mystery Stew', is_wildcard: true, source_url: null })
+    })
+
+    it('the Add-as-is row also shows when there are matches', async () => {
+      const user = userEvent.setup()
+      render(<DayPicker {...searchProps} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, 'tacos')
+      expect(screen.getByText('Tacos')).toBeInTheDocument()
+      expect(screen.queryByText(/No cookbook recipes match/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Add "tacos" as-is/ })).toBeInTheDocument()
+    })
+
+    it('clearing the box brings the default sections back', async () => {
+      const user = userEvent.setup()
+      render(<DayPicker {...searchProps} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, 'curry')
+      expect(screen.queryByText(/New ideas/i)).not.toBeInTheDocument()
+
+      await user.click(screen.getByLabelText('Clear search'))
+      expect(screen.queryByText('From your cookbook')).not.toBeInTheDocument()
+      expect(screen.getByText(/From your Maybe list/i)).toBeInTheDocument()
+      expect(screen.getByText(/Top from your vault/i)).toBeInTheDocument()
+      expect(screen.getByText(/New ideas/i)).toBeInTheDocument()
+    })
+
+    it('makes no further /api/swap-suggestions call while searching', async () => {
+      const user = userEvent.setup()
+      render(<DayPicker {...searchProps} />)
+      await screen.findByText('AI Pick 1')
+      const callsAfterOpen = globalThis.fetch.mock.calls.length
+
+      await typeQuery(user, 'roast chicken thai')
+      // Regenerate is disabled while a query is active, so it can't fire one either.
+      expect(screen.getByLabelText('Regenerate suggestions')).toBeDisabled()
+      await user.clear(screen.getByRole('searchbox', { name: 'Search recipes' }))
+      await typeQuery(user, 'tacos')
+
+      expect(globalThis.fetch.mock.calls.length).toBe(callsAfterOpen)
+    })
+
+    it('search ignores household preferences', async () => {
+      const user = userEvent.setup()
+      const prefs = { dietary_restrictions: ['vegetarian'], excluded_ingredients: [], excluded_cuisines: [] }
+      render(<DayPicker {...searchProps} preferences={prefs} />)
+      await screen.findByText(/New ideas/i)
+
+      await typeQuery(user, 'jalapeno')
+      expect(screen.getByText('Jalapeño Poppers')).toBeInTheDocument()
+    })
+
+    it('closing the sheet clears the query, so the next open starts fresh', async () => {
+      const user = userEvent.setup()
+      const { rerender } = render(<DayPicker {...searchProps} />)
+      await screen.findByText(/New ideas/i)
+      await typeQuery(user, 'curry')
+
+      rerender(<DayPicker {...searchProps} isOpen={false} />)
+      rerender(<DayPicker {...searchProps} isOpen={true} />)
+
+      expect(screen.getByRole('searchbox', { name: 'Search recipes' })).toHaveValue('')
+      expect(await screen.findByText(/New ideas/i)).toBeInTheDocument()
     })
   })
 })
