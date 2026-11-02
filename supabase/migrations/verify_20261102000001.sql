@@ -43,7 +43,8 @@ tables(t) AS (VALUES ('planned_meals'), ('week_confirmations')),
 want_meals AS (
   SELECT i.id, i.household_id, i.scheduled_date AS planned_on, coalesce(i.position, 0) AS position,
          i.name, i.vault_id, coalesce(i.is_wildcard, false) AS is_wildcard, i.source_url,
-         (coalesce(i.cooked, false) AND i.scheduled_date IS NOT NULL) AS cooked, i.user_id
+         (coalesce(i.cooked, false) AND i.scheduled_date IS NOT NULL) AS cooked,
+         CASE WHEN coalesce(i.cooked, false) AND i.scheduled_date IS NOT NULL THEN i.cooked_at END AS cooked_at, i.user_id
   FROM meal_plan_items i
 ),
 want_weeks AS (
@@ -68,6 +69,16 @@ checks(ord, check_name, expected, actual) AS (
   UNION ALL SELECT 14, 'the copy can''t be run from the app (logged in / logged out)', 'false / false',
          has_function_privilege('authenticated', 'public.rr_copy_legacy_plans()', 'execute')::text || ' / ' ||
          has_function_privilege('anon', 'public.rr_copy_legacy_plans()', 'execute')::text
+  UNION ALL SELECT 16, 'copy ledger: security on, no rules, app has no access', 'true / 0 / false',
+         coalesce((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.rr_legacy_copied')), false)::text || ' / ' ||
+         (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'rr_legacy_copied')::text || ' / ' ||
+         (has_table_privilege('authenticated', 'public.rr_legacy_copied', 'select')
+          OR has_table_privilege('anon', 'public.rr_legacy_copied', 'select'))::text
+  UNION ALL SELECT 26, 'every copied meal / confirmation is in the copy ledger', '0 / 0',
+         (SELECT count(*) FROM planned_meals p WHERE p.legacy_item_id IS NOT NULL AND NOT EXISTS
+           (SELECT 1 FROM rr_legacy_copied c WHERE c.kind = 'item' AND c.legacy_id = p.legacy_item_id))::text || ' / ' ||
+         (SELECT count(*) FROM week_confirmations w WHERE w.legacy_plan_id IS NOT NULL AND NOT EXISTS
+           (SELECT 1 FROM rr_legacy_copied c WHERE c.kind = 'plan' AND c.legacy_id = w.legacy_plan_id))::text
   UNION ALL SELECT 15, 'triggers in place: updated_at x2, changed-since-confirmed', '3',
          (SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal AND tgname IN
            ('planned_meals_set_updated_at','week_confirmations_set_updated_at','planned_meals_mark_week_changed'))::text
@@ -81,11 +92,11 @@ checks(ord, check_name, expected, actual) AS (
   UNION ALL SELECT 22, 'copies whose old item is gone', '0',
          (SELECT count(*) FROM planned_meals p WHERE p.legacy_item_id IS NOT NULL AND NOT EXISTS
            (SELECT 1 FROM meal_plan_items i WHERE i.id = p.legacy_item_id))::text
-  UNION ALL SELECT 23, 'copies that differ from their old item (household, date, name, recipe, cooked, who)', '0',
+  UNION ALL SELECT 23, 'copies that differ from their old item (household, date, name, recipe, cooked + when, who)', '0',
          (SELECT count(*) FROM want_meals w JOIN planned_meals p ON p.legacy_item_id = w.id
-           WHERE (p.household_id, p.planned_on, p.position, p.name, p.vault_id, p.is_wildcard, p.source_url, p.cooked, p.user_id)
+           WHERE (p.household_id, p.planned_on, p.position, p.name, p.vault_id, p.is_wildcard, p.source_url, p.cooked, p.cooked_at, p.user_id)
                  IS DISTINCT FROM
-                 (w.household_id, w.planned_on, w.position, w.name, w.vault_id, w.is_wildcard, w.source_url, w.cooked, w.user_id))::text
+                 (w.household_id, w.planned_on, w.position, w.name, w.vault_id, w.is_wildcard, w.source_url, w.cooked, w.cooked_at, w.user_id))::text
   UNION ALL SELECT 24, 'Maybe items copied with no date / scheduled items copied with their date',
          (SELECT count(*) FROM meal_plan_items WHERE is_shortlisted)::text || ' / ' ||
          (SELECT count(*) FROM meal_plan_items WHERE NOT is_shortlisted)::text,

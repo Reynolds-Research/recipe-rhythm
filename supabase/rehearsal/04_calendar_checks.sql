@@ -133,9 +133,10 @@ attempts(ord, attempt, expected, actual) AS (
            (SELECT q FROM changed)) FROM ids
 
   -- C. Re-running the copy (as at switch-over), after the old screens kept being used
-  UNION ALL SELECT 40, 'nothing changed → re-run changes nothing', '{"added": 0, "removed": 0, "updated": 0, "kept_edited": 0}',
+  UNION ALL SELECT 40, 'nothing changed → re-run changes nothing (meals and confirmations)',
+         '{"meals": {"added": 0, "removed": 0, "updated": 0, "kept_edited": 0}, "confirmations": {"added": 0, "removed": 0, "updated": 0, "not_copied": 0, "kept_edited": 0}}',
          pg_temp.rr_scenario(her, ARRAY['SELECT pg_temp.rr_age_copy()'],
-           'SELECT (public.rr_copy_legacy_plans() -> ''meals'')::text') FROM ids
+           'SELECT public.rr_copy_legacy_plans()::text') FROM ids
   UNION ALL SELECT 41, 'old screen: meal added / renamed / deleted → re-run adds 1, updates 1, removes 1', '1 1 1',
          pg_temp.rr_scenario(her, ARRAY['SELECT pg_temp.rr_age_copy()',
              format('INSERT INTO public.meal_plan_items (household_id, user_id, meal_plan_id, scheduled_date, name) VALUES ((SELECT household_id FROM public.meal_plans WHERE id = ''c0000000-0000-4000-8000-000000000002''), %L, ''c0000000-0000-4000-8000-000000000002'', current_date - 4, ''Old-screen stew'')', her),
@@ -170,5 +171,29 @@ attempts(ord, attempt, expected, actual) AS (
              format('INSERT INTO public.meal_plans (household_id, user_id, period_start, period_end, served_at) VALUES ((SELECT household_id FROM public.household_members WHERE user_id = %L), %L, current_date, current_date + 4, now())', her, her),
              'CREATE TEMP TABLE rr_r ON COMMIT DROP AS SELECT public.rr_copy_legacy_plans() -> ''confirmations'' AS c'],
            'SELECT c->>''added'' FROM rr_r') FROM ids
+  UNION ALL SELECT 46, 'copied meal DELETED on the new screen → re-run does not bring it back', 'gone / added 0',
+         pg_temp.rr_scenario(her, ARRAY['SELECT pg_temp.rr_age_copy()',
+             format('@DELETE FROM public.planned_meals WHERE id = %L', (SELECT id FROM gnocchi)),
+             'CREATE TEMP TABLE rr_r ON COMMIT DROP AS SELECT public.rr_copy_legacy_plans() -> ''meals'' AS m'],
+           'SELECT CASE WHEN EXISTS (SELECT 1 FROM public.planned_meals WHERE name = ''Sheet-pan gnocchi'') THEN ''back'' ELSE ''gone'' END
+                   || '' / added '' || (SELECT m->>''added'' FROM rr_r)') FROM ids
+  UNION ALL SELECT 47, 'copied confirmation removed on the new screen → re-run does not bring it back', 'gone',
+         pg_temp.rr_scenario(her, ARRAY['SELECT pg_temp.rr_age_copy()',
+             format('@DELETE FROM public.week_confirmations WHERE id = %L', (SELECT id FROM wk)),
+             'SELECT public.rr_copy_legacy_plans()'],
+           'SELECT CASE WHEN EXISTS (SELECT 1 FROM public.week_confirmations WHERE legacy_plan_id = ''c0000000-0000-4000-8000-000000000002'') THEN ''back'' ELSE ''gone'' END') FROM ids
+  UNION ALL SELECT 48, 'old plan moved onto a range already confirmed on the new screen → copy still runs, new-screen one wins', 'ran / new wins',
+         pg_temp.rr_scenario(her, ARRAY['SELECT pg_temp.rr_age_copy()',
+             format('@INSERT INTO public.week_confirmations (user_id, starts_on, ends_on) VALUES (%L, current_date + 30, current_date + 36)', her),
+             'UPDATE public.meal_plans SET period_start = current_date + 30, period_end = current_date + 36 WHERE id = ''c0000000-0000-4000-8000-000000000002''',
+             'SELECT public.rr_copy_legacy_plans()'],
+           'SELECT ''ran / '' || CASE WHEN (SELECT starts_on FROM public.week_confirmations WHERE legacy_plan_id = ''c0000000-0000-4000-8000-000000000002'') <> current_date + 30
+                                      AND (SELECT count(*) FROM public.week_confirmations WHERE starts_on = current_date + 30) = 1
+                                 THEN ''new wins'' ELSE ''overwritten'' END') FROM ids
+  UNION ALL SELECT 49, 'old plan changed on the old screen → re-run updates its confirmation', 'updated 1',
+         pg_temp.rr_scenario(her, ARRAY['SELECT pg_temp.rr_age_copy()',
+             'UPDATE public.meal_plans SET served_at = served_at + interval ''1 minute'' WHERE id = ''c0000000-0000-4000-8000-000000000002''',
+             'CREATE TEMP TABLE rr_r ON COMMIT DROP AS SELECT public.rr_copy_legacy_plans() -> ''confirmations'' AS c'],
+           'SELECT ''updated '' || (SELECT c->>''updated'' FROM rr_r)') FROM ids
 )
 SELECT attempt, expected, actual, (expected = actual) AS pass FROM attempts ORDER BY ord;

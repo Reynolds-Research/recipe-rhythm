@@ -343,7 +343,9 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 | `created_at`, `updated_at` | `timestamptz` NOT NULL | Trigger-maintained `updated_at`. |
 | `legacy_plan_id`, `legacy_synced_at` | `uuid` UNIQUE, `timestamptz` | The served `meal_plans` row it was copied from. Dropped in phase 4. |
 
-**Functions (2a):** `rr_set_updated_at()` (trigger), `rr_mark_week_changed()` (trigger; skipped while the copy runs, via the `rr.legacy_copy` setting), `rr_copy_legacy_plans()` — admin-only (not executable by `authenticated`/`anon`), run in the SQL Editor; re-runnable; mirrors the old tables (adds new, updates changed, removes deleted) but never touches a copied row edited on the new screens; returns counts as JSON.
+**`public.rr_legacy_copied` (2a, admin-only):** `(kind 'item'|'plan', legacy_id)` PK, `copied_at`. Every old row the copy has ever copied, so a copy deleted on the new screens is never re-added. Security on, no rules, no app grants. Dropped in phase 4.
+
+**Functions (2a):** `rr_set_updated_at()` (trigger; wall-clock time so an edit made while a copy runs still counts as newer; the copy's own writes keep its timestamp), `rr_mark_week_changed()` (trigger; skipped while the copy runs, via the `rr.legacy_copy` setting), `rr_copy_legacy_plans()` — admin-only (not executable by `authenticated`/`anon`), run in the SQL Editor; re-runnable; mirrors the old tables (adds new, updates changed, removes deleted) but never touches a copied row edited on the new screens and never re-adds one deleted there; an old plan moved onto a range already confirmed on the new screens leaves the new one alone; returns counts as JSON.
 
 ## Views
 
@@ -424,8 +426,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20261101000002.sql`](../supabase/migrations/verify_20261101000002.sql) | 2026-11-01 | One SELECT (after a throwaway `pg_temp` helper that switches to the app's role): rules in place, an outsider and a logged-out visitor see 0 rows, a member sees all of their household and none of anyone else's. |
 | [`supabase/rehearsal/`](../supabase/rehearsal/README.md) | 2026-11-01 | Preview-only rehearsal kit: prod-shaped schema rebuilt from prod's catalog, fake accounts, and a write-permission check (`03_write_checks.sql`). Every script refuses to run on a project with real accounts. |
 | [`20261102000001_calendar_data.sql`](../supabase/migrations/20261102000001_calendar_data.sql) | 2026-11-02 (not yet on prod) | PRD-008 P0.3 (phase 2a): `planned_meals`, `week_confirmations`, membership rules, updated_at + "changed since confirmed" triggers, `rr_copy_legacy_plans()`. Additive; nothing reads the tables until the 2c switch-over. Undo: [`rollback_20261102000001.sql`](../supabase/migrations/rollback_20261102000001.sql). |
-| [`verify_20261102000001.sql`](../supabase/migrations/verify_20261102000001.sql) | 2026-11-02 | One SELECT, 19 checks: structure + rules, every old plan item copied (Maybe → no date), every served period → a confirmation with its grocery list, outsider sees 0, member sees exactly their household. Re-run after each copy. |
-| [`supabase/rehearsal/04_calendar_checks.sql`](../supabase/rehearsal/04_calendar_checks.sql), [`fingerprint_public.sql`](../supabase/rehearsal/fingerprint_public.sql) | 2026-11-02 | Preview-only: 23 scenarios (who can write, "changed since confirmed", re-running the copy) all undone; whole-`public` schema + data fingerprint for before/after-rollback comparison. |
+| [`verify_20261102000001.sql`](../supabase/migrations/verify_20261102000001.sql) | 2026-11-02 | One SELECT, 21 checks: structure + rules, every old plan item copied (Maybe → no date), every served period → a confirmation with its grocery list, outsider sees 0, member sees exactly their household. Re-run after each copy. |
+| [`supabase/rehearsal/04_calendar_checks.sql`](../supabase/rehearsal/04_calendar_checks.sql), [`fingerprint_public.sql`](../supabase/rehearsal/fingerprint_public.sql) | 2026-11-02 | Preview-only: 27 scenarios (who can write, "changed since confirmed", re-running the copy) all undone; whole-`public` schema + data fingerprint for before/after-rollback comparison. |
 
 ## Related audit items + ADRs
 

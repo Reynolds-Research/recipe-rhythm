@@ -85,10 +85,15 @@ CREATE INDEX IF NOT EXISTS week_confirmations_household_range_idx
 -- ---------------------------------------------------------------------------
 -- 3. updated_at triggers (same in-repo pattern as household_preferences)
 -- ---------------------------------------------------------------------------
+-- Wall-clock time (not the transaction's start time), so an edit that lands
+-- while a copy is running is still newer than that copy. The copy's own
+-- writes keep the timestamp the copy sets.
 CREATE OR REPLACE FUNCTION public.rr_set_updated_at()
 RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
-  NEW.updated_at := now();
+  IF current_setting('rr.legacy_copy', true) IS DISTINCT FROM 'on' THEN
+    NEW.updated_at := clock_timestamp();
+  END IF;
   RETURN NEW;
 END $$;
 
@@ -187,6 +192,21 @@ REVOKE ALL ON public.planned_meals, public.week_confirmations FROM anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.planned_meals, public.week_confirmations TO authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 6a. What the copy has already copied, ever. A copied meal (or confirmation)
+-- someone deletes on the new screens must not come back on the next run, so
+-- the copy only adds old rows it has never seen. Admin-only: security on, no
+-- rules, no grants to the app. Dropped in phase 4 with the copy.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.rr_legacy_copied (
+  kind       text NOT NULL CHECK (kind IN ('item', 'plan')),
+  legacy_id  uuid NOT NULL,
+  copied_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (kind, legacy_id)
+);
+ALTER TABLE public.rr_legacy_copied ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.rr_legacy_copied FROM anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 6. The copy of the old plans (P0.3). Admin-only: run it in the SQL Editor
 --    with  SELECT public.rr_copy_legacy_plans();
 --
@@ -197,7 +217,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.planned_meals, public.week_confir
 --   * old meal deleted since last copy → removed
 -- but a copied meal that someone has since edited on the new screens
 -- (updated_at moved past legacy_synced_at) is never overwritten or removed;
--- it is counted as "kept".
+-- it is counted as "kept". A copy deleted on the new screens stays deleted
+-- (rr_legacy_copied remembers every id ever copied).
 -- Scheduled items keep their date; Maybe items get no date. Every served old
 -- plan becomes a confirmation of its date range, linked to its grocery list.
 -- Returns the counts as JSON.
@@ -205,7 +226,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.planned_meals, public.week_confir
 CREATE OR REPLACE FUNCTION public.rr_copy_legacy_plans()
 RETURNS jsonb LANGUAGE plpgsql SET search_path = '' AS $$
 DECLARE
-  t           timestamptz := now();   -- = what the updated_at trigger writes in this transaction
+  t           timestamptz := clock_timestamp();
   n_added     int; n_updated int; n_removed int; n_kept int;
   c_added     int; c_updated int; c_removed int; c_kept int; c_skipped int;
 BEGIN
@@ -251,8 +272,11 @@ BEGIN
            CASE WHEN coalesce(i.cooked, false) AND i.scheduled_date IS NOT NULL THEN i.cooked_at END,
            i.user_id, coalesce(i.created_at, t), t, i.id, t
       FROM public.meal_plan_items i
-     WHERE NOT EXISTS (SELECT 1 FROM public.planned_meals pm WHERE pm.legacy_item_id = i.id)
-    RETURNING 1
+     WHERE NOT EXISTS (SELECT 1 FROM public.rr_legacy_copied c WHERE c.kind = 'item' AND c.legacy_id = i.id)
+    RETURNING legacy_item_id
+  ), seen AS (
+    INSERT INTO public.rr_legacy_copied (kind, legacy_id) SELECT 'item', legacy_item_id FROM ins
+    ON CONFLICT DO NOTHING
   )
   SELECT count(*) INTO n_added FROM ins;
 
@@ -284,6 +308,10 @@ BEGIN
     FROM src s
     WHERE w.legacy_plan_id = s.id
       AND w.updated_at <= w.legacy_synced_at
+      -- don't move onto a range another confirmation already holds
+      AND NOT EXISTS (SELECT 1 FROM public.week_confirmations o
+                       WHERE o.id <> w.id AND o.household_id = s.household_id
+                         AND o.starts_on = s.period_start AND o.ends_on = s.period_end)
       AND (w.household_id, w.starts_on, w.ends_on, w.user_id, w.confirmed_at, w.grocery_list_id)
           IS DISTINCT FROM (s.household_id, s.period_start, s.period_end, s.user_id, s.served_at, s.list_id)
     RETURNING 1
@@ -294,19 +322,22 @@ BEGIN
     SELECT s.household_id, s.period_start, s.period_end, s.user_id, s.served_at, s.list_id,
            t, t, s.id, t
       FROM src s
-     WHERE NOT EXISTS (SELECT 1 FROM public.week_confirmations w WHERE w.legacy_plan_id = s.id)
+     WHERE NOT EXISTS (SELECT 1 FROM public.rr_legacy_copied c WHERE c.kind = 'plan' AND c.legacy_id = s.id)
        -- a range already confirmed on the new screens wins
        AND NOT EXISTS (SELECT 1 FROM public.week_confirmations w
                         WHERE w.household_id = s.household_id
                           AND w.starts_on = s.period_start AND w.ends_on = s.period_end)
-    RETURNING 1
+    RETURNING legacy_plan_id
+  ), seen AS (
+    INSERT INTO public.rr_legacy_copied (kind, legacy_id) SELECT 'plan', legacy_plan_id FROM ins
+    ON CONFLICT DO NOTHING
   )
   SELECT (SELECT count(*) FROM upd), (SELECT count(*) FROM ins) INTO c_updated, c_added;
 
   SELECT count(*) INTO c_skipped
     FROM public.meal_plans p
    WHERE p.served_at IS NOT NULL AND p.period_start IS NOT NULL AND p.period_end IS NOT NULL
-     AND NOT EXISTS (SELECT 1 FROM public.week_confirmations w WHERE w.legacy_plan_id = p.id);
+     AND NOT EXISTS (SELECT 1 FROM public.rr_legacy_copied c WHERE c.kind = 'plan' AND c.legacy_id = p.id);
 
   WITH del AS (
     DELETE FROM public.week_confirmations w
@@ -324,7 +355,7 @@ BEGIN
   RETURN jsonb_build_object(
     'meals',         jsonb_build_object('added', n_added, 'updated', n_updated, 'removed', n_removed, 'kept_edited', n_kept),
     'confirmations', jsonb_build_object('added', c_added, 'updated', c_updated, 'removed', c_removed,
-                                        'kept_edited', c_kept, 'skipped_range_taken', c_skipped));
+                                        'kept_edited', c_kept, 'not_copied', c_skipped));
 END $$;
 
 REVOKE ALL ON FUNCTION public.rr_copy_legacy_plans() FROM PUBLIC, anon, authenticated;
