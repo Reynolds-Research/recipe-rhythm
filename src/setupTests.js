@@ -32,3 +32,12 @@ vi.mock('react-modal-sheet', () => {
   Sheet.Backdrop = ({ onClick }) => React.createElement('div', { 'data-testid': 'mock-sheet-backdrop', onClick });
   return { Sheet };
 });
+
+// PRD-008: data helpers scope queries by household. Unit tests get a
+// predictable household per account (`hh-<userId>`) without a lookup call;
+// src/lib/__tests__/household.test.js uses the real module via importActual.
+vi.mock('./lib/household', () => ({
+  getHouseholdId: vi.fn(async (_supabase, userId) => `hh-${userId}`),
+  clearHouseholdCache: vi.fn(),
+  NoHouseholdError: class NoHouseholdError extends Error {},
+}))

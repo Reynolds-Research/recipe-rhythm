@@ -6,6 +6,28 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-01 (evening) — PRD-008 phase 1: shared household live
+
+**Done:** PR #208.
+- **Migrations:** households + one-per-account membership; `household_id` on the 8 kitchen tables; membership security rules via a SECURITY DEFINER helper; sign-up trigger. Matt now shares his wife's household ("Our kitchen"); his 6 old recipes stay in his old, memberless household.
+- **Security fix:** `current_leftovers` had been readable with the public key (it ignored the security rules).
+- **App:** ~27 `user_id` filters → household (`src/lib/household.js`). Deliberate exceptions: `plan_drafts`, and LogMode's back-link of the meal just logged.
+- **Rollbacks + rehearsal:** a rollback for each migration, plus a preview rehearsal kit (`supabase/rehearsal/`).
+
+**Verified:**
+- **Preview (Supabase):** schema rebuilt from prod's catalog (fingerprint identical to prod). Apply → 40/40, 37/37, 14/14 → roll back (schema + data identical to before) → apply again.
+- **Prod (applied by Matt, one all-or-nothing paste):** read-only, 44/44 setup checks. Both accounts see the same 34 recipes / 7 plans / 13 items. An outsider sees 0 rows.
+- **Tests:** Vitest 776/776, lint and build green. E2E green except 3 lockout-explorer scenarios that fail on `main` too; with #207's spec, 6/6. Reviewer subagent: PASS.
+
+**Open / owed (Matt):**
+- Merge #207 and #208 (#208 right away: the old app can't save preferences or tag options until it deploys).
+- Then on both phones: sign out and back in, check you both see the same Cookbook and plan.
+- The prod setup file with real emails is in `~/rr-sql/` (outside the repo). Delete it, plus `.env.preview`, when you no longer need them.
+
+**Next:** PRD-008 phase 2 — calendar data + new Prep Table (`TASKS.md` "Phase 2").
+
+---
+
 ## 2026-11-01 (later) — lockout found, household + calendar spec
 
 **Done:** Mapped the Prep Table flow from the code and built a Playwright lockout explorer on a stateful fake Supabase (PR #201): four traps reproduced, all from locked "period" boxes. Wrote PRD-008 (shared household + calendar planning: meals sit on dates, nothing locks, "Confirm the week" is her final say, Matt's nights, tested rollbacks). TASKS.md: PRD-008 phases + the parked Supabase two-connector fix. STATUS: PRD-008 row.

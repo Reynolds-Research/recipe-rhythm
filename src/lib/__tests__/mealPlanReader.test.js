@@ -388,7 +388,7 @@ describe('fetchCurrentLeftovers', () => {
     const result = await fetchCurrentLeftovers(supabase, 'user-1')
 
     expect(supabase.calls.current_leftovers).toBeTruthy()
-    expect(supabase.calls.current_leftovers.eqs).toContainEqual(['user_id', 'user-1'])
+    expect(supabase.calls.current_leftovers.eqs).toContainEqual(['household_id', 'hh-user-1'])
     expect(result).toHaveLength(2)
     expect(result[0]).toEqual({
       id: 'item-1',

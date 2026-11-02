@@ -6,6 +6,7 @@ import {
   migrateLocalStorageExtras,
   VAULT_OPTION_CATEGORIES,
 } from '../vaultOptions'
+import { getHouseholdId } from '../household'
 
 // ---------------------------------------------------------------------------
 // Supabase fake — narrow shape, only the chains vaultOptions exercises.
@@ -113,7 +114,14 @@ describe('fetchVaultOptions', () => {
     })
     expect(supabase.calls[0].table).toBe('vault_options')
     expect(supabase.calls[0].selectCols).toBe('category, value')
-    expect(supabase.calls[0].filter).toEqual({ user_id: USER })
+    expect(supabase.calls[0].filter).toEqual({ household_id: `hh-${USER}` })
+  })
+
+  it('PRD-008: returns {} (no throw, no query) when the household lookup fails', async () => {
+    getHouseholdId.mockRejectedValueOnce(new Error('offline'))
+    const supabase = makeSupabase({})
+    await expect(fetchVaultOptions(supabase, USER)).resolves.toEqual({})
+    expect(supabase.calls).toHaveLength(0)
   })
 
   it('returns {} when the result set is empty', async () => {
@@ -149,7 +157,7 @@ describe('fetchVaultOptions', () => {
 // ---------------------------------------------------------------------------
 
 describe('addVaultOption', () => {
-  it('upserts (user_id, category, value) with the composite-PK onConflict key', async () => {
+  it('upserts (household_id, category, value) with the composite-PK onConflict key', async () => {
     const supabase = makeSupabase({
       'vault_options.upsert': { data: null, error: null },
     })
@@ -159,9 +167,9 @@ describe('addVaultOption', () => {
     expect(call.table).toBe('vault_options')
     expect(call.op).toBe('upsert')
     expect(call.payload).toEqual({
-      user_id: USER, category: 'cuisine_type', value: 'Filipino',
+      household_id: `hh-${USER}`, user_id: USER, category: 'cuisine_type', value: 'Filipino',
     })
-    expect(call.upsertOpts).toEqual({ onConflict: 'user_id,category,value' })
+    expect(call.upsertOpts).toEqual({ onConflict: 'household_id,category,value' })
   })
 
   it('trims whitespace on value before upserting', async () => {
@@ -203,7 +211,7 @@ describe('addVaultOption', () => {
 // ---------------------------------------------------------------------------
 
 describe('removeVaultOption', () => {
-  it('calls .match() with the (user_id, category, value) triple', async () => {
+  it('calls .match() with the (household_id, category, value) triple', async () => {
     const supabase = makeSupabase({
       'vault_options.delete': { data: null, error: null },
     })
@@ -211,7 +219,7 @@ describe('removeVaultOption', () => {
     expect(error).toBeNull()
     const call = supabase.calls[0]
     expect(call.op).toBe('delete')
-    expect(call.match).toEqual({ user_id: USER, category: 'proteins', value: 'Octopus' })
+    expect(call.match).toEqual({ household_id: `hh-${USER}`, category: 'proteins', value: 'Octopus' })
   })
 })
 

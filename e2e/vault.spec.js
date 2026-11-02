@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { mockHousehold } from './support/household.js';
 
 test.describe('Vault E2E', () => {
   test.beforeEach(async ({ page }) => {
+    await mockHousehold(page);
     // Intercept Supabase API calls
     await page.route('**/rest/v1/vault*', async (route) => {
       const isGet = route.request().method() === 'GET';

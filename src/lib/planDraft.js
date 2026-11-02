@@ -29,6 +29,10 @@ export function isValidDraftPlan(plan) {
   return Array.isArray(plan) && plan.every((slot) => !!slot?.scheduled_date)
 }
 
+// PRD-008: drafts deliberately stay ONE PER PERSON (filtered by user_id, not
+// household). A shared draft would let one partner's device overwrite the
+// other's in-progress plan; the table is retired in PRD-008 phase 4, when every
+// planned meal becomes its own row. The database fills in household_id.
 export async function fetchPlanDraft(supabase, userId) {
   const { data, error } = await supabase
     .from(TABLE)

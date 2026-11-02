@@ -1,3 +1,5 @@
+import { getHouseholdId } from './household'
+
 const WEEKDAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // Format a Date as 'YYYY-MM-DD' using local-calendar components (mirrors
@@ -72,10 +74,11 @@ function legacyScheduledDate(item, servedAtIso) {
  * }>}
  */
 export async function fetchMostRecentPlan(supabase, userId) {
+  const householdId = await getHouseholdId(supabase, userId)
   const { data: plan, error: planError } = await supabase
     .from('meal_plans')
     .select('id, served_at, period_start, period_end, finalized_at, days, items, week_label')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .order('served_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -237,12 +240,13 @@ export function classifyPlanState(plan, now = new Date()) {
  * }>>}
  */
 export async function fetchCurrentLeftovers(supabase, userId) {
+  const householdId = await getHouseholdId(supabase, userId)
   const { data, error } = await supabase
     .from('current_leftovers')
     .select(
       'id, name, vault_id, is_wildcard, source_url, scheduled_date, source_period_start, source_period_end',
     )
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .order('scheduled_date', { ascending: true })
 
   if (error) throw error
@@ -290,12 +294,13 @@ export async function fetchCurrentLeftovers(supabase, userId) {
  * }>>}
  */
 export async function fetchScheduledItemsInRange(supabase, userId, fromDate, toDate) {
+  const householdId = await getHouseholdId(supabase, userId)
   const { data, error } = await supabase
     .from('meal_plan_items')
     .select(
       'id, scheduled_date, name, cooked, meal_plan_id, meal_plans!inner(period_start, period_end, finalized_at)',
     )
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .gte('scheduled_date', fromDate)
     .lte('scheduled_date', toDate)
     .order('scheduled_date', { ascending: true })
@@ -332,10 +337,11 @@ export async function fetchScheduledItemsInRange(supabase, userId, fromDate, toD
  * @returns {Promise<Array<{ period_start: string, period_end: string }>>}
  */
 export async function listUserPeriods(supabase, userId) {
+  const householdId = await getHouseholdId(supabase, userId)
   const { data, error } = await supabase
     .from('meal_plans')
     .select('period_start, period_end')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .not('period_start', 'is', null)
     .not('period_end', 'is', null)
 

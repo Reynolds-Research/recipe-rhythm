@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { mockHousehold } from './support/household.js';
 
 /**
  * ADR-001 Phase 5 E2E: gap-day view → date picker → leftover picker → commit.
@@ -69,6 +70,7 @@ const LEFTOVERS = [
 // stays until PRD-008 phase 4 retires periods; delete this spec then.
 test.describe.skip('New period flow (ADR-001 Phase 5)', () => {
   test.beforeEach(async ({ page }) => {
+    await mockHousehold(page);
     // Freeze "today" inside the fixture's timeline. The fixtures are dated
     // (a period ending 2026-04-18, a new period picked in May 2026), and the
     // date picker only walks forward from today — so once real time passed

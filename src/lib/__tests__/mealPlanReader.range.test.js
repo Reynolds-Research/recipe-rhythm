@@ -66,7 +66,7 @@ describe('fetchScheduledItemsInRange', () => {
     )
 
     expect(supabase.calls.meal_plan_items).toBeTruthy()
-    expect(supabase.calls.meal_plan_items.eqs).toContainEqual(['user_id', 'user-1'])
+    expect(supabase.calls.meal_plan_items.eqs).toContainEqual(['household_id', 'hh-user-1'])
     expect(supabase.calls.meal_plan_items.gte).toEqual(['scheduled_date', '2026-04-01'])
     expect(supabase.calls.meal_plan_items.lte).toEqual(['scheduled_date', '2026-04-30'])
 

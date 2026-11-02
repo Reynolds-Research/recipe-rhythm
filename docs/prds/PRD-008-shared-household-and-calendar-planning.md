@@ -118,6 +118,9 @@ into the SQL Editor is the only place they appear.
 - **P0.1 Household schema + setup.** `households`, `household_members`; `household_id` on
   every kitchen table; one setup migration (solo households, the shared household, backfill).
   Emails only in the uncommitted setup statement.
+  (INFERRED, phase 1 build: child tables such as `grocery_list_items` inherit the household through
+  their parent instead of a second copy; `plan_drafts` stays one per person and LogMode's back-link
+  of the meal just logged stays on `user_id`, so one partner never overwrites or relinks the other's.)
 - **P0.2 Membership security rules** on every kitchen table, and a verify query proving
   that an outsider sees 0 rows.
 - **P0.3 Calendar data.** `planned_meals` (household_id, date, position, name, vault_id,

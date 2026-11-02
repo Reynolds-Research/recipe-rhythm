@@ -1,3 +1,5 @@
+import { getHouseholdId } from './household'
+
 /**
  * vaultMatch
  * Resolves a free-text meal name against the user's Vault recipes for the
@@ -17,8 +19,8 @@ const DEFAULT_FUZZY_THRESHOLD = 0.6 // PRD-001 OQ.A starting point; tunable
  *   3. Otherwise empty → confidence: 'none'
  *
  * RLS on `vault` (and the SECURITY INVOKER RPC) ensures we only see the
- * calling user's recipes; the explicit `user_id = p_user_id` filter is a
- * second belt for the same constraint.
+ * calling user's household's recipes (PRD-008); the explicit household
+ * filter (and the RPC's household lookup) is a second belt.
  *
  * @param {object} supabase - Supabase client
  * @param {string} userId - The user's UUID
@@ -38,10 +40,17 @@ export async function matchVaultByName(supabase, userId, mealName, opts = {}) {
   // The fuzzy RPC handles this server-side; the exact path is client-side
   // and so needs the filter explicitly. Logging "Tacos" should not auto-link
   // to a deleted "Tacos" recipe — the user removed it for a reason.
+  // PRD-008: the shared cookbook — match against the whole household's recipes.
+  let householdId
+  try {
+    householdId = await getHouseholdId(supabase, userId)
+  } catch {
+    return { matches: [], confidence: 'none' }
+  }
   const { data: exact, error: exactErr } = await supabase
     .from('vault')
     .select('id, name, image_url')
-    .eq('user_id', userId)
+    .eq('household_id', householdId)
     .is('deleted_at', null)
     .ilike('name', trimmed)
     .limit(5)

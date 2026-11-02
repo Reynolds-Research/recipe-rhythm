@@ -813,8 +813,8 @@ describe('startNewPeriod', () => {
       { meal_plan_id: 'plan-new', scheduled_date: '2026-05-03' },
     ])
     expect(updates.map((u) => u.filters.id)).toEqual(['L1', 'L2', 'L3'])
-    // Each update also scopes by user_id as belt-and-braces with RLS.
-    expect(updates.every((u) => u.filters.user_id === 'user-1')).toBe(true)
+    // Each update also scopes by household as belt-and-braces with RLS (PRD-008).
+    expect(updates.every((u) => u.filters.household_id === 'hh-user-1')).toBe(true)
   })
 
   it('drops overflow when 5 leftovers are given for a 3-day period', async () => {

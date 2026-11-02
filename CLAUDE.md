@@ -4,7 +4,7 @@
 
 ## What this app is
 
-Recipe-Rhythm is a mobile-first meal-planning, grocery-tracking, and recipe-storage app for a single household. Partner collaboration is a future ADR — assume single-user (`auth.uid() = user_id`) for now.
+Recipe-Rhythm is a mobile-first meal-planning, grocery-tracking, and recipe-storage app for a single household. Since PRD-008 phase 1, **the household owns the kitchen data**: every kitchen table has `household_id` (security rules check membership via `public.is_household_member`), and `user_id` means "who added it". App queries scope by household through `getHouseholdId()` in `src/lib/household.js`. Deliberate per-person exceptions: `plan_drafts` (until PRD-008 phase 4) and LogMode's back-link of the meal just logged.
 
 The app has three primary user-facing surfaces:
 - **Vault** (`src/pages/Vault/`) — the recipe library; chip-picker categorical tagging, AI-suggest, image upload. Decomposed in PRD-001 P0.9 into `index.jsx` (page shell), `RecipeForm.jsx` (add/edit form), `RecipeCard.jsx` (list row), `ChipPicker.jsx` (the picker), `useVault.js` (data hook + Supabase calls). `App.jsx` imports the default export from `./pages/Vault` — Vite resolves to `Vault/index.jsx`.
@@ -92,7 +92,8 @@ To compare branches: `git diff main..other-branch -- <path>`.
 - **`CREATE OR REPLACE FUNCTION` does NOT replace if the signature changes.** If you're modifying a function's `RETURNS TABLE` columns or parameter list, prepend `DROP FUNCTION IF EXISTS <name>(<param-types>);` before the CREATE.
 - **Pair every migration with a verify SQL file** in the same directory: `verify_<timestamp>.sql`. Read-only checks that confirm the migration applied correctly.
 - **Document every column / table change in `docs/schema.md`** — update column reference tables and the migrations log table at the bottom.
-- **RLS for every new table.** Owner-scoped policies on `user_id`, mirroring the existing `meals` / `vault` / `meal_plan_items` patterns. Never ship a table without RLS.
+- **RLS for every new table.** Kitchen tables get `household_id uuid NOT NULL DEFAULT public.current_household_id()` and the four `<table>_*_household` membership policies from `20261101000002_household_security_rules.sql` (insert also checks `user_id = auth.uid()`). Per-person tables (e.g. `api_rate_limits`) stay owner-scoped on `user_id`. Never ship a table without RLS.
+- **Every schema or security migration ships a tested undo** (PRD-008 D9): `rollback_<timestamp>.sql`, rehearsed on preview (apply → verify → roll back → verify old state → apply) before prod. Prod has drifted from the repo's migration files, so rebuild preview from prod's catalog (see `supabase/rehearsal/`). Verify files are ONE combined SELECT — the SQL Editor only shows the last result.
 
 ## Status etiquette
 

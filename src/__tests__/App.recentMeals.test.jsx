@@ -63,7 +63,7 @@ describe('App recent meals', () => {
 
     expect(await screen.findByText('Tacos')).toBeInTheDocument()
     expect(supabase.from).toHaveBeenCalledWith('meals')
-    expect(chain.eq).toHaveBeenCalledWith('user_id', 'user-1')
+    expect(chain.eq).toHaveBeenCalledWith('household_id', 'hh-user-1')
     expect(chain.limit).toHaveBeenCalledWith(10)
   })
 })

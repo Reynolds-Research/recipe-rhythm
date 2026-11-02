@@ -14,6 +14,16 @@ and transcribing the results here._
 
 _Last verified: **2026-04-19** via [`supabase/audits/c3_rls_verification.sql`](../supabase/audits/c3_rls_verification.sql). Updates since previous verification: `meal_plan_items` table added with full owner-scoped RLS via [ADR-001 Phase 1 migration](../supabase/migrations/20260418000001_planning_periods_schema.sql); `meal_plans` extended with `period_start`/`period_end`/`finalized_at` columns + an EXCLUDE constraint preventing per-user period overlap. `meals` and `vault` were remediated 2026-04-18 via [`c3_rls_remediation_meals_vault.sql`](../supabase/audits/c3_rls_remediation_meals_vault.sql)._
 
+> **PRD-008 phase 1 (household) — once `20261101000001` + `20261101000002` are applied, the
+> owner-only rules in the table below are replaced.** Every kitchen table (`vault`, `vault_options`,
+> `meals`, `meal_plans`, `meal_plan_items`, `grocery_lists`, `household_preferences`, `plan_drafts`)
+> then has four rules named `<table>_{select,insert,update,delete}_household`, role `authenticated`:
+> read / update / delete when `public.is_household_member(household_id)`; insert additionally requires
+> `user_id = auth.uid()`. `grocery_list_items` checks its parent list's household. The anon share-link
+> rules are unchanged. `current_leftovers` becomes `security_invoker` with no anon grant (before this it
+> ran with its owner's rights and skipped every rule). See **Households** below. Applied to prod
+> 2026-11-01 (PR #208).
+
 ### Tables (`public` schema)
 
 | Table | RLS Enabled | SELECT policy | INSERT policy | UPDATE policy | DELETE policy | Notes |
@@ -42,6 +52,30 @@ as a **P0 finding**.
 | Bucket | Public? | SELECT policy | INSERT policy | UPDATE policy | DELETE policy | Notes |
 |---|---|---|---|---|---|---|
 | `recipe_images` | ✅ `public = true` | ✅ implicit via bucket-public flag (any URL is world-readable) | ⚠️ `Allow Authenticated Uploads g90qbt_0` — `WITH CHECK (bucket_id = 'recipe_images')`. Any signed-in user can upload anywhere in the bucket; no per-user folder scoping. | ❌ no policy (blocked except for service role) | ❌ no policy (blocked except for service role) | Used by `src/pages/Vault/useVault.js` (post-P0.9 decomposition; was previously `Vault.jsx`), which uploads to bucket root as `recipe-<timestamp>.jpg` and renders via `getPublicUrl`. Acceptable for the current single-user deployment. Before onboarding a second user: (a) change the upload path in `useVault.js` to `${userId}/recipe-<ts>.jpg`, (b) migrate existing objects into per-user folders, (c) apply Template B1 in `c3_rls_remediation_templates.sql`, (d) consider flipping the bucket to `public = false` + signed URLs if image URLs should not be world-guessable. |
+
+## Households (PRD-008 phase 1)
+
+The household owns the kitchen; `user_id` on a kitchen row means "who added it" (PRD-008 D5).
+
+- **`public.households`** — `id uuid PK`, `name text`, `created_for uuid → auth.users ON DELETE SET NULL`
+  (the account a solo household was made for; unique when set), `created_at`. Fixed row
+  `00000000-0000-4000-8000-000000000000` = "Unowned legacy rows" (no members; holds rows with no or a
+  deleted owner — 34 vault rows (18 with no owner, 16 whose account was deleted) + 27 meals on prod, 2026-11-01).
+- **`public.household_members`** — `(household_id, user_id)` PK, **`UNIQUE (user_id)`: one household per
+  account**, `joined_at`. Members can read their household and its member list; no client writes.
+- **`household_id uuid NOT NULL DEFAULT public.current_household_id()`** + FK + index on all eight
+  kitchen tables. The default means inserts that leave it out land in the caller's household.
+- Per-household uniqueness: `household_preferences` PK `(household_id)`; `vault_options` PK
+  `(household_id, category, value)`; `meal_plans_no_period_overlap` on `household_id`;
+  `grocery_lists_household_plan_idx` unique `(household_id, meal_plan_id)`. **`plan_drafts` keeps PK
+  `(user_id)`** — one draft per person until phase 4 retires the table.
+- Helpers (SECURITY DEFINER, `search_path = ''`, not executable by anon): `is_household_member(uuid)`,
+  `current_household_id()`. Sign-up trigger `on_auth_user_created_household` (AFTER INSERT on
+  `auth.users`) → `handle_new_user_household()` gives every new account a solo household.
+- Setup: every account gets a solo household; the shared household is made by moving Matt's membership
+  into his wife's household (renamed "Our kitchen"). His previous rows stay in his old solo household,
+  which has no members (kept, not merged — PRD-008 non-goal 6).
+- `vault_fuzzy_match(p_user_id, …)` keeps its signature and searches that user's household.
 
 ## Tables — column reference
 
@@ -349,6 +383,11 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`verify_20260530000002.sql`](../supabase/migrations/verify_20260530000002.sql) | 2026-05-30 | Read-only verification queries for the shortlist-exclude hotfix: view definition contains the new filter, no NULL `scheduled_date` rows survive, no shortlisted rows survive, view row count matches an inline simulation of the same WHERE clause. |
 | [`20261031000001_plan_drafts.sql`](../supabase/migrations/20261031000001_plan_drafts.sql) | 2026-10-31 | TASKS.md P2-6: creates `public.plan_drafts` (PK `user_id`, `plan jsonb`, `selected_dates jsonb`, `updated_at`), JSON-array CHECKs, RLS with four owner-scoped policies for `authenticated`. Idempotent. Applied to prod 2026-11-01. |
 | [`verify_20261031000001.sql`](../supabase/migrations/verify_20261031000001.sql) | 2026-10-31 | Read-only checks: 4 columns, RLS enabled, exactly 4 owner-scoped policies for `authenticated`, `user_id` is the PK. Note: the SQL Editor shows only the last result set — run checks one at a time, or as one combined SELECT. |
+| [`20261101000001_households.sql`](../supabase/migrations/20261101000001_households.sql) | 2026-11-01 (applied to prod 2026-11-01) | PRD-008 P0.1: `households`, `household_members` (one per account), helpers, solo household per account + legacy household, `household_id` on the 8 kitchen tables (backfilled, NOT NULL, defaults to the caller's household), per-household uniqueness, sign-up trigger, and the shared-household step (email placeholders; skipped with a NOTICE until replaced in the pasted copy). Undo: [`rollback_20261101000001.sql`](../supabase/migrations/rollback_20261101000001.sql). |
+| [`verify_20261101000001.sql`](../supabase/migrations/verify_20261101000001.sql) | 2026-11-01 | One SELECT, 40 checks: every account in exactly one household, every kitchen row has a household (and the owner's original one right after migration), ownerless rows in the legacy household, constraint/PK swaps, helper security, trigger, shared household has 2 members. |
+| [`20261101000002_household_security_rules.sql`](../supabase/migrations/20261101000002_household_security_rules.sql) | 2026-11-01 (applied to prod 2026-11-01) | PRD-008 P0.2: membership rules on all kitchen tables + `grocery_list_items` via its list; `current_leftovers` → `security_invoker`, anon grant revoked; `vault_fuzzy_match` household-scoped. Undo: [`rollback_20261101000002.sql`](../supabase/migrations/rollback_20261101000002.sql) (run before rollback 1). |
+| [`verify_20261101000002.sql`](../supabase/migrations/verify_20261101000002.sql) | 2026-11-01 | One SELECT (after a throwaway `pg_temp` helper that switches to the app's role): rules in place, an outsider and a logged-out visitor see 0 rows, a member sees all of their household and none of anyone else's. |
+| [`supabase/rehearsal/`](../supabase/rehearsal/README.md) | 2026-11-01 | Preview-only rehearsal kit: prod-shaped schema rebuilt from prod's catalog, fake accounts, and a write-permission check (`03_write_checks.sql`). Every script refuses to run on a project with real accounts. |
 
 ## Related audit items + ADRs
 

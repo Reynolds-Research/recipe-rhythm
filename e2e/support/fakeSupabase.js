@@ -5,8 +5,13 @@
  * follow a plan across several days: the app writes a plan, then reads it back
  * tomorrow. This fake keeps tables in memory, so writes are visible to later
  * reads — including after page reloads — and it enforces the one database rule
- * the planner depends on: two meal_plans for the same user may not overlap
+ * the planner depends on: two meal_plans in the same household may not overlap
  * (the real `meal_plans_no_period_overlap` EXCLUDE constraint → error 23P01).
+ *
+ * Households (PRD-008): the signed-in user belongs to HOUSEHOLD. Like the real
+ * database, every kitchen row gets household_id = the caller's household when
+ * an insert leaves it out (the column default), and seed rows without one are
+ * put in HOUSEHOLD.
  *
  * It only understands the query shapes this app sends (eq/neq/gt/gte/lt/lte,
  * is.null, not.is.null, in.(), order, limit, single/maybeSingle, insert,
@@ -17,6 +22,9 @@
 import { randomUUID } from 'node:crypto'
 
 const USER = { id: 'test-user', email: 'test@example.com' }
+export const HOUSEHOLD = 'test-household'
+const KITCHEN = ['vault', 'meals', 'meal_plans', 'meal_plan_items', 'household_preferences',
+  'plan_drafts', 'grocery_lists', 'vault_options']
 
 export function ymd(date) {
   const y = date.getFullYear()
@@ -135,6 +143,10 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
     grocery_list_items: [],
     vault_options: [],
     ...structuredClone(seed),
+    household_members: [{ household_id: HOUSEHOLD, user_id: USER.id }],
+  }
+  for (const t of KITCHEN) {
+    for (const row of tables[t]) row.household_id ??= HOUSEHOLD
   }
   const log = [] // every write and every fake error, for debugging a run
 
@@ -156,7 +168,7 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
     return tables.meal_plans.some(
       (p) =>
         p.id !== candidate.id &&
-        p.user_id === candidate.user_id &&
+        p.household_id === candidate.household_id &&
         p.period_start && p.period_end &&
         candidate.period_start <= p.period_end &&
         p.period_start <= candidate.period_end,
@@ -244,6 +256,7 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
             }
           }
           const row = { ...(defaults[name]?.() ?? {}), ...raw }
+          if (KITCHEN.includes(name)) row.household_id ??= HOUSEHOLD // column default
           if (name === 'meal_plans' && overlapViolation(row)) {
             log.push({ at: ymd(now()), method, name, rejected: 'overlap', period: [row.period_start, row.period_end] })
             return overlapError(route)

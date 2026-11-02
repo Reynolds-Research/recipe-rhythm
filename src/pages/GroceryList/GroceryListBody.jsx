@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Loader2, ShoppingCart, X } from 'lucide-react'
 import { Sheet } from 'react-modal-sheet'
 import { supabase } from '../../lib/supabase'
+import { getHouseholdId } from '../../lib/household'
 import { apiFetch } from '../../lib/apiClient'
 import { fetchMostRecentPlan } from '../../lib/mealPlanReader'
 import { getPreferences } from '../../lib/preferences'
@@ -51,10 +52,11 @@ export default function GroceryListBody({ userId }) {
   const [skippedMeals, setSkippedMeals]   = useState([])
 
   async function loadList(planId) {
+    const householdId = await getHouseholdId(supabase, userId)
     const { data: listRow, error: listErr } = await supabase
       .from('grocery_lists')
       .select('id, created_at, share_token')
-      .eq('user_id', userId)
+      .eq('household_id', householdId)
       .eq('meal_plan_id', planId)
       .maybeSingle()
     if (listErr) throw listErr
@@ -197,11 +199,14 @@ export default function GroceryListBody({ userId }) {
       const { items: apiItems } = await res.json()
 
       // 4. Upsert grocery_lists row
+      // One list per plan per household (PRD-008): either partner's
+      // regenerate refreshes the same list.
       let listId
+      const householdId = await getHouseholdId(supabase, userId)
       const { data: existing } = await supabase
         .from('grocery_lists')
         .select('id')
-        .eq('user_id', userId)
+        .eq('household_id', householdId)
         .eq('meal_plan_id', activePlan.id)
         .maybeSingle()
 
