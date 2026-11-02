@@ -8,7 +8,7 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ## 2026-11-02 — PRD-008 phase 2a: calendar data
 
-**Done:** PR (this branch, `feat/prd-008-calendar-data`). Phase 2 split into 2a data / 2b screens / 2c switch-over (`TASKS.md`).
+**Done:** PR #211 (open, not merged). Phase 2 split into 2a data / 2b screens / 2c switch-over (`TASKS.md`).
 - `planned_meals` (one row per meal; no date = Maybe) and `week_confirmations` (a stamp on a date range, linked to its grocery list), with the household membership rules.
 - "Changed since confirmed": a trigger stamps `changed_at` when a meal in a confirmed range is added, removed, renamed, re-linked or moved; ticking cooked / reordering / assigning don't.
 - `rr_copy_legacy_plans()`: admin-only, re-runnable, mirrors the old tables (Matt's choice) but never overwrites, removes or re-adds a meal touched on the new screens (`rr_legacy_copied` ledger).
