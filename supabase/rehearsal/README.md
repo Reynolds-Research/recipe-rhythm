@@ -40,3 +40,21 @@ table grants) and the kitchen rows; it is read-only and can be pasted in the SQL
 | 6 | steps 1 (twice — idempotent), 2, 2 again (all zeros), 3, 4 | as above |
 
 Rehearsed 2026-11-02 from a fresh rebuild (0a → phase 1 → A → 1–6), after the reviewer's fixes: see the PR.
+
+## PRD-008 phase 2b-1 — which days a week shows (2026-11-02)
+
+Starts from the end of the 2a table (calendar data applied). `fingerprint_public.sql` now also hashes
+`household_preferences` rows (this migration adds a column there), so take a fresh step A.
+
+| Step | Run | Expect |
+|---|---|---|
+| A | `fingerprint_public.sql` | one row — note it |
+| 1 | `../migrations/20261102000002_week_days.sql` (twice — idempotent) | "Success" both times |
+| 2 | `../migrations/verify_20261102000002.sql` | 15 checks, every `pass` = true |
+| 3 | `05_week_days_checks.sql` | 15 scenarios, every `pass` = true (all undone) |
+| 4 | `../migrations/rollback_20261102000002.sql` | one row, all false |
+| B | `fingerprint_public.sql` | **identical** to step A; 2a's `verify_20261102000001.sql` still 21/21 |
+| 5 | steps 1, 2, 3 again | as above |
+
+Dry run 2026-11-02 on a local Postgres 16 built from this kit (0a → 0b → phase 1 + 1b → 2a + copy →
+A → 1–5): every step as expected, fingerprint identical after rollback. The preview-project run is in the PR.

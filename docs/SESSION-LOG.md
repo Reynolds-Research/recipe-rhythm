@@ -6,6 +6,23 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-02 (late) — PRD-008 2b-1: week data + helpers
+
+**Done:** PR (open, not merged), branch `feat/prd-008-week-data`.
+- Migration `20261102000002_week_days`: `household_preferences.usual_days` (Sun–Thu default) and `week_days` (a week's own days, only for weeks she changed), membership rules, `rr_valid_week_days()`. Verify (15 checks), rollback, `rehearsal/05_week_days_checks.sql` (15 scenarios).
+- `src/lib/weekRange.js` (Sun–Sat weeks, ← / →, shown days = chosen days + any day with a meal, day-button toggle; DST-safe) and `src/lib/plannedMeals.js` (load a week, save its days, add / move / remove / cooked, Maybe list, "Didn't get to these").
+- Switch for the new screens: `VITE_NEW_PREP_TABLE` build setting (Matt's choice).
+
+**Verified:** full rehearsal kit on a local Postgres 16 (prod shape → seed → phase 1 → 2a + copy → this): applied twice, verify 15/15, write checks 15/15 (each refusal for the intended reason), rollback → fingerprint identical, 2a verify still 21/21, re-apply passes. Read-only: preview has 2a and only fake accounts; prod has 2a. Vitest 854/854, eslint clean, build green. Reviewer subagent: FAIL on one real bug (the day toggle saved meal days into the week and the usual days), fixed with tests; re-reviewed.
+
+**Open / owed:**
+- **Preview rehearsal** (Done when): the connector's approval pop-up timed out. Matt pastes the steps in `supabase/rehearsal/README.md` (2b-1 table) into the preview SQL Editor, or approves the pop-up and Claude runs them. Then prod apply.
+- Decide: should a recipe parked on the Maybe list still show in "Didn't get to these"? (Today: yes.)
+
+**Next:** 2b-2, the week screen behind `VITE_NEW_PREP_TABLE`.
+
+---
+
 ## 2026-11-02 — PRD-008 phase 2a: calendar data
 
 **Done:** PR #211 (open, not merged). Phase 2 split into 2a data / 2b screens / 2c switch-over (`TASKS.md`).
