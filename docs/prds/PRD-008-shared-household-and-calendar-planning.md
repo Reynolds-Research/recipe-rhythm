@@ -151,7 +151,12 @@ into the SQL Editor is the only place they appear.
   meal always shows and is never stored. INFERRED: emptying a week (vacation) is allowed and doesn't
   change the usual days; picking from "Didn't get to these" adds a new meal and leaves the old one on its
   date as history; the tray shows one per recipe, newest first, the 14 days before today, and drops
-  anything already planned from today on.)
+  anything already planned from today on. CONFIRMED by Matt 2026-11-03: a recipe parked on the Maybe
+  list still shows in the tray.)
+  (Phase 2b-2 build, 2026-11-03 — INFERRED: ✨ suggest proposes from the cookbook only, no AI call, using
+  the existing recommender with the week's meals counted as recent; "Suggest the empty days" fills only
+  shown, empty days from today on; past days show cooked / not cooked and can still get a meal; a meal
+  is moved with a "Which day?" sheet (or to Maybe) rather than drag-and-drop; Confirm the week is 2b-3.)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".

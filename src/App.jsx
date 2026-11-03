@@ -6,6 +6,8 @@ import { getHouseholdId, clearHouseholdCache } from './lib/household'
 import Auth from './components/Auth'
 import LogMode from './pages/LogMode'
 import BrainstormMode from './pages/BrainstormMode'
+import PrepTable from './pages/PrepTable'
+import { isNewPrepTableEnabled } from './lib/featureFlags'
 import Vault from './pages/Vault'
 import GroceryList from './pages/GroceryList'
 import CalendarView from './components/CalendarView'
@@ -102,7 +104,8 @@ export default function App() {
           <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
         )}
         {page === 'brainstorm' && (
-          <BrainstormMode userId={userId} />
+          // PRD-008 2b: the new calendar Prep Table behind VITE_NEW_PREP_TABLE.
+          isNewPrepTableEnabled() ? <PrepTable userId={userId} /> : <BrainstormMode userId={userId} />
         )}
         {page === 'calendar' && (
           <CalendarView userId={userId} />

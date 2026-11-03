@@ -6,6 +6,29 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-03 — PRD-008 2b-2: week screen behind the switch
+
+**Done:** PR (open), branch `feat/prd-008-week-screen`. Also: 2b-1 rehearsed on preview through the new preview connector (records in PR #214).
+- `src/pages/PrepTable/`: week tab (← / →, day buttons, day rows with + add / ✨ suggest, "Didn't get to these" tray) and Maybe tab. `usePrepTable` writes one row per action and reloads. Suggestions live only in memory until ✓ (D3).
+- `src/lib/weekSuggest.js` (cookbook-only proposals via the existing recommender) and `src/lib/featureFlags.js` (`VITE_NEW_PREP_TABLE`). `App.jsx` picks the screen; unset = today's app.
+- Matt decided: a recipe on the Maybe list still shows in "Didn't get to these".
+
+**Verified:** Vitest 889/889 (37 new: 25 screen, 2 app switch, 2 flag, 6 suggest; no existing test changed), eslint, build, `lint:ds`. Reviewer FAIL on a real race (a slow reload after a save could paint the old week under the new title and save wrong days): fixed (numbered loads, the screen only draws the week matching its title, ← / → wait during saves) plus 44px targets, a visible locked-day message, failed ✓ keeps the suggestion. Seven deliberate breaks each failed a test. Screens rendered with fake data in Chromium at phone width.
+
+**Incident (fixed in code, owed by Matt):** the first preview build put every `VITE_` setting into its public JS, including the unused `VITE_ANTHROPIC_API_KEY`, because `isNewPrepTableEnabled` defaulted to the whole `import.meta.env` object. The preview sat behind Vercel's login wall; production was clean. Fix: read only `import.meta.env.VITE_NEW_PREP_TABLE`, plus a new guard test (`src/__tests__/no-whole-env-in-client.test.js`) that fails on whole-object use; a build with planted fake secrets shows none in `dist/`. Matt did all three on 2026-11-03: leaky preview deleted, `VITE_ANTHROPIC_API_KEY` removed, new `ANTHROPIC_API_KEY` (Production + Preview), production redeployed from `main` (`px4ag78v2`; scanned: no `sk-ant`, no `VITE_` names). Still to confirm: the old key deleted in the Anthropic console, and one signed-in AI call (grocery list / recipe parse) works on production.
+
+**Open / owed:**
+- Preview deploys use the production database. Matt chose (2026-11-03) to try the new screen on real data through this PR's preview only; deployed by hand with `vercel deploy --build-env VITE_NEW_PREP_TABLE=true` (auto-deploy is broken, and Vercel blocks commits authored by Claude, so the deploy is from a copy without git history).
+- Follow-ups noticed, not fixed: a stale `VITE_ANTHROPIC_API_KEY` sits in Vercel (not referenced by the code, so not in the bundle; delete it); the Vercel project shown by the CLI is `mreynolds08-glitchs-projects/recipe-rhythm`, not the team in CLAUDE.md (may explain the auto-deploy gap).
+
+- **Try-it preview (current):** `https://recipe-rhythm-n99jg73g2-mreynolds08-glitchs-projects.vercel.app` — new screen on, real data, new key, scanned clean. Behind Vercel's login wall: open it signed in to Matt's Vercel, or ask for a ~23-hour share link. Older previews (`gmw0c9whc`, blocked `1iqub1ows`) can be deleted.
+- How the preview was made (repeat for any rebuild): on the Mac, `git archive feat/prd-008-week-screen` into a temp folder, copy `.vercel/`, then `npx vercel deploy --build-env VITE_NEW_PREP_TABLE=true`; scan the bundle for `sk-ant` / `VITE_` before sharing. A plain `vercel deploy` from a checkout is blocked because the branch commits are authored by Claude.
+- Open PRs for Matt to merge: #216 (this, 2b-2) and #217 (`.gitignore`: `.vercel`, `.env*`, keep `.env.example`; run `git checkout .gitignore` locally first).
+
+**Next:** (1) she plans one real week on the preview; anything awkward gets fixed on #216 before merge; tick 2b-2. (2) Fresh session: 2b-3, Confirm the week + groceries — start from `TASKS.md` 2b-3, `src/pages/PrepTable/`, `week_confirmations` (`docs/schema.md`) and the existing `/api/grocery-list` + `src/lib/groceryList.js`.
+
+---
+
 ## 2026-11-02 (late) — PRD-008 2b-1: week data + helpers
 
 **Done:** PR #213, merged (`d4d3d4e`). Applied to prod 2026-11-02 by Matt (verify 15/15) — before the preview rehearsal, by mistake; harmless (additive, nothing reads it yet).
