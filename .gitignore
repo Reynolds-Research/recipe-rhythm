@@ -41,3 +41,8 @@ audits/*
 
 # Lockout explorer output (screenshots + JSON timelines)
 e2e-results/
+
+# Vercel CLI link + any local env file (secrets). The template stays tracked.
+.vercel
+.env*
+!.env.example
