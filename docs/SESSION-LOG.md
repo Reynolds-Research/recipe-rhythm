@@ -6,6 +6,23 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-03 — PRD-008 2b-2: week screen behind the switch
+
+**Done:** PR (open), branch `feat/prd-008-week-screen`. Also: 2b-1 rehearsed on preview through the new preview connector (records in PR #214).
+- `src/pages/PrepTable/`: week tab (← / →, day buttons, day rows with + add / ✨ suggest, "Didn't get to these" tray) and Maybe tab. `usePrepTable` writes one row per action and reloads. Suggestions live only in memory until ✓ (D3).
+- `src/lib/weekSuggest.js` (cookbook-only proposals via the existing recommender) and `src/lib/featureFlags.js` (`VITE_NEW_PREP_TABLE`). `App.jsx` picks the screen; unset = today's app.
+- Matt decided: a recipe on the Maybe list still shows in "Didn't get to these".
+
+**Verified:** Vitest 885/885 (33 new: 21 screen, 2 app switch, 2 flag, 6 suggest, plus the rest unchanged), eslint, build, `lint:ds`. Three deliberate breaks (locked day tappable, suggest auto-saving, tray moving instead of copying) each failed a test. Screens rendered with fake data in Chromium at phone width.
+
+**Open / owed:**
+- **Preview deploys talk to the production database** (one `VITE_SUPABASE_URL` for Preview + Production in Vercel). Switching the new screen on in a preview means planning on real data. Matt to choose: try it on real data, point previews at the preview database, or test locally.
+- Follow-ups noticed, not fixed: a stale `VITE_ANTHROPIC_API_KEY` sits in Vercel (not referenced by the code, so not in the bundle; delete it); the Vercel project shown by the CLI is `mreynolds08-glitchs-projects/recipe-rhythm`, not the team in CLAUDE.md (may explain the auto-deploy gap).
+
+**Next:** finish 2b-2's Done when (try it with the switch on), then 2b-3, Confirm the week + groceries.
+
+---
+
 ## 2026-11-02 (late) — PRD-008 2b-1: week data + helpers
 
 **Done:** PR #213, merged (`d4d3d4e`). Applied to prod 2026-11-02 by Matt (verify 15/15) — before the preview rehearsal, by mistake; harmless (additive, nothing reads it yet).
