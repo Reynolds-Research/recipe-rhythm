@@ -1,6 +1,6 @@
 # PRD-008: Shared Household & Calendar Planning
 
-**Status:** Draft v0.6
+**Status:** Draft v0.7
 **Author:** Matt (with Cowork)
 **Date:** 2026-11-01
 **North Star criteria moved:** "The plan doesn't stall on Matt" and "She plans in the app"
@@ -145,6 +145,13 @@ into the SQL Editor is the only place they appear.
   trigger, so removing a meal counts too, and ticking cooked / reordering / assigning doesn't.)
 - **P0.4 New Prep Table.** Week grid with ← / →, day buttons per week (D8), + add, ✨ suggest,
   the Maybe tab, the "Didn't get to these" tray, and Confirm the week.
+  (Phase 2b-1 build, 2026-11-02 — CONFIRMED by Matt: the off switch for the new screens is a build
+  setting, `VITE_NEW_PREP_TABLE`, on for preview deploys and off in production until 2c. Days are stored
+  as `household_preferences.usual_days` plus a `week_days` row for each week she changed; a day with a
+  meal always shows and is never stored. INFERRED: emptying a week (vacation) is allowed and doesn't
+  change the usual days; picking from "Didn't get to these" adds a new meal and leaves the old one on its
+  date as history; the tray shows one per recipe, newest first, the 14 days before today, and drops
+  anything already planned from today on.)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".
@@ -207,6 +214,8 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v0.7 (2026-11-02):** 2b-1 build notes under P0.4 (switch = `VITE_NEW_PREP_TABLE`; how the days are
+  stored; tray rule).
 - **v0.6 (2026-11-02):** D8 rewritten for option B (she picks the week's days with day
   buttons; next week starts with the same days). P0.4's "week-shape setting" = those buttons.
 - **v0.5 (2026-11-02):** phase 2 split into 2a data / 2b screens / 2c switch-over (TASKS.md); P0.3 build

@@ -204,10 +204,12 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 | `adults` | `int` NOT NULL DEFAULT `2` | **Added 2026-05-03** via [PRD-006 P0.1 migration](../supabase/migrations/20260503000001_structured_ingredients_and_household.sql). Number of adults in the household. Drives the default serving-size multiplier for grocery list scaling (PRD-006 Bite γ). CHECK constraint `household_prefs_eater_counts_chk` enforces `>= 1`. The settings UI to edit this value ships in PRD-006 Bite β. |
 | `children` | `int` NOT NULL DEFAULT `0` | **Added 2026-05-03** via [PRD-006 P0.1 migration](../supabase/migrations/20260503000001_structured_ingredients_and_household.sql). Number of children in the household. Combined with `adults` to compute total household size for grocery scaling (PRD-006 Bite γ). CHECK constraint `household_prefs_eater_counts_chk` enforces `>= 0`. |
 | `pantry_staples` | `text[]` NOT NULL DEFAULT `'{}'` | **Added 2026-05-06** via [PRD-003 P0.2 migration](../supabase/migrations/20260506000001_household_preferences_pantry_staples.sql). Array of free-text ingredient strings the user always has on hand. The grocery-list endpoint excludes any line item matching a staple by case-insensitive substring (so "salt" filters out "kosher salt", "sea salt", etc.). Normalized in [`src/lib/preferences.js`](../src/lib/preferences.js) before write: trim + lowercase + dedupe (same pattern as `excluded_ingredients`). No app-side vocabulary check — the substring filter is intentionally permissive. |
+| `usual_days` | `smallint[]` NOT NULL DEFAULT `'{0,1,2,3,4}'` | **Added 2026-11-02** via [PRD-008 phase 2b-1 migration](../supabase/migrations/20261102000002_week_days.sql). The household's "usual days" (D8): which days of the week an untouched week shows on the new Prep Table. Sunday = 0 … Saturday = 6. Starts Sun–Thu. [`saveWeekDays()`](../src/lib/plannedMeals.js) copies a changed week's days here (unless she emptied the week). CHECK `household_preferences_usual_days_valid` = `rr_valid_week_days(usual_days, 1)`: 1–7 days, each 0–6, no repeats. |
 | `created_at` | `timestamptz` NOT NULL | Default `now()`. |
 | `updated_at` | `timestamptz` NOT NULL | Default `now()`. Maintained by the `household_preferences_set_updated_at` `BEFORE UPDATE` trigger. |
 
 **Constraints:**
+- `household_preferences_usual_days_valid` — **Added 2026-11-02** — `CHECK (public.rr_valid_week_days(usual_days, 1))`.
 - `max_prep_time_positive` — `CHECK (max_prep_time_minutes IS NULL OR max_prep_time_minutes > 0)`.
 - `household_prefs_eater_counts_chk` — **Added 2026-05-03** — `CHECK (adults >= 1 AND children >= 0)`. Guards against a zero-adult household (would break serving-size division in Bite γ).
 
@@ -347,6 +349,19 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 
 **Functions (2a):** `rr_set_updated_at()` (trigger; wall-clock time so an edit made while a copy runs still counts as newer; the copy's own writes keep its timestamp), `rr_mark_week_changed()` (trigger; skipped while the copy runs, via the `rr.legacy_copy` setting), `rr_copy_legacy_plans()` — admin-only (not executable by `authenticated`/`anon`), run in the SQL Editor; re-runnable; mirrors the old tables (adds new, updates changed, removes deleted) but never touches a copied row edited on the new screens and never re-adds one deleted there; an old plan moved onto a range already confirmed on the new screens leaves the new one alone; returns counts as JSON.
 
+### `public.week_days` (PRD-008 phase 2b-1)
+**Added 2026-11-02** via [migration](../supabase/migrations/20261102000002_week_days.sql). The days a specific week shows, for weeks she changed with the day buttons (D8, option B). A week with no row shows `household_preferences.usual_days`. A day with a meal always shows; the app adds it ([`src/lib/weekRange.js`](../src/lib/weekRange.js) `shownDays`), it is never stored. Kitchen table: household-owned, the four membership rules (insert also checks `user_id = auth.uid()`), no anon access.
+
+| Column | Type | Notes |
+|---|---|---|
+| `household_id` | `uuid` NOT NULL | Default `current_household_id()`. FK `households` `ON DELETE CASCADE`. PK part 1. |
+| `week_start` | `date` NOT NULL | The Sunday the week starts on. CHECK `week_days_starts_sunday` (`extract(dow) = 0`). PK part 2. |
+| `days` | `smallint[]` NOT NULL | Shown days, Sunday = 0 … Saturday = 6. CHECK `week_days_days_valid` = `rr_valid_week_days(days, 0)`: 0–7 days (empty = a vacation week), each 0–6, no repeats. |
+| `user_id` | `uuid` nullable | Who changed it last. Default `auth.uid()`, FK `auth.users` `ON DELETE SET NULL`. |
+| `created_at`, `updated_at` | `timestamptz` NOT NULL | `updated_at` maintained by `week_days_set_updated_at` (reuses 2a's `rr_set_updated_at()`). |
+
+**Function (2b-1):** `rr_valid_week_days(smallint[], integer)` — IMMUTABLE, `search_path = ''`. True when the list is one-dimensional, has between `p_min` and 7 entries, each 0–6, no nulls, no repeats. Used by both CHECKs.
+
 ## Views
 
 ### `public.current_leftovers`
@@ -427,6 +442,8 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`supabase/rehearsal/`](../supabase/rehearsal/README.md) | 2026-11-01 | Preview-only rehearsal kit: prod-shaped schema rebuilt from prod's catalog, fake accounts, and a write-permission check (`03_write_checks.sql`). Every script refuses to run on a project with real accounts. |
 | [`20261102000001_calendar_data.sql`](../supabase/migrations/20261102000001_calendar_data.sql) | 2026-11-02 (not yet on prod) | PRD-008 P0.3 (phase 2a): `planned_meals`, `week_confirmations`, membership rules, updated_at + "changed since confirmed" triggers, `rr_copy_legacy_plans()`. Additive; nothing reads the tables until the 2c switch-over. Undo: [`rollback_20261102000001.sql`](../supabase/migrations/rollback_20261102000001.sql). |
 | [`verify_20261102000001.sql`](../supabase/migrations/verify_20261102000001.sql) | 2026-11-02 | One SELECT, 21 checks: structure + rules, every old plan item copied (Maybe → no date), every served period → a confirmation with its grocery list, outsider sees 0, member sees exactly their household. Re-run after each copy. |
+| [`20261102000002_week_days.sql`](../supabase/migrations/20261102000002_week_days.sql) | 2026-11-02 (not yet on prod) | PRD-008 P0.4 data (phase 2b-1, D8): `household_preferences.usual_days`, `week_days` + membership rules, `rr_valid_week_days()`. Additive; nothing reads it until 2b-2 (behind `VITE_NEW_PREP_TABLE`). Requires `20261102000001`. Undo: [`rollback_20261102000002.sql`](../supabase/migrations/rollback_20261102000002.sql) (run before 2a's rollback). |
+| [`verify_20261102000002.sql`](../supabase/migrations/verify_20261102000002.sql) | 2026-11-02 | One SELECT, 15 checks: `usual_days` type/default/rule, the days rule's edge cases, `week_days` structure + rules + key, no anon access, outsider sees 0, member sees exactly their household. Write checks: [`rehearsal/05_week_days_checks.sql`](../supabase/rehearsal/05_week_days_checks.sql) (15 scenarios, preview only). |
 | [`supabase/rehearsal/04_calendar_checks.sql`](../supabase/rehearsal/04_calendar_checks.sql), [`fingerprint_public.sql`](../supabase/rehearsal/fingerprint_public.sql) | 2026-11-02 | Preview-only: 27 scenarios (who can write, "changed since confirmed", re-running the copy) all undone; whole-`public` schema + data fingerprint for before/after-rollback comparison. |
 
 ## Related audit items + ADRs

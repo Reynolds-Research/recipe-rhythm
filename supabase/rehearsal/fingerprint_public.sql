@@ -3,7 +3,8 @@
 -- Run before a migration and after its rollback: the two rows must match
 -- (D9 "verify the old state"). Covers every table, column, constraint, index,
 -- security rule, function body, trigger, view and grant in `public`, plus a
--- hash of the rows of the tables that existed before PRD-008 phase 2.
+-- hash of the rows of the tables that existed before PRD-008 phase 2
+-- (plus household_preferences since phase 2b-1).
 -- =========================================================================
 WITH s AS (
   SELECT 'tbl ' || c.relname || ' ' || c.relkind::text || ' rls=' || c.relrowsecurity AS x
@@ -33,6 +34,8 @@ WITH s AS (
   UNION ALL SELECT 'households ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.id), '')) FROM public.households t
   UNION ALL SELECT 'household_members ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.user_id), '')) FROM public.household_members t
   UNION ALL SELECT 'plan_drafts ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.user_id), '')) FROM public.plan_drafts t
+  -- added 2026-11-02 for phase 2b-1, which adds a column here
+  UNION ALL SELECT 'household_preferences ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.household_id), '')) FROM public.household_preferences t
 )
 SELECT md5(string_agg(x, E'\n' ORDER BY x)) AS schema_fp, count(*) AS schema_n,
        (SELECT md5(string_agg(x, E'\n' ORDER BY x)) FROM d) AS data_fp
