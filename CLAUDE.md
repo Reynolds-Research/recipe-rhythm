@@ -71,7 +71,7 @@ When given a prompt file, follow it literally. If something in the prompt doesn'
 
 1. **Each phase of a PRD goes on its own branch.** Common naming: `feat/<short-name>`, `fix/<short-name>`, or the auto-generated `claude/<random-name>` Claude Code uses for worktrees.
 2. **Open a PR.** Let CI and Supabase Preview Branch (if configured) run. Merge via GitHub UI.
-3. **Migrations apply to live Supabase manually**, by the user, via the Supabase SQL Editor. Claude Code does NOT have access to the live (prod) database, but **does** have Supabase MCP access for **preview branches** — use it for verification before the prod hand-off (see "MCP-powered verification" below). When a prompt reaches the prod-application step, that's a hand-off — print clear instructions and wait.
+3. **Migrations apply to live Supabase manually**, by the user, via the Supabase SQL Editor. Claude Code does NOT have access to the live (prod) database, but **does** have the `Supabase Preview Rehearsal` connector (writable) and the `Supabase Prod Read Only` connector (reads only) — use them for verification before the prod hand-off (see "MCP-powered verification" below). When a prompt reaches the prod-application step, that's a hand-off — print clear instructions and wait.
 4. **After merge, clean up immediately:** delete the branch locally and remotely, run `git worktree prune`. The next session should start from a clean `main`.
 
 ## Cross-branch / cross-worktree reading
@@ -123,13 +123,12 @@ One item per session. If an item turns out bigger than one session, split it in 
 This repo is configured with two MCP connectors that Claude Code SHOULD reach for proactively as part of the standard workflow — not wait to be asked.
 
 **Supabase MCP** — two connectors since 2026-11-03: **`Supabase Preview Rehearsal`** (the preview project `hhnlkvuifmcwpdetlyrn`, writable, no approval pop-up) and **`Supabase Prod Read Only`** (`recipe-app`, logs in as `supabase_read_only_user`, read-only transactions). Check which one you're calling before any write. With the preview connector, Claude can:
-- Create a Supabase preview branch off the current schema.
-- Apply pending migrations to the preview branch.
+- Apply pending migrations to the rehearsal preview project (it already exists — don't create new branches; this connector is scoped to that one project and can't).
 - Run the paired `verify_<timestamp>.sql` against the preview and report results.
 - Run read-only `SELECT` queries to spot-check RLS policies (e.g. confirm a query as user A can't see user B's rows).
 - Pull logs to diagnose Edge Function or query errors.
 
-Claude does NOT apply migrations to the live (prod) database. That hand-off stays with the user via the Supabase SQL Editor.
+Claude does NOT apply migrations to the live (prod) database — the prod connector can't (read-only), so that hand-off stays with the user via the Supabase SQL Editor. Use the prod connector for read-only checks only, e.g. comparing preview against prod before a rehearsal. If either connector is missing from your tool list, stop and tell the user — never fall back to another Supabase connection. If the preview project is ever replaced, its id changes: the user updates the connector URL, then this file.
 
 **Vercel MCP** — for preview deployments. Claude can:
 - Check the status of the PR's preview deployment.
@@ -150,8 +149,8 @@ For end-to-end smoke testing (logging into the app, clicking through the UI), a 
 ### Standard workflow for any DB-touching change
 
 1. Write the migration + paired verify SQL.
-2. Create a Supabase preview branch via MCP.
-3. Apply the migration to the preview branch.
+2. Confirm preview matches prod (same tables / security rules / columns, via both connectors); if not, bring preview level first.
+3. Apply the migration to the rehearsal preview project.
 4. Run the verify SQL and report the output.
 5. If verify passes: hand off to the user with clear "apply to prod" instructions.
 6. If verify fails: diagnose, fix the migration, repeat from step 2.
