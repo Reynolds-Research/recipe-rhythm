@@ -122,7 +122,7 @@ One item per session. If an item turns out bigger than one session, split it in 
 
 This repo is configured with two MCP connectors that Claude Code SHOULD reach for proactively as part of the standard workflow — not wait to be asked.
 
-**Supabase MCP** — for **preview branches only**. Claude can:
+**Supabase MCP** — two connectors since 2026-11-03: **`Supabase Preview Rehearsal`** (the preview project `hhnlkvuifmcwpdetlyrn`, writable, no approval pop-up) and **`Supabase Prod Read Only`** (`recipe-app`, logs in as `supabase_read_only_user`, read-only transactions). Check which one you're calling before any write. With the preview connector, Claude can:
 - Create a Supabase preview branch off the current schema.
 - Apply pending migrations to the preview branch.
 - Run the paired `verify_<timestamp>.sql` against the preview and report results.
