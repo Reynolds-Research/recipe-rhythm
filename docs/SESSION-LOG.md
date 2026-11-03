@@ -13,7 +13,7 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 - `src/lib/weekSuggest.js` (cookbook-only proposals via the existing recommender) and `src/lib/featureFlags.js` (`VITE_NEW_PREP_TABLE`). `App.jsx` picks the screen; unset = today's app.
 - Matt decided: a recipe on the Maybe list still shows in "Didn't get to these".
 
-**Verified:** Vitest 885/885 (33 new: 21 screen, 2 app switch, 2 flag, 6 suggest, plus the rest unchanged), eslint, build, `lint:ds`. Three deliberate breaks (locked day tappable, suggest auto-saving, tray moving instead of copying) each failed a test. Screens rendered with fake data in Chromium at phone width.
+**Verified:** Vitest 889/889 (37 new: 25 screen, 2 app switch, 2 flag, 6 suggest; no existing test changed), eslint, build, `lint:ds`. Reviewer FAIL on a real race (a slow reload after a save could paint the old week under the new title and save wrong days): fixed (numbered loads, the screen only draws the week matching its title, ← / → wait during saves) plus 44px targets, a visible locked-day message, failed ✓ keeps the suggestion. Seven deliberate breaks each failed a test. Screens rendered with fake data in Chromium at phone width.
 
 **Open / owed:**
 - **Preview deploys talk to the production database** (one `VITE_SUPABASE_URL` for Preview + Production in Vercel). Switching the new screen on in a preview means planning on real data. Matt to choose: try it on real data, point previews at the preview database, or test locally.

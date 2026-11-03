@@ -54,25 +54,25 @@ export default function PrepTable({ userId, today }) {
         {pt.error && (
           <div role="alert" className="flex items-start gap-2 rounded-2xl bg-red-50 border border-red-200 px-4 py-3">
             <p className="flex-1 text-sm text-red-800">{pt.error}</p>
-            <button type="button" onClick={pt.clearError} aria-label="Dismiss" className="text-red-800"><X size={16} /></button>
+            <button type="button" onClick={pt.clearError} aria-label="Dismiss" className="w-11 h-11 -m-3 flex items-center justify-center text-red-800"><X size={16} /></button>
           </div>
         )}
 
         {tab === 'week' && (
           <>
             <div className="flex items-center justify-between gap-2">
-              <button type="button" className="btn-icon" aria-label="Previous week" onClick={() => pt.goWeek(-1)}>
+              <button type="button" className="btn-icon disabled:opacity-50" aria-label="Previous week" disabled={pt.busy} onClick={() => pt.goWeek(-1)}>
                 <ChevronLeft size={20} />
               </button>
               <div className="text-center">
                 <p className="font-bold text-gray-900" data-testid="week-title">{weekTitle(pt.dayArgs.weekStart, pt.weekEnd)}</p>
                 {!isThisWeek && (
-                  <button type="button" onClick={pt.goThisWeek} className="text-xs font-semibold text-brand-700 min-h-[32px]">
+                  <button type="button" onClick={pt.goThisWeek} disabled={pt.busy} className="text-sm font-semibold text-brand-700 min-h-[44px] px-3">
                     Back to this week
                   </button>
                 )}
               </div>
-              <button type="button" className="btn-icon" aria-label="Next week" onClick={() => pt.goWeek(1)}>
+              <button type="button" className="btn-icon disabled:opacity-50" aria-label="Next week" disabled={pt.busy} onClick={() => pt.goWeek(1)}>
                 <ChevronRight size={20} />
               </button>
             </div>

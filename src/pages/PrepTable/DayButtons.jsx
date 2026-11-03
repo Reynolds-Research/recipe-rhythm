@@ -1,16 +1,18 @@
+import { useState } from 'react'
 import { DAY_LABELS, canHideDay, shownDays } from '../../lib/weekRange'
 
 const FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 /**
  * The Su–Sa row at the top of the week (PRD-008 D8, option B). Tap a day to
- * show or hide it for this week. A day with a meal on it is locked on: it
- * shows a dashed outline and the tap does nothing (it says why instead).
+ * show or hide it for this week. A day with a meal on it is locked on: it has
+ * a dashed outline, and tapping it explains why instead of hiding it.
  *
  * @param {{ dayArgs: object, onToggle: (day: number) => void, disabled?: boolean }} props
  */
 export default function DayButtons({ dayArgs, onToggle, disabled = false }) {
   const shown = shownDays(dayArgs)
+  const [lockedTap, setLockedTap] = useState(null)   // the day just tapped while locked
   return (
     <div className="space-y-1.5">
       <div role="group" aria-label="Days this week shows" className="flex gap-1.5">
@@ -25,7 +27,11 @@ export default function DayButtons({ dayArgs, onToggle, disabled = false }) {
               aria-label={`${FULL[day]}${locked ? ' (has a meal, always shown)' : ''}`}
               aria-disabled={locked || undefined}
               disabled={disabled}
-              onClick={() => { if (!locked) onToggle(day) }}
+              onClick={() => {
+                if (locked) { setLockedTap(day); return }
+                setLockedTap(null)
+                onToggle(day)
+              }}
               className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold border-2 transition-colors ${
                 on
                   ? 'bg-brand-700 border-brand-700 text-white'
@@ -37,7 +43,11 @@ export default function DayButtons({ dayArgs, onToggle, disabled = false }) {
           )
         })}
       </div>
-      <p className="text-xs text-gray-700">Tap a day to show or hide it. Next week starts with the same days.</p>
+      <p className="text-xs text-gray-700" role="status">
+        {lockedTap != null && shown.includes(lockedTap) && !canHideDay(lockedTap, dayArgs)
+          ? `${FULL[lockedTap]} has a meal on it. Move or remove the meal to hide the day.`
+          : 'Tap a day to show or hide it. Next week starts with the same days.'}
+      </p>
     </div>
   )
 }

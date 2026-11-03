@@ -58,7 +58,7 @@ async function loadKitchen(userId) {
 
 export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const [weekStart, setWeekStart] = useState(() => thisWeekStart(today))
-  const [week, setWeek] = useState(null)          // { meals, weekDays, usualDays, weekEnd }
+  const [week, setWeek] = useState(null)          // { weekStart, meals, weekDays, usualDays }
   const [maybe, setMaybe] = useState([])
   const [tray, setTray] = useState([])
   const [kitchen, setKitchen] = useState({ vault: [], recentMeals: [], preferences: null })
@@ -66,44 +66,53 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const [skipped, setSkipped] = useState([])      // recipe ids dismissed this visit
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  // Numbered loads: only the newest one may change the screen, so a slow
+  // reload (after a save) can never paint over a week opened since (← / →).
   const loadSeq = useRef(0)
+  const weekRef = useRef(weekStart)          // the week on screen, for reloads
+  useEffect(() => { weekRef.current = weekStart }, [weekStart])
 
-  const reload = useCallback(async (start = weekStart) => {
+  /** The week, Maybe list and tray, as plain data (no state changes here). */
+  const queryWeek = useCallback((start) => Promise.all([
+    loadWeek(supabase, userId, start),
+    loadMaybeList(supabase, userId),
+    loadDidntGetTo(supabase, userId, today),
+  ]), [userId, today])
+
+  /** Show a load's result, unless a newer load has started since. */
+  const applyLoad = useCallback((seq, start, [w, m, t]) => {
+    if (seq !== loadSeq.current) return
+    setWeek({ ...w, weekStart: start })
+    setMaybe(m)
+    setTray(t)
+    setError(null)
+  }, [])
+
+  const loadFailed = useCallback((seq, err) => {
+    if (seq === loadSeq.current) setError("Couldn't load the plan. Check your connection and try again.")
+    console.error('[PrepTable] load failed', err)
+  }, [])
+
+  /** Reload whatever week is on screen now (not the one a save started on). */
+  const reload = useCallback(async () => {
     const seq = ++loadSeq.current
+    const start = weekRef.current
     try {
-      const [w, m, t] = await Promise.all([
-        loadWeek(supabase, userId, start),
-        loadMaybeList(supabase, userId),
-        loadDidntGetTo(supabase, userId, today),
-      ])
-      if (seq !== loadSeq.current) return // a newer load (← / →) won
-      setWeek(w)
-      setMaybe(m)
-      setTray(t)
-      setError(null)
+      applyLoad(seq, start, await queryWeek(start))
     } catch (err) {
-      if (seq === loadSeq.current) setError("Couldn't load the plan. Pull down or try again.")
-      console.error('[PrepTable] load failed', err)
+      loadFailed(seq, err)
     }
-  }, [userId, today, weekStart])
+  }, [queryWeek, applyLoad, loadFailed])
 
   // Week data: on open and on ← / →.
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      loadWeek(supabase, userId, weekStart),
-      loadMaybeList(supabase, userId),
-      loadDidntGetTo(supabase, userId, today),
-    ]).then(([w, m, t]) => {
-      if (cancelled) return
-      setWeek(w); setMaybe(m); setTray(t); setError(null)
-    }).catch((err) => {
-      if (cancelled) return
-      setError("Couldn't load the plan. Pull down or try again.")
-      console.error('[PrepTable] load failed', err)
-    })
+    const seq = ++loadSeq.current
+    queryWeek(weekStart)
+      .then((r) => { if (!cancelled) applyLoad(seq, weekStart, r) })
+      .catch((err) => { if (!cancelled) loadFailed(seq, err) })
     return () => { cancelled = true }
-  }, [userId, weekStart, today])
+  }, [queryWeek, applyLoad, loadFailed, weekStart])
 
   // Cookbook etc.: once.
   useEffect(() => {
@@ -114,14 +123,16 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     return () => { cancelled = true }
   }, [userId])
 
-  const meals = useMemo(() => week?.meals ?? [], [week])
+  // Belt and braces: only ever draw the week whose start matches the title.
+  const current = week && week.weekStart === weekStart ? week : null
+  const meals = useMemo(() => current?.meals ?? [], [current])
   const mealDates = useMemo(() => meals.map((m) => m.planned_on), [meals])
   const dayArgs = useMemo(() => ({
     weekStart,
-    weekDays: week?.weekDays ?? null,
-    usualDays: week?.usualDays ?? null,
+    weekDays: current?.weekDays ?? null,
+    usualDays: current?.usualDays ?? null,
     mealDates,
-  }), [weekStart, week, mealDates])
+  }), [weekStart, current, mealDates])
   const dates = useMemo(() => shownDates(dayArgs), [dayArgs])
   const mealsByDate = useMemo(() => {
     const by = {}
@@ -135,27 +146,31 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     try {
       await fn()
       await reload()
+      return true
     } catch (err) {
       console.error('[PrepTable] write failed', err)
       setError(failMsg)
+      return false
     } finally {
       setBusy(false)
     }
   }, [reload])
 
   const goWeek = (n) => {
+    if (busy) return
     setProposals({})
     setWeek(null)
     setWeekStart((s) => shiftWeek(s, n))
   }
   const goThisWeek = () => {
+    if (busy) return
     setProposals({})
     setWeek(null)
     setWeekStart(thisWeekStart(today))
   }
 
   const toggleDay = (day) => {
-    if (!week) return
+    if (!current || busy) return
     const days = nextDays(day, dayArgs)
     // Hiding a day drops any proposal sitting on it.
     const hiddenDate = addDays(weekStart, day)
@@ -165,21 +180,28 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
 
   const nextPosition = (date) => (mealsByDate[date]?.length ?? 0)
 
-  const addToDay = (date, { name, vaultId = null, isWildcard = false, sourceUrl = null }) =>
-    act(() => addMeal(supabase, userId, {
+  const addToDay = async (date, { name, vaultId = null, isWildcard = false, sourceUrl = null }) => {
+    const ok = await act(() => addMeal(supabase, userId, {
       plannedOn: date, name, vaultId, isWildcard, sourceUrl, position: nextPosition(date),
     }), "Couldn't add that meal. Try again.")
+    // The day has a meal now: any suggestion on it is settled (kept or replaced).
+    if (ok) setProposals((p) => without(p, date))
+    return ok
+  }
 
   const addToMaybe = ({ name, vaultId = null }) =>
     act(() => addMeal(supabase, userId, { plannedOn: null, name, vaultId, position: maybe.length }),
       "Couldn't add to Maybe. Try again.")
 
   /** Move a meal (including a Maybe one) to a date, or to Maybe with null. */
-  const moveTo = (meal, date) =>
-    act(() => moveMeal(supabase, meal.id, {
+  const moveTo = async (meal, date) => {
+    const ok = await act(() => moveMeal(supabase, meal.id, {
       plannedOn: date,
       position: date ? nextPosition(date) : maybe.length,
     }), "Couldn't move that meal. Try again.")
+    if (ok && date) setProposals((p) => without(p, date))
+    return ok
+  }
 
   /** From "Didn't get to these": a NEW meal on the day; the old one stays as history. */
   const replan = (meal, date) =>
@@ -232,11 +254,12 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     setProposals((p) => ({ ...p, ...fresh }))
   }
 
-  const acceptProposal = (date) => {
+  const acceptProposal = async (date) => {
     const recipe = proposals[date]
     if (!recipe) return
-    setProposals((p) => without(p, date))
-    return addToDay(date, { name: recipe.name, vaultId: recipe.id })
+    // addToDay clears the proposal once the meal is saved; if the save fails
+    // the suggestion stays, so she can tap ✓ again.
+    await addToDay(date, { name: recipe.name, vaultId: recipe.id })
   }
 
   const dismissProposal = (date) => {
@@ -250,7 +273,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     today,
     weekStart,
     weekEnd: addDays(weekStart, 6),
-    loading: !week,
+    loading: !current,
     error,
     clearError: () => setError(null),
     busy,

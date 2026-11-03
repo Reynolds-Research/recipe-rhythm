@@ -35,7 +35,7 @@ export default function DayRow({
         </h3>
         {!empty && (
           <button type="button" onClick={onAdd} disabled={busy} aria-label={`Add another meal on ${weekday}`}
-            className="btn-icon w-10 h-10 shadow-none">
+            className="btn-icon shadow-none">
             <Plus size={18} />
           </button>
         )}
@@ -51,11 +51,13 @@ export default function DayRow({
               aria-label={`Cooked ${meal.name}`}
               disabled={busy}
               onClick={() => onToggleCooked(meal)}
-              className={`w-8 h-8 shrink-0 rounded-full border-2 flex items-center justify-center ${
-                meal.cooked ? 'bg-green-700 border-green-700 text-white' : 'border-cream-200 bg-white text-transparent'
-              }`}
+              className="w-11 h-11 -ml-2 shrink-0 flex items-center justify-center"
             >
-              <Check size={16} strokeWidth={3} />
+              <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${
+                meal.cooked ? 'bg-green-700 border-green-700 text-white' : 'border-cream-200 bg-white text-transparent'
+              }`}>
+                <Check size={16} strokeWidth={3} />
+              </span>
             </button>
           )}
           <span className={`flex-1 min-w-0 font-medium ${isPast && !meal.cooked ? 'text-gray-700' : 'text-gray-900'}`}>

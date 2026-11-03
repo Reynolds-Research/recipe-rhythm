@@ -99,6 +99,7 @@ describe('week and day buttons', () => {
     expect(monday).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(monday)
     expect(pm.saveWeekDays).not.toHaveBeenCalled()
+    expect(screen.getByText('Monday has a meal on it. Move or remove the meal to hide the day.')).toBeInTheDocument()
   })
 
   it('a meal on a hidden day still shows that day', async () => {
@@ -164,16 +165,88 @@ describe('✨ suggest — saved only on ✓ (D3)', () => {
     expect(pm.addMeal).not.toHaveBeenCalled()
   })
 
-  it('hiding a day drops its suggestion', async () => {
+  it('hiding a day drops its suggestion (it does not come back when the day is shown again)', async () => {
     renderPage()
     const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
     await waitFor(() => expect(within(wed).getByRole('button', { name: '✨ suggest' })).toBeEnabled())
     await userEvent.click(within(wed).getByRole('button', { name: '✨ suggest' }))
-    // the save "succeeds"; the reload shows Wednesday hidden
-    setWeek({ weekDays: [0, 1, 2, 4] })
+    setWeek({ weekDays: [0, 1, 2, 4] })               // the save "succeeds"; reload hides Wed
     await userEvent.click(dayButton('Wednesday'))
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Wed Nov 4' })).not.toBeInTheDocument())
-    expect(screen.queryByText('Suggestion · not saved yet')).not.toBeInTheDocument()
+    setWeek({ weekDays: [0, 1, 2, 3, 4] })            // show it again
+    await userEvent.click(dayButton('Wednesday'))
+    const back = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    expect(within(back).queryByText('Suggestion · not saved yet')).not.toBeInTheDocument()
+    expect(within(back).getByRole('button', { name: '✨ suggest' })).toBeInTheDocument()
+  })
+
+  it('if saving ✓ fails, the suggestion stays so she can try again', async () => {
+    pm.addMeal.mockRejectedValueOnce(new Error('offline'))
+    renderPage()
+    const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await waitFor(() => expect(within(wed).getByRole('button', { name: '✨ suggest' })).toBeEnabled())
+    await userEvent.click(within(wed).getByRole('button', { name: '✨ suggest' }))
+    await userEvent.click(within(wed).getByRole('button', { name: /^Keep / }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't add that meal")
+    expect(within(wed).getByText('Suggestion · not saved yet')).toBeInTheDocument()
+  })
+
+  it('a suggestion on a day that gets a meal another way is settled, not brought back', async () => {
+    pm.loadMaybeList.mockResolvedValue([meal({ id: 'mx', planned_on: null, name: 'Lemon orzo soup', vault_id: null })])
+    renderPage()
+    const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await waitFor(() => expect(within(wed).getByRole('button', { name: '✨ suggest' })).toBeEnabled())
+    await userEvent.click(within(wed).getByRole('button', { name: '✨ suggest' }))
+    // Instead of ✓, she puts a Maybe meal on Wednesday.
+    setWeek({ meals: [meal({ id: 'mx', planned_on: '2026-11-04', name: 'Lemon orzo soup', vault_id: null })] })
+    await userEvent.click(screen.getByRole('tab', { name: /Maybe/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Lemon orzo soup' }))
+    await userEvent.click(within(screen.getByTestId('day-choice-sheet')).getByRole('button', { name: 'Wed Nov 4' }))
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'mx', { plannedOn: '2026-11-04', position: 0 })
+    await userEvent.click(screen.getByRole('tab', { name: /Week/ }))
+    // Later she removes it: Wednesday is empty again and the old suggestion must not reappear.
+    setWeek()
+    await userEvent.click(within(await screen.findByRole('region', { name: 'Wed Nov 4' }))
+      .getByRole('button', { name: 'Remove Lemon orzo soup' }))
+    const after = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await waitFor(() => expect(within(after).getByRole('button', { name: '+ add' })).toBeInTheDocument())
+    expect(within(after).queryByText('Suggestion · not saved yet')).not.toBeInTheDocument()
+  })
+})
+
+describe('switching weeks is safe while data is in flight', () => {
+  it('a slow load for an earlier week never replaces the week on screen', async () => {
+    let releaseFirst
+    pm.loadWeek.mockImplementation(async (_sb, _u, start) => {
+      if (start === '2026-11-08') await new Promise((r) => { releaseFirst = r })
+      const meals = start === '2026-11-15' ? [meal({ id: 'n1', planned_on: '2026-11-16', name: 'Right week' })] : [
+        meal({ id: 'o1', planned_on: '2026-11-09', name: 'Wrong week' })]
+      return { weekStart: start, meals, weekDays: null, usualDays: [0, 1, 2, 3, 4] }
+    })
+    renderPage()
+    await screen.findByTestId('week-title')
+    await userEvent.click(screen.getByRole('button', { name: 'Next week' }))   // Nov 8 (slow)
+    await userEvent.click(screen.getByRole('button', { name: 'Next week' }))   // Nov 15 (fast)
+    expect(await screen.findByText('Right week')).toBeInTheDocument()
+    releaseFirst()
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.getByTestId('week-title')).toHaveTextContent('Nov 15 – 21')
+    expect(screen.queryByText('Wrong week')).not.toBeInTheDocument()
+    expect(screen.getByText('Right week')).toBeInTheDocument()
+  })
+
+  it('← / → wait while a save is running', async () => {
+    let finish
+    pm.addMeal.mockImplementation(() => new Promise((r) => { finish = r }))
+    renderPage()
+    const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await userEvent.click(within(wed).getByRole('button', { name: '+ add' }))
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'curry')
+    await userEvent.click(screen.getByRole('button', { name: /Green curry/ }))
+    expect(screen.getByRole('button', { name: 'Next week' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled()
+    finish({})
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next week' })).toBeEnabled())
   })
 })
 
