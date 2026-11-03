@@ -15,8 +15,10 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 **Verified:** Vitest 889/889 (37 new: 25 screen, 2 app switch, 2 flag, 6 suggest; no existing test changed), eslint, build, `lint:ds`. Reviewer FAIL on a real race (a slow reload after a save could paint the old week under the new title and save wrong days): fixed (numbered loads, the screen only draws the week matching its title, ← / → wait during saves) plus 44px targets, a visible locked-day message, failed ✓ keeps the suggestion. Seven deliberate breaks each failed a test. Screens rendered with fake data in Chromium at phone width.
 
+**Incident (fixed in code, owed by Matt):** the first preview build put every `VITE_` setting into its public JS, including the unused `VITE_ANTHROPIC_API_KEY`, because `isNewPrepTableEnabled` defaulted to the whole `import.meta.env` object. The preview sat behind Vercel's login wall; production was clean. Fix: read only `import.meta.env.VITE_NEW_PREP_TABLE`, plus a new guard test (`src/__tests__/no-whole-env-in-client.test.js`) that fails on whole-object use; a build with planted fake secrets shows none in `dist/`. Matt: delete that preview deploy, delete `VITE_ANTHROPIC_API_KEY` in Vercel, rotate the Anthropic key.
+
 **Open / owed:**
-- **Preview deploys talk to the production database** (one `VITE_SUPABASE_URL` for Preview + Production in Vercel). Switching the new screen on in a preview means planning on real data. Matt to choose: try it on real data, point previews at the preview database, or test locally.
+- Preview deploys use the production database. Matt chose (2026-11-03) to try the new screen on real data through this PR's preview only; deployed by hand with `vercel deploy --build-env VITE_NEW_PREP_TABLE=true` (auto-deploy is broken, and Vercel blocks commits authored by Claude, so the deploy is from a copy without git history).
 - Follow-ups noticed, not fixed: a stale `VITE_ANTHROPIC_API_KEY` sits in Vercel (not referenced by the code, so not in the bundle; delete it); the Vercel project shown by the CLI is `mreynolds08-glitchs-projects/recipe-rhythm`, not the team in CLAUDE.md (may explain the auto-deploy gap).
 
 **Next:** finish 2b-2's Done when (try it with the switch on), then 2b-3, Confirm the week + groceries.
