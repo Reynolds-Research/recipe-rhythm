@@ -106,6 +106,11 @@ export async function loadWeek(supabase, userId, date) {
  * so the next untouched week starts the same (D8: "a new week starts with the
  * days of the last week she changed"). An empty week (vacation) is saved for
  * that week only and leaves the usual days alone.
+ *
+ * Pass the week's CHOSEN days (weekRange's toggleDay / baseDays), never the
+ * shown days — meal days are added on screen and must not be saved (D8).
+ * Two writes, week first: if the second fails, the week is saved and the
+ * error is thrown; the usual days just stay as they were (harmless).
  */
 export async function saveWeekDays(supabase, userId, weekStart, days) {
   const start = weekStartFor(weekStart)

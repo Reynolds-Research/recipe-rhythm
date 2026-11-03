@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import {
   DEFAULT_USUAL_DAYS,
   addDays,
+  baseDays,
   canHideDay,
   dayOfWeek,
   daysWithMeals,
@@ -163,5 +164,33 @@ describe('day buttons', () => {
   it('a day with a meal on it is locked: tapping does nothing', () => {
     expect(canHideDay(1, args)).toBe(false)
     expect(toggleDay(1, args)).toEqual([0, 1, 2, 3, 4])
+  })
+
+  // A one-off Saturday meal in a Sun–Thu week: Saturday shows because of the
+  // meal, but must never be SAVED as a chosen day, or it would stick around
+  // in every later week (D8: meal days are never stored).
+  const saturdayMeal = { weekStart: '2026-11-01', usualDays: [0, 1, 2, 3, 4], mealDates: ['2026-11-07'] }
+
+  it('tapping another day saves the chosen days only, not the meal day', () => {
+    expect(shownDays(saturdayMeal)).toEqual([0, 1, 2, 3, 4, 6])
+    expect(toggleDay(5, saturdayMeal)).toEqual([0, 1, 2, 3, 4, 5])
+    expect(toggleDay(3, saturdayMeal)).toEqual([0, 1, 2, 4])
+  })
+
+  it('tapping the locked meal day saves nothing new', () => {
+    expect(toggleDay(6, saturdayMeal)).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it("after the meal is removed, the day goes back to hidden", () => {
+    const saved = toggleDay(5, saturdayMeal)
+    expect(shownDays({ weekStart: '2026-11-01', weekDays: saved, mealDates: [] })).toEqual([0, 1, 2, 3, 4, 5])
+  })
+
+  it('baseDays: week days, else usual days, else Sun–Thu', () => {
+    expect(baseDays({ weekDays: [6, 1], usualDays: [0] })).toEqual([1, 6])
+    expect(baseDays({ weekDays: [], usualDays: [0] })).toEqual([])
+    expect(baseDays({ usualDays: [2, 3] })).toEqual([2, 3])
+    expect(baseDays({ usualDays: [] })).toEqual(DEFAULT_USUAL_DAYS)
+    expect(baseDays()).toEqual(DEFAULT_USUAL_DAYS)
   })
 })

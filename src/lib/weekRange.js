@@ -131,11 +131,19 @@ export function daysWithMeals(weekStart, mealDates = []) {
  * @param {string[]} [args.mealDates]   planned_on of the week's meals
  */
 export function shownDays({ weekStart, weekDays = null, usualDays = null, mealDates = [] }) {
-  let base
-  if (Array.isArray(weekDays)) base = weekDays            // she changed this week (may be [])
-  else if (Array.isArray(usualDays) && normalizeDays(usualDays).length) base = usualDays
-  else base = DEFAULT_USUAL_DAYS
-  return normalizeDays([...base, ...daysWithMeals(weekStart, mealDates)])
+  return normalizeDays([...baseDays({ weekDays, usualDays }), ...daysWithMeals(weekStart, mealDates)])
+}
+
+/**
+ * The days the week shows by choice, before meal days are added: the week's
+ * own days, else the usual days, else Sun–Thu. This is what gets saved —
+ * meal days never are (D8), or a one-off Saturday meal would keep Saturday
+ * showing in every later week.
+ */
+export function baseDays({ weekDays = null, usualDays = null } = {}) {
+  if (Array.isArray(weekDays)) return normalizeDays(weekDays)   // she changed this week (may be [])
+  const usual = normalizeDays(usualDays)
+  return usual.length ? usual : [...DEFAULT_USUAL_DAYS]
 }
 
 /** The same as shownDays, as dates. */
@@ -150,14 +158,14 @@ export function canHideDay(day, { weekStart, mealDates = [] }) {
 }
 
 /**
- * Tap a day button: show it if hidden, hide it if shown. Returns the new
- * list of shown days to save for this week. A day with a meal stays shown
- * (the tap does nothing), so the result always passes the "a day with a
- * meal always shows" rule.
+ * Tap a day button: show it if hidden, hide it if shown. Returns the week's
+ * new chosen days (baseDays) — the list to save with saveWeekDays. Meal days
+ * are never added to it; they show anyway. A day with a meal is locked: the
+ * tap changes nothing.
  */
 export function toggleDay(day, args) {
-  const current = shownDays(args)
-  if (!current.includes(day)) return normalizeDays([...current, day])
-  if (!canHideDay(day, args)) return current
-  return current.filter((d) => d !== day)
+  const base = baseDays(args)
+  if (!shownDays(args).includes(day)) return normalizeDays([...base, day])
+  if (!canHideDay(day, args)) return base
+  return base.filter((d) => d !== day)
 }
