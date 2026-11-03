@@ -1,6 +1,6 @@
 # PRD-008: Shared Household & Calendar Planning
 
-**Status:** Draft v0.5
+**Status:** Draft v0.6
 **Author:** Matt (with Cowork)
 **Date:** 2026-11-01
 **North Star criteria moved:** "The plan doesn't stall on Matt" and "She plans in the app"
@@ -64,7 +64,8 @@ into the SQL Editor is the only place they appear.
 
 ## 4. How a week works (user view)
 
-1. Prep Table opens on **this week** (Sun–Thu, with Fri/Sat one tap away). Past days show as history (cooked /
+1. Prep Table opens on **this week**, showing her usual days (Sun–Thu at first); the day
+   buttons at the top add or hide days for that week (D8). Past days show as history (cooked /
    not cooked). Empty upcoming days offer **+ add** or **✨ suggest**. "Suggest" fills the
    empty days of the visible week, avoiding repeats within it. (INFERRED UI)
 2. She taps a day → **"Matt's night"** to hand it to him. She texts him. (CONFIRMED)
@@ -101,10 +102,17 @@ into the SQL Editor is the only place they appear.
 - **D7 — Every account gets a household.** Solo households for test and demo accounts,
   one shared household for Matt and his wife, and a trigger that gives each new sign-up
   a solo household. (INFERRED)
-- **D8 — Weeks run Sunday to Saturday; Sun–Thu always show, Fri and Sat show as slim
-  "+ weekend" rows that expand when used.** A Fri/Sat with a meal on it always shows in
-  full. No setting needed. (CONFIRMED need: "keep it flexible for all options"; INFERRED
-  layout)
+- **D8 — Weeks run Sunday to Saturday; she picks which days each week shows** (option B,
+  CONFIRMED by Matt 2026-11-02 after the week-shape mockup). A row of day buttons (Su–Sa) at
+  the top of the week, like today's date strip: tap to show or hide a day. Hidden days
+  disappear from the list. A day with a meal on it can't be hidden. A new week starts with
+  the days of the last week she changed ("usual days"); the first default is Sun–Thu.
+  (CONFIRMED need: "view the meals over days of the week … include more or less days to fit
+  a changing schedule". Considered and not chosen: slim weekend rows (no way to show fewer
+  days); every day listed with a "Not cooking" mark. Known trade-off: Matt can't tell a
+  hidden day from an unplanned one; revisit in phase 3 if it bites.)
+  _Superseded v0.4 text: "Sun–Thu always show, Fri and Sat show as slim '+ weekend' rows …
+  No setting needed."_
 - **D9 — Every schema or security migration ships with a tested undo.** A paired
   `rollback_<timestamp>.sql` restores the previous state exactly (tables, columns,
   policies). It is run on preview — apply, verify, roll back, verify the old state, apply
@@ -135,7 +143,7 @@ into the SQL Editor is the only place they appear.
   INFERRED: `date` is `planned_on`; `added_by` / `confirmed_by` are `user_id`, the "who added it"
   column every kitchen table already has; "changed since confirmed" is a `changed_at` stamp set by a
   trigger, so removing a meal counts too, and ticking cooked / reordering / assigning doesn't.)
-- **P0.4 New Prep Table.** Week grid with ← / →, week-shape setting, + add, ✨ suggest,
+- **P0.4 New Prep Table.** Week grid with ← / →, day buttons per week (D8), + add, ✨ suggest,
   the Maybe tab, the "Didn't get to these" tray, and Confirm the week.
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
@@ -199,6 +207,8 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v0.6 (2026-11-02):** D8 rewritten for option B (she picks the week's days with day
+  buttons; next week starts with the same days). P0.4's "week-shape setting" = those buttons.
 - **v0.5 (2026-11-02):** phase 2 split into 2a data / 2b screens / 2c switch-over (TASKS.md); P0.3 build
   notes (Maybe = no date, mirroring re-run). Open for the 2b mockup: Matt wants her to be able to show
   *fewer* days as well as more ("include more or less days to fit a changing schedule"); P0.4's
