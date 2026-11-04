@@ -156,7 +156,12 @@ into the SQL Editor is the only place they appear.
   (Phase 2b-2 build, 2026-11-03 — INFERRED: ✨ suggest proposes from the cookbook only, no AI call, using
   the existing recommender with the week's meals counted as recent; "Suggest the empty days" fills only
   shown, empty days from today on; past days show cooked / not cooked and can still get a meal; a meal
-  is moved with a "Which day?" sheet (or to Maybe) rather than drag-and-drop; Confirm the week is 2b-3.)
+  is moved with a "Which day?" sheet (or to Maybe); Confirm the week is 2b-3.)
+  (After her first try, 2026-11-04 — CONFIRMED: she wants to drag meals between days ("part of how she
+  plans"), so drag-and-drop is back, with the old screen's feel (mouse after 8px, press-and-hold on a
+  phone); the "Which day?" sheet stays as the non-drag way. CONFIRMED: new screens use the app's brand
+  orange, not green (cooked tick). INFERRED: dropping a meal on a day moves only that meal, to the end
+  of the day; the old screen shifted every meal in between, which doesn't fit several-meals or empty days.)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".

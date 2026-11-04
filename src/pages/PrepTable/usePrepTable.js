@@ -207,6 +207,30 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const replan = (meal, date) =>
     addToDay(date, { name: meal.name, vaultId: meal.vault_id, isWildcard: meal.is_wildcard, sourceUrl: meal.source_url })
 
+  /**
+   * Drag-and-drop: the meal jumps to the new day on screen at once (so it
+   * doesn't snap back while saving), then the move is saved. If the save
+   * fails, the reload puts it back where it was and a message says so.
+   */
+  const dropOnDay = async (mealId, date) => {
+    if (busy || !current) return false
+    const meal = meals.find((m) => m.id === mealId)
+    if (!meal || meal.planned_on === date) return false
+    const position = nextPosition(date)
+    setWeek((w) => (w ? { ...w, meals: w.meals.map((m) => (m.id === mealId ? { ...m, planned_on: date, position } : m)) } : w))
+    const ok = await act(
+      () => moveMeal(supabase, mealId, { plannedOn: date, position }),
+      "Couldn't move that meal. Try again.",
+    )
+    if (ok) {
+      setProposals((p) => without(p, date))
+    } else {
+      await reload()                                   // puts the meal back…
+      setError("Couldn't move that meal. Try again.")   // …and the reload cleared the message
+    }
+    return ok
+  }
+
   const remove = (meal) => act(() => removeMeal(supabase, meal.id), "Couldn't remove that meal. Try again.")
 
   const toggleCooked = (meal) =>
@@ -291,6 +315,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     addToDay,
     addToMaybe,
     moveTo,
+    dropOnDay,
     replan,
     remove,
     toggleCooked,

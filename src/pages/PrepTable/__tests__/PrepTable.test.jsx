@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // PRD-008 2b-2 — the new Prep Table. The data layer (plannedMeals.js, tested on
@@ -17,6 +17,13 @@ vi.mock('../../../lib/plannedMeals', () => ({
 }))
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(async () => null) }))
 vi.mock('../../../lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+// The real drag-and-drop context, wrapped so a test can "drop" a meal by
+// calling its onDragEnd (jsdom can't do real pointer drags).
+let dnd = null
+vi.mock('@dnd-kit/core', async (importOriginal) => {
+  const real = await importOriginal()
+  return { ...real, DndContext: (props) => { dnd = props; return <real.DndContext {...props} /> } }
+})
 
 import * as pm from '../../../lib/plannedMeals'
 import { supabase } from '../../../lib/supabase'
@@ -354,5 +361,83 @@ describe("Didn't get to these", () => {
     renderPage()
     await screen.findByTestId('week-title')
     expect(screen.queryByRole('region', { name: "Didn't get to these" })).not.toBeInTheDocument()
+  })
+})
+
+describe('drag and drop between days', () => {
+  const drop = (mealId, date) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: `day:${date}` } })
+  })
+
+  it('every meal card can be picked up (grip with a label) and every day is a drop target', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    expect(within(mon).getByLabelText('Drag Sheet-pan gnocchi to another day')).toHaveAttribute('aria-roledescription', 'draggable')
+    expect(dnd.sensors.length).toBe(3) // mouse, touch, keyboard
+  })
+
+  it('dropping a meal on another day moves it there at once, then saves the move', async () => {
+    let finish
+    pm.moveMeal.mockImplementation(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+
+    // On screen right away, before the save finishes.
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Mon Nov 2')).queryByText('Sheet-pan gnocchi')).not.toBeInTheDocument()
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'm1', { plannedOn: '2026-11-04', position: 0 })
+
+    setWeek({ meals: [meal({ planned_on: '2026-11-04' })] })
+    await act(async () => finish({}))
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+  })
+
+  it('it goes to the end of a day that already has meals', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'm1', { plannedOn: '2026-11-04', position: 1 })
+  })
+
+  it('only the dragged meal moves; other days keep their meals', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-03', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-05')
+    expect(pm.moveMeal).toHaveBeenCalledTimes(1)
+    expect(within(dayRow('Tue Nov 3')).getByText('Tacos')).toBeInTheDocument()
+  })
+
+  it('if the save fails, the meal goes back and she is told', async () => {
+    pm.moveMeal.mockRejectedValueOnce(new Error('offline'))
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't move that meal")
+    await waitFor(() => expect(within(dayRow('Mon Nov 2')).getByText('Sheet-pan gnocchi')).toBeInTheDocument())
+  })
+
+  it('dropping it back on its own day does nothing', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-02')
+    expect(pm.moveMeal).not.toHaveBeenCalled()
+  })
+})
+
+describe('colours match the app (brand orange, not green)', () => {
+  it("a cooked meal's tick is brand orange", async () => {
+    setWeek({ meals: [meal({ cooked: true })] })
+    renderPage()
+    const box = await screen.findByRole('checkbox', { name: 'Cooked Sheet-pan gnocchi' })
+    const dot = box.firstElementChild
+    expect(dot.className).toMatch(/bg-brand-600/)
+    expect(dot.className).not.toMatch(/green/)
   })
 })

@@ -6,6 +6,20 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-04 — PRD-008 2b-2 follow-up: drag-and-drop + brand orange
+
+**Done:** PR (open), branch `feat/prd-008-week-drag`. Her feedback after trying the new Prep Table: she liked it; wants to **drag meals between days** (part of how she plans) and **brand colours** (the cooked tick was green).
+- `src/pages/PrepTable/dragDrop.js`: sensors copied from the old screen (mouse 8px, touch 250ms hold, plus keyboard from the grip), `resolveDrop`, a collision rule that also works for keyboard drags. Each day row is a drop target (lights up); each meal card is draggable (grip shown). A drop moves only that meal, to the end of the day; it shows at once, then saves; a failed save puts it back and says so.
+- Cooked tick: `bg-brand-600` (the old screen's `#D74520`), no green left in `src/pages/PrepTable/`.
+
+**Verified:** Vitest 902/902 (10 new; a test caught a real bug — a failed drop's reload cleared the error message, now fixed); eslint, build, `lint:ds`. Real Chromium with fake data: mouse drag Mon → Wed lit the target and saved; touch quick swipe moved nothing, press-and-hold + drag Tue → Thu saved; no errors.
+
+**Open / owed:** she tries the drag version on a preview, then tick 2b-2.
+
+**Next:** 2b-3, Confirm the week + groceries (fresh session).
+
+---
+
 ## 2026-11-03 — PRD-008 2b-2: week screen behind the switch
 
 **Done:** PR (open), branch `feat/prd-008-week-screen`. Also: 2b-1 rehearsed on preview through the new preview connector (records in PR #214).
