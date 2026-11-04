@@ -7,6 +7,7 @@ import {
   loadWeekDays,
   loadWeekMeals,
   moveMeal,
+  keepsCookedTick,
   pickDidntGetTo,
   removeMeal,
   saveWeekDays,
@@ -228,6 +229,57 @@ describe('moveMeal', () => {
 
   it('refuses a move with nothing to change', async () => {
     await expect(moveMeal(makeSupabase(), 'm1', {})).rejects.toThrow(/plannedOn and\/or position/)
+  })
+})
+
+describe('moveMeal and the cooked tick', () => {
+  it('cooked: false clears the tick and its time', async () => {
+    const sb = makeSupabase()
+    await moveMeal(sb, 'm1', { plannedOn: '2026-11-05', position: 0, cooked: false })
+    expect(sb.calls[0].payload).toEqual({ planned_on: '2026-11-05', position: 0, cooked: false, cooked_at: null })
+  })
+
+  it('cooked: true with cookedAt puts the tick back exactly (undo)', async () => {
+    const sb = makeSupabase()
+    await moveMeal(sb, 'm1', { plannedOn: '2026-11-01', position: 0, cooked: true, cookedAt: '2026-11-01T03:00:00.000Z' })
+    expect(sb.calls[0].payload).toMatchObject({ cooked: true, cooked_at: '2026-11-01T03:00:00.000Z' })
+  })
+
+  it('leaving cooked out keeps the tick as it is', async () => {
+    const sb = makeSupabase()
+    await moveMeal(sb, 'm1', { plannedOn: '2026-11-01', position: 0 })
+    expect(sb.calls[0].payload).toEqual({ planned_on: '2026-11-01', position: 0 })
+  })
+})
+
+describe('keepsCookedTick (Matt, 2026-11-04)', () => {
+  const TODAY = '2026-11-04'
+  const cooked = { cooked: true }
+  const notCooked = { cooked: false }
+
+  it('moved into the future → loses the tick, even swapped with a cooked meal', () => {
+    expect(keepsCookedTick(cooked, '2026-11-05', cooked, TODAY)).toBe(false)
+  })
+
+  it('plain move (no swap) → loses the tick, even to a past day', () => {
+    expect(keepsCookedTick(cooked, '2026-11-02', null, TODAY)).toBe(false)
+  })
+
+  it('swapped with another cooked meal, today or in the past → keeps it', () => {
+    expect(keepsCookedTick(cooked, '2026-11-02', cooked, TODAY)).toBe(true)
+    expect(keepsCookedTick(cooked, TODAY, cooked, TODAY)).toBe(true)
+  })
+
+  it('swapped with an uncooked meal → loses it', () => {
+    expect(keepsCookedTick(cooked, '2026-11-02', notCooked, TODAY)).toBe(false)
+  })
+
+  it('reordered on its own day → keeps it (same night)', () => {
+    expect(keepsCookedTick({ cooked: true, planned_on: '2026-11-02' }, '2026-11-02', notCooked, TODAY)).toBe(true)
+  })
+
+  it('never gains a tick by moving', () => {
+    expect(keepsCookedTick(notCooked, '2026-11-02', cooked, TODAY)).toBe(false)
   })
 })
 

@@ -175,11 +175,35 @@ export async function addMeal(
 }
 
 /**
- * Move a meal to another day (or to the Maybe list with plannedOn null),
- * optionally to a new position. A meal moved to Maybe is no longer "cooked"
- * (the database refuses a cooked meal with no date).
+ * Does a meal keep its "cooked" tick when it moves? (Matt, 2026-11-04)
+ *   - moved to a future day          → no: you can't have cooked the future
+ *   - a plain move (no swap)         → no: it wasn't cooked on its new night
+ *   - swapped with another cooked meal, on today or a past day → yes
+ *   - reordered on its own day       → yes (same night)
+ * A meal never gains a tick by moving.
+ *
+ * @param {{cooked: boolean, planned_on?: string}} meal  the meal that moves
+ * @param {string} toDate               where it lands
+ * @param {{cooked: boolean}|null} partner  the meal it swaps with, if any
+ * @param {string} today                'YYYY-MM-DD'
  */
-export async function moveMeal(supabase, mealId, { plannedOn, position } = {}) {
+export function keepsCookedTick(meal, toDate, partner, today) {
+  if (!meal?.cooked) return false
+  if (toDate === meal.planned_on) return true      // same night, just reordered
+  if (!toDate || toDate > today) return false
+  return !!partner?.cooked
+}
+
+/**
+ * Move a meal to another day (or to the Maybe list with plannedOn null),
+ * optionally to a new position.
+ *
+ * `cooked`: false clears the tick (and its time); true sets it, back to
+ * `cookedAt` if given (used to undo a failed swap exactly); leave it out to
+ * keep the tick as it is. A meal moved to Maybe is never cooked (the database
+ * refuses a cooked meal with no date).
+ */
+export async function moveMeal(supabase, mealId, { plannedOn, position, cooked, cookedAt } = {}) {
   if (plannedOn === undefined && position === undefined) {
     throw new Error('moveMeal: give plannedOn and/or position')
   }
@@ -187,12 +211,15 @@ export async function moveMeal(supabase, mealId, { plannedOn, position } = {}) {
   if (plannedOn !== undefined) {
     if (plannedOn !== null) dayOfWeek(plannedOn)
     patch.planned_on = plannedOn
-    if (plannedOn === null) {
-      patch.cooked = false
-      patch.cooked_at = null
-    }
   }
   if (position !== undefined) patch.position = position
+  if (cooked === false || plannedOn === null) {
+    patch.cooked = false
+    patch.cooked_at = null
+  } else if (cooked === true) {
+    patch.cooked = true
+    patch.cooked_at = cookedAt ?? new Date().toISOString()
+  }
   return check(
     await supabase.from('planned_meals').update(patch).eq('id', mealId).select(MEAL_COLUMNS).single(),
   )

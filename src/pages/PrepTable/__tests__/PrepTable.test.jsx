@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event'
 // PRD-008 2b-2 — the new Prep Table. The data layer (plannedMeals.js, tested on
 // its own) is mocked here, so these tests check what the screen asks for. The
 // week logic (weekRange.js) and suggestions (weekSuggest.js) are the real ones.
-vi.mock('../../../lib/plannedMeals', () => ({
+vi.mock('../../../lib/plannedMeals', async (importOriginal) => ({
+  // the tick rule is pure logic: use the real one
+  keepsCookedTick: (await importOriginal()).keepsCookedTick,
   loadWeek: vi.fn(),
   loadMaybeList: vi.fn(),
   loadDidntGetTo: vi.fn(),
@@ -615,6 +617,67 @@ describe('swap: when the undo fails too, same-day swaps, the mid-drag hint', () 
     await screen.findByRole('region', { name: 'Mon Nov 2' })
     expect(dnd.accessibility.announcements.onDragOver({ active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } }))
       .toBe('Sheet-pan gnocchi would swap with Tacos.')
+  })
+})
+
+describe('the cooked tick when a meal moves (Matt, 2026-11-04)', () => {
+  const dropOn = (mealId, overId) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: overId } })
+  })
+  const curry = (over = {}) => meal({ id: 'c1', planned_on: '2026-11-01', name: 'Green curry', vault_id: 'v1',
+    cooked: true, cooked_at: '2026-11-02T03:00:00.000Z', ...over })
+
+  it('dragged into the future → the tick comes off (saved and on screen)', async () => {
+    setWeek({ meals: [curry()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'day:2026-11-04')
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'c1', { plannedOn: '2026-11-04', position: 0, cooked: false })
+  })
+
+  it('swapped with another cooked meal on a past day / today → both keep their ticks', async () => {
+    setWeek({ meals: [curry(), meal({ cooked: true, cooked_at: '2026-11-03T03:00:00.000Z' })] })   // Mon = today
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'slot:m1')
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'c1', { plannedOn: '2026-11-02', position: 0 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm1', { plannedOn: '2026-11-01', position: 0 })
+  })
+
+  it('a cooked meal swapped with an uncooked one → the cooked one loses its tick; the other never gains one', async () => {
+    let finish
+    pm.moveMeal.mockImplementationOnce(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [curry(), meal()] })                       // Mon gnocchi not cooked
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'slot:m1')
+    // on screen at once: nothing ticked
+    expect(within(dayRow('Mon Nov 2')).getByRole('checkbox', { name: 'Cooked Green curry' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(dayRow('Sun Nov 1')).getByRole('checkbox', { name: 'Cooked Sheet-pan gnocchi' })).toHaveAttribute('aria-checked', 'false')
+    await act(async () => finish({}))
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'c1', { plannedOn: '2026-11-02', position: 0, cooked: false })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm1', { plannedOn: '2026-11-01', position: 0 })
+  })
+
+  it('moved with the "Which day?" button → same rule (tick comes off)', async () => {
+    setWeek({ meals: [curry()] })
+    renderPage()
+    const sun = await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await userEvent.click(within(sun).getByRole('button', { name: 'Move Green curry' }))
+    await userEvent.click(within(screen.getByTestId('day-choice-sheet')).getByRole('button', { name: 'Mon Nov 2' }))
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'c1', { plannedOn: '2026-11-02', position: 0, cooked: false })
+  })
+
+  it('a failed swap is undone with the tick put back exactly', async () => {
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({})
+    setWeek({ meals: [curry(), meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'slot:m1')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't swap those meals")
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(3, supabase, 'c1',
+      { plannedOn: '2026-11-01', position: 0, cooked: true, cookedAt: '2026-11-02T03:00:00.000Z' })
+    expect(within(dayRow('Sun Nov 1')).getByRole('checkbox', { name: 'Cooked Green curry' })).toHaveAttribute('aria-checked', 'true')
   })
 })
 

@@ -164,7 +164,11 @@ into the SQL Editor is the only place they appear.
   in between shifts); if the spot is taken, the two meals swap. INFERRED details: dropping on a meal card
   swaps with that meal; on a day with one meal, swaps with it; on an empty day, just moves; on a day with
   2+ meals but not on a card, joins the end. The day's header says "⇄ Swap with …" during the drag.
-  Letting go outside every day puts the meal back.)
+  Letting go outside every day puts the meal back.
+  CONFIRMED by Matt 2026-11-04 — the cooked tick when a meal moves (drag, swap or "Which day?"): a meal
+  moved to a future day loses its tick; a plain move loses it; a swap with another cooked meal on today or
+  a past day keeps both ticks; a meal never gains a tick by moving. INFERRED: reordering on the same day
+  keeps it (same night).)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".

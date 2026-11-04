@@ -19,6 +19,7 @@ import { getHouseholdId } from '../../lib/household'
 import { getPreferences } from '../../lib/preferences'
 import { formatLocalDate } from '../../lib/dateUtils'
 import {
+  keepsCookedTick,
   addMeal,
   loadDidntGetTo,
   loadMaybeList,
@@ -202,6 +203,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     const ok = await act(() => moveMeal(supabase, meal.id, {
       plannedOn: date,
       position: date ? nextPosition(date) : maybe.length,
+      ...tickChange(meal, date, null),
     }), "Couldn't move that meal. Try again.")
     if (ok && date) setProposals((p) => without(p, date))
     return ok
@@ -210,6 +212,13 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   /** From "Didn't get to these": a NEW meal on the day; the old one stays as history. */
   const replan = (meal, date) =>
     addToDay(date, { name: meal.name, vaultId: meal.vault_id, isWildcard: meal.is_wildcard, sourceUrl: meal.source_url })
+
+  /**
+   * The cooked tick when a meal moves (keepsCookedTick, Matt 2026-11-04):
+   * `{ cooked: false }` to clear it, or nothing to leave it as it is.
+   */
+  const tickChange = (m, toDate, partner) =>
+    (m.cooked && !keepsCookedTick(m, toDate, partner, today) ? { cooked: false } : {})
 
   /**
    * Drag-and-drop. The dragged meal moves to `date`; if `swapWithId` is given,
@@ -234,21 +243,27 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     const to = other
       ? { plannedOn: other.planned_on, position: other.position ?? 0 }
       : { plannedOn: date, position: nextPosition(date) }
+    const mealTo = { ...to, ...tickChange(meal, to.plannedOn, other) }
+    const otherTo = other ? { ...from, ...tickChange(other, from.plannedOn, meal) } : null
+    const onScreen = (m, dest) => ({
+      ...m, planned_on: dest.plannedOn, position: dest.position,
+      ...(dest.cooked === false ? { cooked: false, cooked_at: null } : {}),
+    })
 
     setWeek((w) => (w ? {
       ...w,
       meals: w.meals.map((m) => {
-        if (m.id === mealId) return { ...m, planned_on: to.plannedOn, position: to.position }
-        if (other && m.id === other.id) return { ...m, planned_on: from.plannedOn, position: from.position }
+        if (m.id === mealId) return onScreen(m, mealTo)
+        if (other && m.id === other.id) return onScreen(m, otherTo)
         return m
       }),
     } : w))
     setBusy(true)
     let firstSaved = false
     try {
-      await moveMeal(supabase, mealId, to)
+      await moveMeal(supabase, mealId, mealTo)
       firstSaved = true
-      if (other) await moveMeal(supabase, other.id, from)
+      if (other) await moveMeal(supabase, other.id, otherTo)
       setProposals((p) => without(p, to.plannedOn))
       await reload()
       return true
@@ -257,7 +272,9 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
       let undone = true
       if (firstSaved) {
         // Half a swap went through: put the dragged meal back.
-        undone = await moveMeal(supabase, mealId, from).then(() => true, (e) => {
+        // Back to its day and spot, with its tick exactly as it was.
+        const back = { ...from, ...(meal.cooked ? { cooked: true, cookedAt: meal.cooked_at } : {}) }
+        undone = await moveMeal(supabase, mealId, back).then(() => true, (e) => {
           console.error('[PrepTable] undo failed', e)
           return false
         })
