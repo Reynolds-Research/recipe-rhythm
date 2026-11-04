@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, waitFor } from '@testing-library/react'
+import { render, screen, within, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // PRD-008 2b-2 — the new Prep Table. The data layer (plannedMeals.js, tested on
 // its own) is mocked here, so these tests check what the screen asks for. The
 // week logic (weekRange.js) and suggestions (weekSuggest.js) are the real ones.
-vi.mock('../../../lib/plannedMeals', () => ({
+vi.mock('../../../lib/plannedMeals', async (importOriginal) => ({
+  // the tick rule is pure logic: use the real one
+  keepsCookedTick: (await importOriginal()).keepsCookedTick,
   loadWeek: vi.fn(),
   loadMaybeList: vi.fn(),
   loadDidntGetTo: vi.fn(),
@@ -17,8 +19,26 @@ vi.mock('../../../lib/plannedMeals', () => ({
 }))
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(async () => null) }))
 vi.mock('../../../lib/supabase', () => ({ supabase: { from: vi.fn() } }))
+// The real drag-and-drop context, wrapped so a test can "drop" a meal by
+// calling its onDragEnd (jsdom can't do real pointer drags).
+let dnd = null
+// A test can also pretend a drag is in progress (what's dragged, over what),
+// to check what the screen shows mid-drag.
+let fakeDragState = null
+vi.mock('@dnd-kit/core', async (importOriginal) => {
+  const real = await importOriginal()
+  return {
+    ...real,
+    DndContext: (props) => { dnd = props; return <real.DndContext {...props} /> },
+    useDndContext: (...args) => {
+      const ctx = real.useDndContext(...args)
+      return fakeDragState ? { ...ctx, ...fakeDragState } : ctx
+    },
+  }
+})
 
 import * as pm from '../../../lib/plannedMeals'
+import { MouseSensor, TouchSensor, KeyboardSensor } from '@dnd-kit/core'
 import { supabase } from '../../../lib/supabase'
 import PrepTable from '../index'
 
@@ -354,5 +374,320 @@ describe("Didn't get to these", () => {
     renderPage()
     await screen.findByTestId('week-title')
     expect(screen.queryByRole('region', { name: "Didn't get to these" })).not.toBeInTheDocument()
+  })
+})
+
+describe('drag and drop between days', () => {
+  const drop = (mealId, date) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: `day:${date}` } })
+  })
+
+  it('every meal card can be picked up (grip with a label) and every day is a drop target', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    expect(within(mon).getByLabelText('Drag Sheet-pan gnocchi to another day')).toHaveAttribute('aria-roledescription', 'draggable')
+    // Mouse + touch + keyboard — NOT PointerSensor, which claims touch presses and
+    // breaks scrolling (see useBrainstorm.js).
+    expect(dnd.sensors.map((d) => d.sensor)).toEqual([MouseSensor, TouchSensor, KeyboardSensor])
+  })
+
+  it('dropping a meal on another day moves it there at once, then saves the move', async () => {
+    let finish
+    pm.moveMeal.mockImplementation(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+
+    // On screen right away, before the save finishes.
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Mon Nov 2')).queryByText('Sheet-pan gnocchi')).not.toBeInTheDocument()
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'm1', { plannedOn: '2026-11-04', position: 0 })
+
+    setWeek({ meals: [meal({ planned_on: '2026-11-04' })] })
+    await act(async () => finish({}))
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+  })
+
+  it('a day that already has a meal: the two swap spots, on screen at once, then both saved', async () => {
+    let finish
+    pm.moveMeal.mockImplementationOnce(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Mon Nov 2')).getByText('Tacos')).toBeInTheDocument()
+    await act(async () => finish({}))
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'm1', { plannedOn: '2026-11-04', position: 0 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm2', { plannedOn: '2026-11-02', position: 0 })
+  })
+
+  it('dropped onto a meal card: swap with that meal', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-05', position: 1, name: 'Tacos', vault_id: 'v2' }),
+      meal({ id: 'm3', planned_on: '2026-11-05', position: 0, name: 'Pho', vault_id: null })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await act(async () => { dnd.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'slot:m2' } }) })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'm1', { plannedOn: '2026-11-05', position: 1 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm2', { plannedOn: '2026-11-02', position: 0 })
+    expect(pm.moveMeal).toHaveBeenCalledTimes(2)
+  })
+
+  it('a day with 2+ meals, dropped beside them (not on a card): joins the end, nothing swaps', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-05', name: 'Tacos', vault_id: 'v2' }),
+      meal({ id: 'm3', planned_on: '2026-11-05', position: 1, name: 'Pho', vault_id: null })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-05')
+    expect(pm.moveMeal).toHaveBeenCalledTimes(1)
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'm1', { plannedOn: '2026-11-05', position: 2 })
+  })
+
+  it('if the second half of a swap fails, the first is undone and the screen goes back', async () => {
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({})
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't swap those meals")
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(3, supabase, 'm1', { plannedOn: '2026-11-02', position: 0 }) // undo
+    expect(within(dayRow('Mon Nov 2')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Wed Nov 4')).getByText('Tacos')).toBeInTheDocument()
+  })
+
+  it('only the dragged meal moves; other days keep their meals', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-03', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-05')   // empty Thursday: a plain move
+    expect(pm.moveMeal).toHaveBeenCalledTimes(1)
+    expect(within(dayRow('Tue Nov 3')).getByText('Tacos')).toBeInTheDocument()
+  })
+
+  it('if the save fails, the meal goes back and she is told', async () => {
+    pm.moveMeal.mockRejectedValueOnce(new Error('offline'))
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't move that meal")
+    await waitFor(() => expect(within(dayRow('Mon Nov 2')).getByText('Sheet-pan gnocchi')).toBeInTheDocument())
+  })
+
+  it('dropping it back on its own day does nothing', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-02')
+    expect(pm.moveMeal).not.toHaveBeenCalled()
+  })
+})
+
+describe('drag and drop: failure, busy, suggestions, inner buttons', () => {
+  const drop = (mealId, date) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: `day:${date}` } })
+  })
+
+  it('offline: the save AND the reload fail — the meal still goes back to its day', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    pm.moveMeal.mockRejectedValueOnce(new Error('offline'))
+    pm.loadWeek.mockRejectedValue(new Error('offline'))
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't move that meal")
+    expect(within(dayRow('Mon Nov 2')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Wed Nov 4')).queryByText('Sheet-pan gnocchi')).not.toBeInTheDocument()
+  })
+
+  it('a second drop while the first is still saving is ignored', async () => {
+    let finish
+    pm.moveMeal.mockImplementationOnce(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-03', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    await drop('m2', '2026-11-05')
+    expect(pm.moveMeal).toHaveBeenCalledTimes(1)
+    await act(async () => finish({}))
+  })
+
+  it("a suggestion on the day she drops onto is settled (doesn't return if the meal leaves)", async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await waitFor(() => expect(within(wed).getByRole('button', { name: '✨ suggest' })).toBeEnabled())
+    await userEvent.click(within(wed).getByRole('button', { name: '✨ suggest' }))
+    setWeek({ meals: [meal({ planned_on: '2026-11-04' })] })
+    await drop('m1', '2026-11-04')
+    setWeek({ meals: [meal()] })                       // dragged back to Monday
+    await drop('m1', '2026-11-02')
+    await waitFor(() => expect(within(dayRow('Wed Nov 4')).getByRole('button', { name: '+ add' })).toBeInTheDocument())
+    expect(within(dayRow('Wed Nov 4')).queryByText('Suggestion · not saved yet')).not.toBeInTheDocument()
+  })
+
+  it('Enter / Space on a button inside a meal card still presses that button (not a drag)', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    within(mon).getByRole('button', { name: 'Remove Sheet-pan gnocchi' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(pm.removeMeal).toHaveBeenCalledWith(supabase, 'm1')
+    within(mon).getByRole('checkbox', { name: 'Cooked Sheet-pan gnocchi' }).focus()
+    await userEvent.keyboard(' ')
+    expect(pm.setCooked).toHaveBeenCalledWith(supabase, 'm1', true)
+  })
+
+  it('every shown day renders as its own section (a drop target; real drops checked in Chromium)', async () => {
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    // Only checks the sections exist; that each is wired as a dnd-kit droppable was checked with real drags.
+    const ids = Array.from(document.querySelectorAll('section[data-date]')).map((el) => el.getAttribute('data-date'))
+    expect(ids).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05'])
+  })
+
+  it('screen readers hear meal and day names, not internal ids', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    const a = dnd.accessibility.announcements
+    expect(a.onDragStart({ active: { id: 'meal:m1' } })).toBe('Picked up Sheet-pan gnocchi.')
+    expect(a.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } })).toBe('Sheet-pan gnocchi moved to Wed Nov 4.')
+  })
+})
+
+describe('swap: when the undo fails too, same-day swaps, the mid-drag hint', () => {
+  const drop = (mealId, date) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: `day:${date}` } })
+  })
+  const twoMeals = () => [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })]
+  afterEach(() => { fakeDragState = null })
+
+  it('half a swap saved and the undo fails: shows what is really saved, and says so', async () => {
+    setWeek({ meals: twoMeals() })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
+    // what the database really holds now: gnocchi moved to Wed, tacos still on Wed
+    setWeek({ meals: [meal({ planned_on: '2026-11-04' }), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't finish swapping those meals. Here's where they are now.")
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Wed Nov 4')).getByText('Tacos')).toBeInTheDocument()
+  })
+
+  it('…and if even the reload fails, it says to refresh (never a silent mismatch)', async () => {
+    setWeek({ meals: twoMeals() })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
+    pm.loadWeek.mockRejectedValue(new Error('offline'))
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't finish swapping those meals. Refresh to see where they are.")
+  })
+
+  it('two meals on the same day swap their order', async () => {
+    setWeek({ meals: [meal({ id: 'm1', planned_on: '2026-11-04', position: 0 }),
+      meal({ id: 'm2', planned_on: '2026-11-04', position: 1, name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await act(async () => { dnd.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'slot:m2' } }) })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'm1', { plannedOn: '2026-11-04', position: 1 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm2', { plannedOn: '2026-11-04', position: 0 })
+  })
+
+  it('mid-drag, the target day says what it will swap with (card, or a one-meal day) — not for an empty day', async () => {
+    setWeek({ meals: twoMeals() })
+    fakeDragState = { active: { id: 'meal:m1' }, over: { id: 'slot:m2' } }
+    const { rerender } = renderPage()
+    expect(await within(await screen.findByRole('region', { name: 'Wed Nov 4' })).findByTestId('swap-hint')).toHaveTextContent('⇄ Swap with Tacos')
+    fakeDragState = { active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } }
+    rerender(<PrepTable userId="u1" today={TODAY} />)
+    expect(within(dayRow('Wed Nov 4')).getByTestId('swap-hint')).toHaveTextContent('⇄ Swap with Tacos')
+    fakeDragState = { active: { id: 'meal:m1' }, over: { id: 'day:2026-11-05' } }
+    rerender(<PrepTable userId="u1" today={TODAY} />)
+    expect(screen.queryByTestId('swap-hint')).not.toBeInTheDocument()
+  })
+
+  it('screen readers hear "would swap" over a one-meal day too', async () => {
+    setWeek({ meals: twoMeals() })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    expect(dnd.accessibility.announcements.onDragOver({ active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } }))
+      .toBe('Sheet-pan gnocchi would swap with Tacos.')
+  })
+})
+
+describe('the cooked tick when a meal moves (Matt, 2026-11-04)', () => {
+  const dropOn = (mealId, overId) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: overId } })
+  })
+  const curry = (over = {}) => meal({ id: 'c1', planned_on: '2026-11-01', name: 'Green curry', vault_id: 'v1',
+    cooked: true, cooked_at: '2026-11-02T03:00:00.000Z', ...over })
+
+  it('dragged into the future → the tick comes off (saved; future days show no tick box)', async () => {
+    setWeek({ meals: [curry()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'day:2026-11-04')
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'c1', { plannedOn: '2026-11-04', position: 0, cooked: false })
+  })
+
+  it('swapped with another cooked meal on a past day / today → both keep their ticks', async () => {
+    setWeek({ meals: [curry(), meal({ cooked: true, cooked_at: '2026-11-03T03:00:00.000Z' })] })   // Mon = today
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'slot:m1')
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'c1', { plannedOn: '2026-11-02', position: 0 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm1', { plannedOn: '2026-11-01', position: 0 })
+  })
+
+  it('a cooked meal swapped with an uncooked one → the cooked one loses its tick; the other never gains one', async () => {
+    let finish
+    pm.moveMeal.mockImplementationOnce(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [curry(), meal()] })                       // Mon gnocchi not cooked
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'slot:m1')
+    // on screen at once: nothing ticked
+    expect(within(dayRow('Mon Nov 2')).getByRole('checkbox', { name: 'Cooked Green curry' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(dayRow('Sun Nov 1')).getByRole('checkbox', { name: 'Cooked Sheet-pan gnocchi' })).toHaveAttribute('aria-checked', 'false')
+    await act(async () => finish({}))
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'c1', { plannedOn: '2026-11-02', position: 0, cooked: false })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm1', { plannedOn: '2026-11-01', position: 0 })
+  })
+
+  it('moved with the "Which day?" button → same rule (tick comes off)', async () => {
+    setWeek({ meals: [curry()] })
+    renderPage()
+    const sun = await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await userEvent.click(within(sun).getByRole('button', { name: 'Move Green curry' }))
+    await userEvent.click(within(screen.getByTestId('day-choice-sheet')).getByRole('button', { name: 'Mon Nov 2' }))
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'c1', { plannedOn: '2026-11-02', position: 0, cooked: false })
+  })
+
+  it('a failed swap is undone with the tick put back exactly', async () => {
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({})
+    setWeek({ meals: [curry(), meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Sun Nov 1' })
+    await dropOn('c1', 'slot:m1')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't swap those meals")
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(3, supabase, 'c1',
+      { plannedOn: '2026-11-01', position: 0, cooked: true, cookedAt: '2026-11-02T03:00:00.000Z' })
+    expect(within(dayRow('Sun Nov 1')).getByRole('checkbox', { name: 'Cooked Green curry' })).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+describe('colours match the app (brand orange, not green)', () => {
+  it("a cooked meal's tick is brand orange", async () => {
+    setWeek({ meals: [meal({ cooked: true })] })
+    renderPage()
+    const box = await screen.findByRole('checkbox', { name: 'Cooked Sheet-pan gnocchi' })
+    const dot = box.firstElementChild
+    expect(dot.className).toMatch(/bg-brand-600/)
+    expect(dot.className).not.toMatch(/green/)
   })
 })

@@ -2,7 +2,9 @@
  * usePrepTable — data + actions for the new Prep Table (PRD-008 phase 2b-2).
  *
  * Mental model: the database is the source of truth. Every action writes one
- * row through src/lib/plannedMeals.js, then reloads the week. No optimistic
+ * row through src/lib/plannedMeals.js, then reloads the week. The one
+ * exception is a drag-and-drop, which moves the meal on screen first (see
+ * dropOnDay) and undoes that if the save fails. Otherwise no optimistic
  * copies to keep in sync — with a household of two and a handful of meals a
  * week, a reload is instant and it means both partners always see the same
  * thing after a refresh (PRD non-goal 4: no live sync).
@@ -17,6 +19,7 @@ import { getHouseholdId } from '../../lib/household'
 import { getPreferences } from '../../lib/preferences'
 import { formatLocalDate } from '../../lib/dateUtils'
 import {
+  keepsCookedTick,
   addMeal,
   loadDidntGetTo,
   loadMaybeList,
@@ -93,14 +96,16 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     console.error('[PrepTable] load failed', err)
   }, [])
 
-  /** Reload whatever week is on screen now (not the one a save started on). */
+  /** Reload whatever week is on screen now (not the one a save started on). true if it loaded. */
   const reload = useCallback(async () => {
     const seq = ++loadSeq.current
     const start = weekRef.current
     try {
       applyLoad(seq, start, await queryWeek(start))
+      return true
     } catch (err) {
       loadFailed(seq, err)
+      return false
     }
   }, [queryWeek, applyLoad, loadFailed])
 
@@ -198,6 +203,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     const ok = await act(() => moveMeal(supabase, meal.id, {
       plannedOn: date,
       position: date ? nextPosition(date) : maybe.length,
+      ...tickChange(meal, date, null),
     }), "Couldn't move that meal. Try again.")
     if (ok && date) setProposals((p) => without(p, date))
     return ok
@@ -206,6 +212,90 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   /** From "Didn't get to these": a NEW meal on the day; the old one stays as history. */
   const replan = (meal, date) =>
     addToDay(date, { name: meal.name, vaultId: meal.vault_id, isWildcard: meal.is_wildcard, sourceUrl: meal.source_url })
+
+  /**
+   * The cooked tick when a meal moves (keepsCookedTick, Matt 2026-11-04):
+   * `{ cooked: false }` to clear it, or nothing to leave it as it is.
+   */
+  const tickChange = (m, toDate, partner) =>
+    (m.cooked && !keepsCookedTick(m, toDate, partner, today) ? { cooked: false } : {})
+
+  /**
+   * Drag-and-drop. The dragged meal moves to `date`; if `swapWithId` is given,
+   * that meal takes the dragged meal's old day and spot (they swap). Nothing
+   * else moves.
+   *
+   * The screen changes at once, then the saves run (one, or two for a swap).
+   * If a save fails, any save that already went through is undone, the week
+   * from before the drop is put straight back (no network needed, so it works
+   * offline) and a message says so — never half a swap. `busy` stays on until
+   * it's settled, so another drop can't start halfway.
+   */
+  const dropOnDay = async (mealId, date, swapWithId = null) => {
+    if (busy || !current) return false
+    const meal = meals.find((m) => m.id === mealId)
+    const other = swapWithId ? meals.find((m) => m.id === swapWithId) : null
+    if (!meal || (swapWithId && !other)) return false
+    if (!other && meal.planned_on === date) return false
+
+    const before = current
+    const from = { plannedOn: meal.planned_on, position: meal.position ?? 0 }
+    const to = other
+      ? { plannedOn: other.planned_on, position: other.position ?? 0 }
+      : { plannedOn: date, position: nextPosition(date) }
+    const mealTo = { ...to, ...tickChange(meal, to.plannedOn, other) }
+    const otherTo = other ? { ...from, ...tickChange(other, from.plannedOn, meal) } : null
+    const onScreen = (m, dest) => ({
+      ...m, planned_on: dest.plannedOn, position: dest.position,
+      ...(dest.cooked === false ? { cooked: false, cooked_at: null } : {}),
+    })
+
+    setWeek((w) => (w ? {
+      ...w,
+      meals: w.meals.map((m) => {
+        if (m.id === mealId) return onScreen(m, mealTo)
+        if (other && m.id === other.id) return onScreen(m, otherTo)
+        return m
+      }),
+    } : w))
+    setBusy(true)
+    let firstSaved = false
+    try {
+      await moveMeal(supabase, mealId, mealTo)
+      firstSaved = true
+      if (other) await moveMeal(supabase, other.id, otherTo)
+      setProposals((p) => without(p, to.plannedOn))
+      await reload()
+      return true
+    } catch (err) {
+      console.error('[PrepTable] move failed', err)
+      let undone = true
+      if (firstSaved) {
+        // Half a swap went through: put the dragged meal back.
+        // Back to its day and spot, with its tick exactly as it was.
+        const back = { ...from, ...(meal.cooked ? { cooked: true, cookedAt: meal.cooked_at } : {}) }
+        undone = await moveMeal(supabase, mealId, back).then(() => true, (e) => {
+          console.error('[PrepTable] undo failed', e)
+          return false
+        })
+      }
+      if (undone) {
+        // Nothing changed in the database: show the week as it was.
+        setWeek((w) => (w && w.weekStart === before.weekStart ? before : w))
+        setError(other ? "Couldn't swap those meals. Try again." : "Couldn't move that meal. Try again.")
+      } else {
+        // Half-swapped and the undo failed too: show what's really saved, or,
+        // if even that can't load, say plainly that a refresh is needed.
+        const loaded = await reload()
+        setError(loaded
+          ? "Couldn't finish swapping those meals. Here's where they are now."
+          : "Couldn't finish swapping those meals. Refresh to see where they are.")
+      }
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const remove = (meal) => act(() => removeMeal(supabase, meal.id), "Couldn't remove that meal. Try again.")
 
@@ -291,6 +381,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     addToDay,
     addToMaybe,
     moveTo,
+    dropOnDay,
     replan,
     remove,
     toggleCooked,

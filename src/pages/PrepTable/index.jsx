@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { DndContext } from '@dnd-kit/core'
 import { ChevronLeft, ChevronRight, Loader2, Sparkles, Bookmark, X, CalendarPlus } from 'lucide-react'
 import Logo from '../../components/Logo'
 import { usePrepTable } from './usePrepTable'
@@ -7,6 +8,7 @@ import DayRow from './DayRow'
 import { dateLabel, weekTitle } from './labels'
 import AddMealSheet from './AddMealSheet'
 import DayChoiceSheet from './DayChoiceSheet'
+import { dayUnderPointer, dragAnnouncements, resolveDrop, usePrepTableSensors } from './dragDrop'
 
 /**
  * The new Prep Table (PRD-008 P0.4, phase 2b-2), shown when VITE_NEW_PREP_TABLE
@@ -19,6 +21,12 @@ export default function PrepTable({ userId, today }) {
   const [addTarget, setAddTarget] = useState(null)   // date | 'maybe' | null
   const [choosing, setChoosing] = useState(null)     // { meal, kind: 'move' | 'replan' | 'fromMaybe' }
   const [trayOpen, setTrayOpen] = useState(true)
+  const sensors = usePrepTableSensors()
+  const mealsById = useMemo(() => {
+    const by = {}
+    for (const list of Object.values(pt.mealsByDate)) for (const m of list) by[m.id] = m
+    return by
+  }, [pt.mealsByDate])
 
   const isThisWeek = pt.dayArgs.weekStart <= pt.today && pt.today <= pt.weekEnd
 
@@ -96,6 +104,22 @@ export default function PrepTable({ userId, today }) {
                   <p className="helper-text text-center py-6">No days showing this week. Tap a day above to add it.</p>
                 )}
 
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={dayUnderPointer}
+                  accessibility={{
+                    announcements: dragAnnouncements(
+                      (id) => mealsById[id]?.name,
+                      (d) => `${dateLabel(d).weekday} ${dateLabel(d).monthDay}`,
+                      (id) => mealsById[id]?.planned_on,
+                      (d) => (pt.mealsByDate[d]?.length === 1 ? pt.mealsByDate[d][0].id : null),
+                    ),
+                  }}
+                  onDragEnd={(event) => {
+                    const drop = resolveDrop(event, mealsById, pt.mealsByDate)
+                    if (drop) pt.dropOnDay(drop.mealId, drop.toDate, drop.swapWithId)
+                  }}
+                >
                 <div className="space-y-3">
                   {pt.dates.map((date) => (
                     <DayRow
@@ -116,6 +140,7 @@ export default function PrepTable({ userId, today }) {
                     />
                   ))}
                 </div>
+                </DndContext>
 
                 {pt.tray.length > 0 && (
                   <section aria-label="Didn't get to these" className="rounded-2xl border border-cream-200 bg-cream-100/50 p-4 space-y-2">

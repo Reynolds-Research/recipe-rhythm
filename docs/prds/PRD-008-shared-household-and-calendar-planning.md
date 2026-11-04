@@ -156,7 +156,19 @@ into the SQL Editor is the only place they appear.
   (Phase 2b-2 build, 2026-11-03 — INFERRED: ✨ suggest proposes from the cookbook only, no AI call, using
   the existing recommender with the week's meals counted as recent; "Suggest the empty days" fills only
   shown, empty days from today on; past days show cooked / not cooked and can still get a meal; a meal
-  is moved with a "Which day?" sheet (or to Maybe) rather than drag-and-drop; Confirm the week is 2b-3.)
+  is moved with a "Which day?" sheet (or to Maybe); Confirm the week is 2b-3.)
+  (After her first try, 2026-11-04 — CONFIRMED: she wants to drag meals between days ("part of how she
+  plans"), so drag-and-drop is back, with the old screen's feel (mouse after 8px, press-and-hold on a
+  phone); the "Which day?" sheet stays as the non-drag way. CONFIRMED: new screens use the app's brand
+  orange, not green (cooked tick). CONFIRMED by Matt 2026-11-04: dropping moves only that meal (nothing
+  in between shifts); if the spot is taken, the two meals swap. INFERRED details: dropping on a meal card
+  swaps with that meal; on a day with one meal, swaps with it; on an empty day, just moves; on a day with
+  2+ meals but not on a card, joins the end. The day's header says "⇄ Swap with …" during the drag.
+  Letting go outside every day puts the meal back.
+  CONFIRMED by Matt 2026-11-04 — the cooked tick when a meal moves (drag, swap or "Which day?"): a meal
+  moved to a future day loses its tick; a plain move loses it; a swap with another cooked meal on today or
+  a past day keeps both ticks; a meal never gains a tick by moving. INFERRED: reordering on the same day
+  keeps it (same night).)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".

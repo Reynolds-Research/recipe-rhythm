@@ -6,6 +6,27 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-04 — PRD-008 2b-2 follow-up: drag-and-drop + brand orange
+
+**Done:** PR (open), branch `feat/prd-008-week-drag`. Her feedback after trying the new Prep Table: she liked it; wants to **drag meals between days** (part of how she plans) and **brand colours** (the cooked tick was green).
+- `src/pages/PrepTable/dragDrop.js`: sensors copied from the old screen (mouse 8px, touch 250ms hold, plus keyboard from the grip), `resolveDrop`, a collision rule that also works for keyboard drags. Each day row is a drop target (lights up); each meal card is draggable (grip shown). A drop moves only that meal, to the end of the day; it shows at once, then saves; a failed save puts it back and says so.
+- Cooked tick: `bg-brand-600` (the old screen's `#D74520`), no green left in `src/pages/PrepTable/`.
+- **Swap (Matt, same day):** only the dragged meal moves; a taken spot swaps. Meal cards are drop targets too; a one-meal day swaps with its meal; 2+ meals and not on a card = join the end. The day's header shows "⇄ Swap with …" (the dragged card hides the target card). A swap is two saves; if the second fails the first is undone and the screen goes back.
+
+**Verified:** Vitest 910/910 (18 new). Two real bugs caught and fixed: a failed drop's reload cleared the error message (a test); offline, a failed save + failed reload left the meal on the wrong day (reviewer) — now the week from before the drop is put straight back. Four deliberate breaks (offline revert, PointerSensor swap, keyboard drag on the whole card, no busy guard) each failed exactly the right test. Screen-reader announcements use meal + day names; eslint, build, `lint:ds`. Real Chromium with fake data: mouse drag Mon → Wed lit the target and saved; touch quick swipe moved nothing, press-and-hold + drag Tue → Thu saved; no errors.
+
+- **Cooked tick on a move (Matt):** moved to a future day or a plain move → tick comes off; swapped with another cooked meal (today / past) → both keep it; never gained by moving; same-day reorder keeps it. Same rule for the "Which day?" button. `keepsCookedTick` in `plannedMeals.js`; `moveMeal` takes `cooked` / `cookedAt` so a failed swap's undo restores the tick exactly.
+
+Extra bug found in the real-browser check and fixed: a mouse/touch drag let go outside every day could still drop on whatever the card overlapped (that fallback is now keyboard-only). Vitest 939/939 after the swap + tick work; ten deliberate breaks of the swap logic each failed a test. Reviewer round 3 FAIL: if half a swap saved and the undo also failed, the screen showed the old plan — now it reloads what is really saved, or says to refresh.
+
+- **After both tried it on their phones ("looks and works great"):** Matt asked for subtler drag feedback — the dashed outlines are gone; the day being dragged over gets a soft tint (brand-50), a meal card about to be swapped a slightly stronger one (brand-100); the "⇄ Swap with …" text and the solid outline on the card being carried stay.
+
+**Open / owed:** Matt merges #218; then tick 2b-2 (both have used the drag version on their phones).
+
+**Next:** 2b-3, Confirm the week + groceries (fresh session).
+
+---
+
 ## 2026-11-03 — PRD-008 2b-2: week screen behind the switch
 
 **Done:** PR (open), branch `feat/prd-008-week-screen`. Also: 2b-1 rehearsed on preview through the new preview connector (records in PR #214).
