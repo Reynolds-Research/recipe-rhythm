@@ -2,11 +2,16 @@
  * Drag-and-drop for the new Prep Table (PRD-008, 2026-11-04: her request —
  * dragging meals between days is part of how she plans).
  *
- * Mental model: each meal card is something you can pick up; each day row is
- * a place you can put it down. Dropping a meal on a day moves just that meal
- * to that day (to the end of the day's list). Nothing else moves. The old
- * screen shifted every meal in between; with several meals a day and empty
- * days that would scatter the plan, so this behaves like a calendar instead.
+ * Mental model: each meal card is something you can pick up; each day row,
+ * and each meal card, is a place you can put it down. Only the dragged meal
+ * moves — nothing in between shifts (Matt, 2026-11-04). If the spot is taken,
+ * the two meals swap:
+ *   - dropped on a meal card            → swap with that meal
+ *   - dropped on a day with one meal    → swap with it
+ *   - dropped on an empty day           → just move there
+ *   - dropped on a day with 2+ meals,
+ *     not on a card                     → join that day at the end
+ *     (no single meal to swap with; drop on a card to swap)
  *
  * Sensors copied from the old Prep Table (useBrainstorm.js) so it feels the
  * same: mouse after 8px of movement (a click is still a click), touch after a
@@ -31,34 +36,62 @@ export function usePrepTableSensors() {
 }
 
 /**
- * Which day is the meal over? The day under the finger / mouse; for a
- * keyboard drag (no pointer), the day the card overlaps most.
+ * What is the dragged meal over? A meal card (to swap with) wins over the day
+ * it sits in; the dragged meal's own card never counts. Uses the finger /
+ * mouse position; for a keyboard drag (no pointer), what the card overlaps.
  */
 export function dayUnderPointer(args) {
-  const hits = pointerWithin(args)
-  return hits.length ? hits : rectIntersection(args)
+  const own = slotDropId(String(args.active?.id ?? '').replace(/^meal:/, ''))
+  const pick = (hits) => {
+    const usable = hits.filter((h) => h.id !== own)
+    return usable.filter((h) => String(h.id).startsWith('slot:')).slice(0, 1).concat(
+      usable.filter((h) => String(h.id).startsWith('day:')).slice(0, 1),
+    ).slice(0, 1)
+  }
+  // Mouse / touch: only what's under the pointer — let go outside every day
+  // and the meal goes back. Keyboard (no pointer): what the card overlaps.
+  if (args.pointerCoordinates) return pick(pointerWithin(args))
+  return pick(rectIntersection(args))
 }
 
-/** Draggable ids are `meal:<id>`, drop-target ids are `day:<YYYY-MM-DD>`. */
+/**
+ * Ids: a meal you pick up is `meal:<id>`; drop targets are `day:<YYYY-MM-DD>`
+ * (a day row) and `slot:<id>` (a meal card, to swap with).
+ */
 export const mealDragId = (mealId) => `meal:${mealId}`
 export const dayDropId = (date) => `day:${date}`
+export const slotDropId = (mealId) => `slot:${mealId}`
 
 /**
- * What a finished drag means: { mealId, toDate } to move, or null for "no
- * change" (dropped outside a day, or back on its own day).
+ * What a finished drag means:
+ *   { mealId, toDate, swapWithId }  — move the meal to toDate; if swapWithId,
+ *                                     that meal takes the dragged meal's spot
+ *   null                            — no change (outside any target, back on
+ *                                     its own spot, or unknown meal)
  *
  * @param {{ active?: {id: string}, over?: {id: string} | null }} event  dnd-kit's onDragEnd event
- * @param {Record<string, {planned_on: string}>} mealsById
+ * @param {Record<string, {id: string, planned_on: string}>} mealsById
+ * @param {Record<string, object[]>} mealsByDate
  */
-export function resolveDrop(event, mealsById) {
+export function resolveDrop(event, mealsById, mealsByDate = {}) {
   const activeId = String(event?.active?.id ?? '')
   const overId = String(event?.over?.id ?? '')
-  if (!activeId.startsWith('meal:') || !overId.startsWith('day:')) return null
-  const mealId = activeId.slice(5)
-  const toDate = overId.slice(4)
-  const meal = mealsById[mealId]
-  if (!meal || meal.planned_on === toDate) return null
-  return { mealId, toDate }
+  if (!activeId.startsWith('meal:')) return null
+  const meal = mealsById[activeId.slice(5)]
+  if (!meal) return null
+
+  if (overId.startsWith('slot:')) {
+    const other = mealsById[overId.slice(5)]
+    if (!other || other.id === meal.id) return null
+    return { mealId: meal.id, toDate: other.planned_on, swapWithId: other.id }
+  }
+  if (overId.startsWith('day:')) {
+    const toDate = overId.slice(4)
+    if (toDate === meal.planned_on) return null
+    const there = mealsByDate[toDate] ?? []
+    return { mealId: meal.id, toDate, swapWithId: there.length === 1 ? there[0].id : null }
+  }
+  return null
 }
 
 /**
@@ -68,13 +101,30 @@ export function resolveDrop(event, mealsById) {
  * @param {(mealId: string) => string|undefined} mealName
  * @param {(date: string) => string} dayName   e.g. "Wed Nov 4"
  */
-export function dragAnnouncements(mealName, dayName) {
-  const meal = (id) => mealName(String(id).replace(/^meal:/, '')) ?? 'meal'
-  const day = (over) => (over ? dayName(String(over.id).replace(/^day:/, '')) : null)
+export function dragAnnouncements(mealName, dayName, dayOfMeal = () => null) {
+  const meal = (id) => mealName(String(id).replace(/^(meal|slot):/, '')) ?? 'meal'
+  const target = (over) => {
+    if (!over) return null
+    const id = String(over.id)
+    if (id.startsWith('slot:')) return { swap: true, text: meal(id) }
+    return { swap: false, text: dayName(id.replace(/^day:/, '')) }
+  }
   return {
     onDragStart: ({ active }) => `Picked up ${meal(active.id)}.`,
-    onDragOver: ({ active, over }) => (day(over) ? `${meal(active.id)} is over ${day(over)}.` : `${meal(active.id)} is not over a day.`),
-    onDragEnd: ({ active, over }) => (day(over) ? `${meal(active.id)} moved to ${day(over)}.` : `${meal(active.id)} put back.`),
+    onDragOver: ({ active, over }) => {
+      const t = target(over)
+      if (!t) return `${meal(active.id)} is not over a day.`
+      return t.swap ? `${meal(active.id)} would swap with ${t.text}.` : `${meal(active.id)} is over ${t.text}.`
+    },
+    onDragEnd: ({ active, over }) => {
+      const t = target(over)
+      if (!t) return `${meal(active.id)} put back.`
+      if (t.swap) {
+        const d = dayOfMeal(String(over.id).slice(5))
+        return `${meal(active.id)} swapped with ${t.text}${d ? ` on ${dayName(d)}` : ''}.`
+      }
+      return `${meal(active.id)} moved to ${t.text}.`
+    },
     onDragCancel: ({ active }) => `Cancelled. ${meal(active.id)} stays where it was.`,
   }
 }

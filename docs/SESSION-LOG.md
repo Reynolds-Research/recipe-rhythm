@@ -11,10 +11,13 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 **Done:** PR (open), branch `feat/prd-008-week-drag`. Her feedback after trying the new Prep Table: she liked it; wants to **drag meals between days** (part of how she plans) and **brand colours** (the cooked tick was green).
 - `src/pages/PrepTable/dragDrop.js`: sensors copied from the old screen (mouse 8px, touch 250ms hold, plus keyboard from the grip), `resolveDrop`, a collision rule that also works for keyboard drags. Each day row is a drop target (lights up); each meal card is draggable (grip shown). A drop moves only that meal, to the end of the day; it shows at once, then saves; a failed save puts it back and says so.
 - Cooked tick: `bg-brand-600` (the old screen's `#D74520`), no green left in `src/pages/PrepTable/`.
+- **Swap (Matt, same day):** only the dragged meal moves; a taken spot swaps. Meal cards are drop targets too; a one-meal day swaps with its meal; 2+ meals and not on a card = join the end. The day's header shows "⇄ Swap with …" (the dragged card hides the target card). A swap is two saves; if the second fails the first is undone and the screen goes back.
 
 **Verified:** Vitest 910/910 (18 new). Two real bugs caught and fixed: a failed drop's reload cleared the error message (a test); offline, a failed save + failed reload left the meal on the wrong day (reviewer) — now the week from before the drop is put straight back. Four deliberate breaks (offline revert, PointerSensor swap, keyboard drag on the whole card, no busy guard) each failed exactly the right test. Screen-reader announcements use meal + day names; eslint, build, `lint:ds`. Real Chromium with fake data: mouse drag Mon → Wed lit the target and saved; touch quick swipe moved nothing, press-and-hold + drag Tue → Thu saved; no errors.
 
-**Open / owed:** she tries the drag version on a preview, then tick 2b-2.
+Extra bug found in the real-browser check and fixed: a mouse/touch drag let go outside every day could still drop on whatever the card overlapped (that fallback is now keyboard-only). Vitest 920/920 after the swap work; five deliberate breaks of the swap logic each failed a test.
+
+**Open / owed:** she tries the drag + swap version on a preview, then tick 2b-2.
 
 **Next:** 2b-3, Confirm the week + groceries (fresh session).
 

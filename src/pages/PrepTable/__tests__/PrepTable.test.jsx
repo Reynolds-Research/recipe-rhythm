@@ -398,19 +398,58 @@ describe('drag and drop between days', () => {
     expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
   })
 
-  it('it goes to the end of a day that already has meals', async () => {
+  it('a day that already has a meal: the two swap spots, on screen at once, then both saved', async () => {
+    let finish
+    pm.moveMeal.mockImplementationOnce(() => new Promise((r) => { finish = r }))
     setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
     renderPage()
     await screen.findByRole('region', { name: 'Mon Nov 2' })
     await drop('m1', '2026-11-04')
-    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'm1', { plannedOn: '2026-11-04', position: 1 })
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Mon Nov 2')).getByText('Tacos')).toBeInTheDocument()
+    await act(async () => finish({}))
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'm1', { plannedOn: '2026-11-04', position: 0 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm2', { plannedOn: '2026-11-02', position: 0 })
+  })
+
+  it('dropped onto a meal card: swap with that meal', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-05', position: 1, name: 'Tacos', vault_id: 'v2' }),
+      meal({ id: 'm3', planned_on: '2026-11-05', position: 0, name: 'Pho', vault_id: null })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await act(async () => { dnd.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'slot:m2' } }) })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'm1', { plannedOn: '2026-11-05', position: 1 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm2', { plannedOn: '2026-11-02', position: 0 })
+    expect(pm.moveMeal).toHaveBeenCalledTimes(2)
+  })
+
+  it('a day with 2+ meals, dropped beside them (not on a card): joins the end, nothing swaps', async () => {
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-05', name: 'Tacos', vault_id: 'v2' }),
+      meal({ id: 'm3', planned_on: '2026-11-05', position: 1, name: 'Pho', vault_id: null })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-05')
+    expect(pm.moveMeal).toHaveBeenCalledTimes(1)
+    expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'm1', { plannedOn: '2026-11-05', position: 2 })
+  })
+
+  it('if the second half of a swap fails, the first is undone and the screen goes back', async () => {
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({})
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't swap those meals")
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(3, supabase, 'm1', { plannedOn: '2026-11-02', position: 0 }) // undo
+    expect(within(dayRow('Mon Nov 2')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Wed Nov 4')).getByText('Tacos')).toBeInTheDocument()
   })
 
   it('only the dragged meal moves; other days keep their meals', async () => {
     setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-03', name: 'Tacos', vault_id: 'v2' })] })
     renderPage()
     await screen.findByRole('region', { name: 'Mon Nov 2' })
-    await drop('m1', '2026-11-05')
+    await drop('m1', '2026-11-05')   // empty Thursday: a plain move
     expect(pm.moveMeal).toHaveBeenCalledTimes(1)
     expect(within(dayRow('Tue Nov 3')).getByText('Tacos')).toBeInTheDocument()
   })

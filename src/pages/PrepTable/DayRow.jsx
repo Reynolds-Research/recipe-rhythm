@@ -1,11 +1,12 @@
 import { Check, Plus, Sparkles, X, ArrowRightLeft, RefreshCw, GripVertical } from 'lucide-react'
-import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { dateLabel } from './labels'
-import { dayDropId, mealDragId } from './dragDrop'
+import { dayDropId, mealDragId, slotDropId } from './dragDrop'
 
 /**
- * One planned meal, which can be picked up and dropped on another day.
+ * One planned meal, which can be picked up and dropped on another day — and
+ * is itself a drop target: drop another meal on it and the two swap.
  * The whole card is the handle for mouse and touch (press and hold), like
  * the old Prep Table. Keyboard dragging starts only from the grip, so Space
  * / Enter on the buttons inside still press those buttons.
@@ -16,6 +17,9 @@ function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, on
     disabled: busy,
   })
   const { onKeyDown, ...pointerListeners } = listeners ?? {}
+  // The card is also a drop target: dropping another meal here swaps the two.
+  const { setNodeRef: setDropRef, isOver: swapHere } = useDroppable({ id: slotDropId(meal.id) })
+  const setRefs = (node) => { setNodeRef(node); setDropRef(node) }
   const style = {
     transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 50 : undefined,
@@ -23,12 +27,15 @@ function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, on
   }
   return (
     <div
-      ref={setNodeRef}
+      ref={setRefs}
       style={style}
       {...pointerListeners}
       data-testid={`meal-${meal.id}`}
+      data-swap-target={(swapHere && !isDragging) || undefined}
       className={`relative flex items-center gap-1 rounded-xl px-1 py-1 min-h-[48px] select-none cursor-grab active:cursor-grabbing border-2 transition-[background-color,border-color,box-shadow] ${
-        isDragging ? 'border-brand-500 bg-brand-50 shadow-lg' : 'border-transparent bg-cream-50'
+        isDragging ? 'border-brand-500 bg-brand-50 shadow-lg'
+          : swapHere ? 'border-dashed border-brand-500 bg-brand-50'
+          : 'border-transparent bg-cream-50'
       }`}
     >
       <span
@@ -73,6 +80,23 @@ function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, on
 }
 
 /**
+ * While a meal is dragged over this day: the name of the meal it would swap
+ * with (the card under the pointer, or the day's only meal), else null. Shown
+ * in the day's header because the dragged card covers the target card itself.
+ */
+function swapTargetName({ active, over }, date, meals) {
+  if (!active || !over) return null
+  const dragged = String(active.id).replace(/^meal:/, '')
+  const target = String(over.id)
+  if (target.startsWith('slot:')) {
+    const m = meals.find((x) => x.id === target.slice(5))
+    return m && m.id !== dragged ? m.name : null
+  }
+  if (target === dayDropId(date) && meals.length === 1 && meals[0].id !== dragged) return meals[0].name
+  return null
+}
+
+/**
  * One day of the week: its meals, or for an empty day "+ add" and "✨ suggest".
  * Must sit inside the page's <DndContext>: meals can be dragged onto any day.
  * A ✨ proposal shows dashed with ✓ (save it) / ↻ (another) / ✕ (not this) —
@@ -99,6 +123,7 @@ export default function DayRow({
   const empty = meals.length === 0
   // The whole day is a drop target; it lights up while a meal hovers over it.
   const { setNodeRef, isOver } = useDroppable({ id: dayDropId(date) })
+  const swapName = swapTargetName(useDndContext(), date, meals)
 
   return (
     <section
@@ -113,7 +138,10 @@ export default function DayRow({
           {weekday} <span className="font-medium text-gray-700">{monthDay}</span>
           {isToday && <span className="ml-2 text-xs font-bold uppercase tracking-wider text-brand-700">Today</span>}
         </h3>
-        {!empty && (
+        {swapName && (
+          <span className="text-sm font-semibold text-brand-700" data-testid="swap-hint">⇄ Swap with {swapName}</span>
+        )}
+        {!empty && !swapName && (
           <button type="button" onClick={onAdd} disabled={busy} aria-label={`Add another meal on ${weekday}`}
             className="btn-icon shadow-none">
             <Plus size={18} />

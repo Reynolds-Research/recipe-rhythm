@@ -111,11 +111,12 @@ export default function PrepTable({ userId, today }) {
                     announcements: dragAnnouncements(
                       (id) => mealsById[id]?.name,
                       (d) => `${dateLabel(d).weekday} ${dateLabel(d).monthDay}`,
+                      (id) => mealsById[id]?.planned_on,
                     ),
                   }}
                   onDragEnd={(event) => {
-                    const drop = resolveDrop(event, mealsById)
-                    if (drop) pt.dropOnDay(drop.mealId, drop.toDate)
+                    const drop = resolveDrop(event, mealsById, pt.mealsByDate)
+                    if (drop) pt.dropOnDay(drop.mealId, drop.toDate, drop.swapWithId)
                   }}
                 >
                 <div className="space-y-3">

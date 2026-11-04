@@ -210,30 +210,54 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     addToDay(date, { name: meal.name, vaultId: meal.vault_id, isWildcard: meal.is_wildcard, sourceUrl: meal.source_url })
 
   /**
-   * Drag-and-drop: the meal jumps to the new day on screen at once (so it
-   * doesn't snap back while saving), then the move is saved. If the save
-   * fails, the week as it was before the drop is put straight back — no
-   * network needed, so it also works offline — and a message says so.
-   * `busy` stays on until it's settled, so another drop can't start halfway.
+   * Drag-and-drop. The dragged meal moves to `date`; if `swapWithId` is given,
+   * that meal takes the dragged meal's old day and spot (they swap). Nothing
+   * else moves.
+   *
+   * The screen changes at once, then the saves run (one, or two for a swap).
+   * If a save fails, any save that already went through is undone, the week
+   * from before the drop is put straight back (no network needed, so it works
+   * offline) and a message says so — never half a swap. `busy` stays on until
+   * it's settled, so another drop can't start halfway.
    */
-  const dropOnDay = async (mealId, date) => {
+  const dropOnDay = async (mealId, date, swapWithId = null) => {
     if (busy || !current) return false
     const meal = meals.find((m) => m.id === mealId)
-    if (!meal || meal.planned_on === date) return false
+    const other = swapWithId ? meals.find((m) => m.id === swapWithId) : null
+    if (!meal || (swapWithId && !other)) return false
+    if (!other && meal.planned_on === date) return false
+
     const before = current
-    const position = nextPosition(date)
-    setWeek((w) => (w ? { ...w, meals: w.meals.map((m) => (m.id === mealId ? { ...m, planned_on: date, position } : m)) } : w))
+    const from = { plannedOn: meal.planned_on, position: meal.position ?? 0 }
+    const to = other
+      ? { plannedOn: other.planned_on, position: other.position ?? 0 }
+      : { plannedOn: date, position: nextPosition(date) }
+
+    setWeek((w) => (w ? {
+      ...w,
+      meals: w.meals.map((m) => {
+        if (m.id === mealId) return { ...m, planned_on: to.plannedOn, position: to.position }
+        if (other && m.id === other.id) return { ...m, planned_on: from.plannedOn, position: from.position }
+        return m
+      }),
+    } : w))
     setBusy(true)
+    let firstSaved = false
     try {
-      await moveMeal(supabase, mealId, { plannedOn: date, position })
-      setProposals((p) => without(p, date))
+      await moveMeal(supabase, mealId, to)
+      firstSaved = true
+      if (other) await moveMeal(supabase, other.id, from)
+      setProposals((p) => without(p, to.plannedOn))
       await reload()
       return true
     } catch (err) {
       console.error('[PrepTable] move failed', err)
-      // Put the week back exactly as it was (unless she has since gone to another week).
+      if (firstSaved) {
+        // Half a swap went through: put the dragged meal back (best effort).
+        await moveMeal(supabase, mealId, from).catch((e) => console.error('[PrepTable] undo failed', e))
+      }
       setWeek((w) => (w && w.weekStart === before.weekStart ? before : w))
-      setError("Couldn't move that meal. Try again.")
+      setError(other ? "Couldn't swap those meals. Try again." : "Couldn't move that meal. Try again.")
       return false
     } finally {
       setBusy(false)

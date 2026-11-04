@@ -160,8 +160,11 @@ into the SQL Editor is the only place they appear.
   (After her first try, 2026-11-04 — CONFIRMED: she wants to drag meals between days ("part of how she
   plans"), so drag-and-drop is back, with the old screen's feel (mouse after 8px, press-and-hold on a
   phone); the "Which day?" sheet stays as the non-drag way. CONFIRMED: new screens use the app's brand
-  orange, not green (cooked tick). INFERRED: dropping a meal on a day moves only that meal, to the end
-  of the day; the old screen shifted every meal in between, which doesn't fit several-meals or empty days.)
+  orange, not green (cooked tick). CONFIRMED by Matt 2026-11-04: dropping moves only that meal (nothing
+  in between shifts); if the spot is taken, the two meals swap. INFERRED details: dropping on a meal card
+  swaps with that meal; on a day with one meal, swaps with it; on an empty day, just moves; on a day with
+  2+ meals but not on a card, joins the end. The day's header says "⇄ Swap with …" during the drag.
+  Letting go outside every day puts the meal back.)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".
