@@ -12,7 +12,7 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 - `src/pages/PrepTable/dragDrop.js`: sensors copied from the old screen (mouse 8px, touch 250ms hold, plus keyboard from the grip), `resolveDrop`, a collision rule that also works for keyboard drags. Each day row is a drop target (lights up); each meal card is draggable (grip shown). A drop moves only that meal, to the end of the day; it shows at once, then saves; a failed save puts it back and says so.
 - Cooked tick: `bg-brand-600` (the old screen's `#D74520`), no green left in `src/pages/PrepTable/`.
 
-**Verified:** Vitest 902/902 (10 new; a test caught a real bug — a failed drop's reload cleared the error message, now fixed); eslint, build, `lint:ds`. Real Chromium with fake data: mouse drag Mon → Wed lit the target and saved; touch quick swipe moved nothing, press-and-hold + drag Tue → Thu saved; no errors.
+**Verified:** Vitest 910/910 (18 new). Two real bugs caught and fixed: a failed drop's reload cleared the error message (a test); offline, a failed save + failed reload left the meal on the wrong day (reviewer) — now the week from before the drop is put straight back. Four deliberate breaks (offline revert, PointerSensor swap, keyboard drag on the whole card, no busy guard) each failed exactly the right test. Screen-reader announcements use meal + day names; eslint, build, `lint:ds`. Real Chromium with fake data: mouse drag Mon → Wed lit the target and saved; touch quick swipe moved nothing, press-and-hold + drag Tue → Thu saved; no errors.
 
 **Open / owed:** she tries the drag version on a preview, then tick 2b-2.
 

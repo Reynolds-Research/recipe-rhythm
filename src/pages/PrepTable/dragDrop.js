@@ -60,3 +60,21 @@ export function resolveDrop(event, mealsById) {
   if (!meal || meal.planned_on === toDate) return null
   return { mealId, toDate }
 }
+
+/**
+ * What a screen reader says during a drag, in her words instead of dnd-kit's
+ * internal ids ("Picked up draggable item meal:3f2…").
+ *
+ * @param {(mealId: string) => string|undefined} mealName
+ * @param {(date: string) => string} dayName   e.g. "Wed Nov 4"
+ */
+export function dragAnnouncements(mealName, dayName) {
+  const meal = (id) => mealName(String(id).replace(/^meal:/, '')) ?? 'meal'
+  const day = (over) => (over ? dayName(String(over.id).replace(/^day:/, '')) : null)
+  return {
+    onDragStart: ({ active }) => `Picked up ${meal(active.id)}.`,
+    onDragOver: ({ active, over }) => (day(over) ? `${meal(active.id)} is over ${day(over)}.` : `${meal(active.id)} is not over a day.`),
+    onDragEnd: ({ active, over }) => (day(over) ? `${meal(active.id)} moved to ${day(over)}.` : `${meal(active.id)} put back.`),
+    onDragCancel: ({ active }) => `Cancelled. ${meal(active.id)} stays where it was.`,
+  }
+}

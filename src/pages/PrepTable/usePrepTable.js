@@ -2,7 +2,9 @@
  * usePrepTable — data + actions for the new Prep Table (PRD-008 phase 2b-2).
  *
  * Mental model: the database is the source of truth. Every action writes one
- * row through src/lib/plannedMeals.js, then reloads the week. No optimistic
+ * row through src/lib/plannedMeals.js, then reloads the week. The one
+ * exception is a drag-and-drop, which moves the meal on screen first (see
+ * dropOnDay) and undoes that if the save fails. Otherwise no optimistic
  * copies to keep in sync — with a household of two and a handful of meals a
  * week, a reload is instant and it means both partners always see the same
  * thing after a refresh (PRD non-goal 4: no live sync).
@@ -210,25 +212,32 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   /**
    * Drag-and-drop: the meal jumps to the new day on screen at once (so it
    * doesn't snap back while saving), then the move is saved. If the save
-   * fails, the reload puts it back where it was and a message says so.
+   * fails, the week as it was before the drop is put straight back — no
+   * network needed, so it also works offline — and a message says so.
+   * `busy` stays on until it's settled, so another drop can't start halfway.
    */
   const dropOnDay = async (mealId, date) => {
     if (busy || !current) return false
     const meal = meals.find((m) => m.id === mealId)
     if (!meal || meal.planned_on === date) return false
+    const before = current
     const position = nextPosition(date)
     setWeek((w) => (w ? { ...w, meals: w.meals.map((m) => (m.id === mealId ? { ...m, planned_on: date, position } : m)) } : w))
-    const ok = await act(
-      () => moveMeal(supabase, mealId, { plannedOn: date, position }),
-      "Couldn't move that meal. Try again.",
-    )
-    if (ok) {
+    setBusy(true)
+    try {
+      await moveMeal(supabase, mealId, { plannedOn: date, position })
       setProposals((p) => without(p, date))
-    } else {
-      await reload()                                   // puts the meal back…
-      setError("Couldn't move that meal. Try again.")   // …and the reload cleared the message
+      await reload()
+      return true
+    } catch (err) {
+      console.error('[PrepTable] move failed', err)
+      // Put the week back exactly as it was (unless she has since gone to another week).
+      setWeek((w) => (w && w.weekStart === before.weekStart ? before : w))
+      setError("Couldn't move that meal. Try again.")
+      return false
+    } finally {
+      setBusy(false)
     }
-    return ok
   }
 
   const remove = (meal) => act(() => removeMeal(supabase, meal.id), "Couldn't remove that meal. Try again.")

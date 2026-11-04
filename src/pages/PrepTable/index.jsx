@@ -8,7 +8,7 @@ import DayRow from './DayRow'
 import { dateLabel, weekTitle } from './labels'
 import AddMealSheet from './AddMealSheet'
 import DayChoiceSheet from './DayChoiceSheet'
-import { dayUnderPointer, resolveDrop, usePrepTableSensors } from './dragDrop'
+import { dayUnderPointer, dragAnnouncements, resolveDrop, usePrepTableSensors } from './dragDrop'
 
 /**
  * The new Prep Table (PRD-008 P0.4, phase 2b-2), shown when VITE_NEW_PREP_TABLE
@@ -107,6 +107,12 @@ export default function PrepTable({ userId, today }) {
                 <DndContext
                   sensors={sensors}
                   collisionDetection={dayUnderPointer}
+                  accessibility={{
+                    announcements: dragAnnouncements(
+                      (id) => mealsById[id]?.name,
+                      (d) => `${dateLabel(d).weekday} ${dateLabel(d).monthDay}`,
+                    ),
+                  }}
                   onDragEnd={(event) => {
                     const drop = resolveDrop(event, mealsById)
                     if (drop) pt.dropOnDay(drop.mealId, drop.toDate)

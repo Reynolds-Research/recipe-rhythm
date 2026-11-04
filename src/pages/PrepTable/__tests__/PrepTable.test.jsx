@@ -26,6 +26,7 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
 })
 
 import * as pm from '../../../lib/plannedMeals'
+import { MouseSensor, TouchSensor, KeyboardSensor } from '@dnd-kit/core'
 import { supabase } from '../../../lib/supabase'
 import PrepTable from '../index'
 
@@ -374,7 +375,9 @@ describe('drag and drop between days', () => {
     renderPage()
     const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
     expect(within(mon).getByLabelText('Drag Sheet-pan gnocchi to another day')).toHaveAttribute('aria-roledescription', 'draggable')
-    expect(dnd.sensors.length).toBe(3) // mouse, touch, keyboard
+    // Mouse + touch + keyboard — NOT PointerSensor, which claims touch presses and
+    // breaks scrolling (see useBrainstorm.js).
+    expect(dnd.sensors.map((d) => d.sensor)).toEqual([MouseSensor, TouchSensor, KeyboardSensor])
   })
 
   it('dropping a meal on another day moves it there at once, then saves the move', async () => {
@@ -428,6 +431,79 @@ describe('drag and drop between days', () => {
     await screen.findByRole('region', { name: 'Mon Nov 2' })
     await drop('m1', '2026-11-02')
     expect(pm.moveMeal).not.toHaveBeenCalled()
+  })
+})
+
+describe('drag and drop: failure, busy, suggestions, inner buttons', () => {
+  const drop = (mealId, date) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: `day:${date}` } })
+  })
+
+  it('offline: the save AND the reload fail — the meal still goes back to its day', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    pm.moveMeal.mockRejectedValueOnce(new Error('offline'))
+    pm.loadWeek.mockRejectedValue(new Error('offline'))
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't move that meal")
+    expect(within(dayRow('Mon Nov 2')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Wed Nov 4')).queryByText('Sheet-pan gnocchi')).not.toBeInTheDocument()
+  })
+
+  it('a second drop while the first is still saving is ignored', async () => {
+    let finish
+    pm.moveMeal.mockImplementationOnce(() => new Promise((r) => { finish = r }))
+    setWeek({ meals: [meal(), meal({ id: 'm2', planned_on: '2026-11-03', name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await drop('m1', '2026-11-04')
+    await drop('m2', '2026-11-05')
+    expect(pm.moveMeal).toHaveBeenCalledTimes(1)
+    await act(async () => finish({}))
+  })
+
+  it("a suggestion on the day she drops onto is settled (doesn't return if the meal leaves)", async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await waitFor(() => expect(within(wed).getByRole('button', { name: '✨ suggest' })).toBeEnabled())
+    await userEvent.click(within(wed).getByRole('button', { name: '✨ suggest' }))
+    setWeek({ meals: [meal({ planned_on: '2026-11-04' })] })
+    await drop('m1', '2026-11-04')
+    setWeek({ meals: [meal()] })                       // dragged back to Monday
+    await drop('m1', '2026-11-02')
+    await waitFor(() => expect(within(dayRow('Wed Nov 4')).getByRole('button', { name: '+ add' })).toBeInTheDocument())
+    expect(within(dayRow('Wed Nov 4')).queryByText('Suggestion · not saved yet')).not.toBeInTheDocument()
+  })
+
+  it('Enter / Space on a button inside a meal card still presses that button (not a drag)', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    within(mon).getByRole('button', { name: 'Remove Sheet-pan gnocchi' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(pm.removeMeal).toHaveBeenCalledWith(supabase, 'm1')
+    within(mon).getByRole('checkbox', { name: 'Cooked Sheet-pan gnocchi' }).focus()
+    await userEvent.keyboard(' ')
+    expect(pm.setCooked).toHaveBeenCalledWith(supabase, 'm1', true)
+  })
+
+  it('every shown day registers as a drop target with the drag context', async () => {
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    // the real DndContext gets one droppable per shown day; we check via the ids we gave them
+    const ids = Array.from(document.querySelectorAll('section[data-date]')).map((el) => el.getAttribute('data-date'))
+    expect(ids).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05'])
+  })
+
+  it('screen readers hear meal and day names, not internal ids', async () => {
+    setWeek({ meals: [meal()] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    const a = dnd.accessibility.announcements
+    expect(a.onDragStart({ active: { id: 'meal:m1' } })).toBe('Picked up Sheet-pan gnocchi.')
+    expect(a.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } })).toBe('Sheet-pan gnocchi moved to Wed Nov 4.')
   })
 })
 
