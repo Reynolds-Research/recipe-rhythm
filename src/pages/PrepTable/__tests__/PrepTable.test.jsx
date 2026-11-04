@@ -489,10 +489,10 @@ describe('drag and drop: failure, busy, suggestions, inner buttons', () => {
     expect(pm.setCooked).toHaveBeenCalledWith(supabase, 'm1', true)
   })
 
-  it('every shown day registers as a drop target with the drag context', async () => {
+  it('every shown day renders as its own section (a drop target; real drops checked in Chromium)', async () => {
     renderPage()
     await screen.findByRole('region', { name: 'Mon Nov 2' })
-    // the real DndContext gets one droppable per shown day; we check via the ids we gave them
+    // Only checks the sections exist; that each is wired as a dnd-kit droppable was checked with real drags.
     const ids = Array.from(document.querySelectorAll('section[data-date]')).map((el) => el.getAttribute('data-date'))
     expect(ids).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05'])
   })
