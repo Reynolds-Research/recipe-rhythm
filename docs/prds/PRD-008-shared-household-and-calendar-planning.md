@@ -1,6 +1,6 @@
 # PRD-008: Shared Household & Calendar Planning
 
-**Status:** Draft v0.7
+**Status:** Draft v0.8
 **Author:** Matt (with Cowork)
 **Date:** 2026-11-01
 **North Star criteria moved:** "The plan doesn't stall on Matt" and "She plans in the app"
@@ -169,6 +169,16 @@ into the SQL Editor is the only place they appear.
   moved to a future day loses its tick; a plain move loses it; a swap with another cooked meal on today or
   a past day keeps both ticks; a meal never gains a tick by moving. INFERRED: reordering on the same day
   keeps it (same night).)
+  (Phase 2b-3 build, 2026-11-04 — CONFIRMED by Matt: the confirmed week's list shows in a sheet on the
+  Prep Table, read-only (sharing and adding your own items stay on the Groceries tab, which moves to
+  confirmed weeks at 2c); the "changed since you confirmed" prompt offers **Update list** and **Keep as
+  is** (clears the prompt without an AI call). INFERRED: a confirmation covers the whole Sun–Sat week,
+  one per week; Confirm shows only for a week with a meal that hasn't ended; "empty nights" = shown
+  days from today on with no meal (unaccepted ✨ suggestions count as empty); the list uses every meal
+  in the week, cooked or not; meals not in the Cookbook are left off and named under the list; if the
+  list can't be made, the week stays confirmed and offers "Make the grocery list". Remaking builds a new
+  list and swaps it in, so a failure never leaves a half list; the prompt is cleared only if no one
+  changed the week again meanwhile.)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".
@@ -231,6 +241,7 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v0.8 (2026-11-04):** 2b-3 build notes (Confirm the week + groceries) under P0.4 / P0.6.
 - **v0.7 (2026-11-02):** 2b-1 build notes under P0.4 (switch = `VITE_NEW_PREP_TABLE`; how the days are
   stored; tray rule).
 - **v0.6 (2026-11-02):** D8 rewritten for option B (she picks the week's days with day

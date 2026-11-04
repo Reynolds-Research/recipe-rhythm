@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-11-03 against `main` (`d4d3d4e`) + the preview and prod projects — PRD-008 2b-1. Previous: 2026-11-02 (phase 2a).
+**Last verified:** 2026-11-04 against `main` (`08500d3`) + prod (read-only) — PRD-008 2b-2 shipped behind the switch, 2b-3 built. Previous: 2026-11-03 (2b-1).
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 > **📍 Roadmap:** Near-term sequencing of what to do *next* lives in [`docs/ROADMAP.md`](./ROADMAP.md) (created 2026-06-16, stability-first, ~3 sprints). This file (STATUS.md) remains the source of truth for what has *shipped*.
@@ -42,13 +42,17 @@ No PRD phase shipped after `1e1177d`; `origin/main` has been unchanged since 202
 | PRD-005 | Mobile UX, Spacing & Typography | ✅ **All P0 + P1.1 shipped** (Phases 1–8 + lint guardrail + BrainstormMode decomposition) | P1.2–P1.5 nice-to-haves |
 | PRD-006 | Structured Ingredients & Household Scaling | ✅ **All P0 shipped** (P0.1–P0.8; P0.8 = #89) | P1 nice-to-haves |
 | PRD-007 | Mid-Period Leftovers | 📝 **Authored, no phase shipped** (verify against code before planning) | Plan Phase 1 |
-| PRD-008 | Shared Household & Calendar Planning | 🚧 **Phase 1 shipped 2026-11-01** (PR #208; migrations applied to prod). Phase 2a (calendar data) rehearsed on preview 2026-11-02, not yet on prod | Phase 2b (new Prep Table behind a switch), then 2c switch-over |
+| PRD-008 | Shared Household & Calendar Planning | 🚧 **Phase 1 shipped 2026-11-01** (PR #208; migrations applied to prod). 2a + 2b-1 tables on prod; 2b-2 week screen merged behind the switch (#216, #218); 2b-3 Confirm the week built (PR pending) | 2c switch-over |
 
 **PRD-008 Phase 1 — Household** (PR #208, P0.1 + P0.2 + P0.9): `households` + `household_members` (one per account), `household_id` on the 8 kitchen tables, membership security rules via the `is_household_member` SECURITY DEFINER helper, sign-up trigger, shared household (Matt + his wife), `current_leftovers` security fix, app filters scoped by household (`src/lib/household.js`). Rehearsed on preview (apply → verify → roll back → fingerprint identical → apply). Applied to prod 2026-11-01; read-only checks: 44/44 setup checks pass, both accounts see the same 34 recipes / 7 plans, an outsider sees 0 rows. Rollbacks: `rollback_20261101000002.sql` then `rollback_20261101000001.sql`.
 
 **PRD-008 Phase 2a — Calendar data** (P0.3 + P0.9 for P0.3; phase 2 split into 2a/2b/2c in TASKS.md): `planned_meals` (Maybe = no date) and `week_confirmations` with membership rules, a "changed since confirmed" trigger, and the admin-only, re-runnable `rr_copy_legacy_plans()`. Migration `20261102000001_calendar_data.sql` + verify + rollback. Rehearsed on preview from a fresh rebuild: verify 21/21, rehearsal scenarios 27/27, rollback fingerprint identical, second copy all zeros. **Not phase-complete:** nothing reads the tables until 2c; the copy runs for real at switch-over.
 
 **PRD-008 Phase 2b-1 — Week data + helpers** (P0.4 data, D8; PR #213, `d4d3d4e`): `household_preferences.usual_days` (Sun–Thu default) and `week_days` (a changed week's own days) with membership rules; `src/lib/weekRange.js` and `src/lib/plannedMeals.js`. Migration `20261102000002_week_days.sql` + verify + rollback. Applied to prod 2026-11-02 (verify 15/15), then rehearsed on preview 2026-11-03: write checks 15/15, rollback fingerprint identical. **Not phase-complete:** the screens are 2b-2 / 2b-3, behind `VITE_NEW_PREP_TABLE`.
+
+**PRD-008 Phase 2b-2 — Week screen behind the switch** (P0.4; PR #216 `c3c5d91`, drag-and-drop PR #218 `08500d3`): `src/pages/PrepTable/` (week tab with day buttons, ← / →, + add, ✨ suggest, Maybe tab, "Didn't get to these"; drag between days with swap; brand-orange cooked tick), `weekSuggest.js`, `featureFlags.js`. Off in production (`VITE_NEW_PREP_TABLE` unset); tried by both on phones through a preview deploy on real data. **Not phase-complete:** 2b-3 and 2c remain.
+
+**PRD-008 Phase 2b-3 — Confirm the week + groceries** (P0.4 Confirm, P0.6; PR pending, branch `feat/prd-008-confirm-week`): "Confirm the week" stamps a `week_confirmations` row (Sun–Sat) and makes the week's list from exactly its meals (`/api/grocery-list`, unchanged); empty days told, never blocking; "changed since you confirmed" → Update list / Keep as is. `src/lib/weekGroceries.js`, `src/lib/groceryRecipes.js` (recipe-building moved out of `GroceryListBody`, unchanged), `WeekConfirm.jsx`, `GrocerySheet.jsx`. No migration (2a's tables, already on prod). **Not phase-complete:** 2c (switch-over) remains.
 
 **PRD-006 doc authored 2026-05-04** ([`docs/prds/PRD-006-structured-ingredients-and-household-scaling.md`](./prds/PRD-006-structured-ingredients-and-household-scaling.md)) — closes the documentation gap previously flagged here. Retroactively captures the problem statement, P0.1–P0.6 scope (shipped), and P0.7 / Bite γ (shipped in PR #86). P0.8 / Bite δ wires structured-ingredient quantities through to the grocery-list prompt (PR #89).
 
