@@ -20,9 +20,19 @@ vi.mock('../../../lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 // The real drag-and-drop context, wrapped so a test can "drop" a meal by
 // calling its onDragEnd (jsdom can't do real pointer drags).
 let dnd = null
+// A test can also pretend a drag is in progress (what's dragged, over what),
+// to check what the screen shows mid-drag.
+let fakeDragState = null
 vi.mock('@dnd-kit/core', async (importOriginal) => {
   const real = await importOriginal()
-  return { ...real, DndContext: (props) => { dnd = props; return <real.DndContext {...props} /> } }
+  return {
+    ...real,
+    DndContext: (props) => { dnd = props; return <real.DndContext {...props} /> },
+    useDndContext: (...args) => {
+      const ctx = real.useDndContext(...args)
+      return fakeDragState ? { ...ctx, ...fakeDragState } : ctx
+    },
+  }
 })
 
 import * as pm from '../../../lib/plannedMeals'
@@ -543,6 +553,68 @@ describe('drag and drop: failure, busy, suggestions, inner buttons', () => {
     const a = dnd.accessibility.announcements
     expect(a.onDragStart({ active: { id: 'meal:m1' } })).toBe('Picked up Sheet-pan gnocchi.')
     expect(a.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } })).toBe('Sheet-pan gnocchi moved to Wed Nov 4.')
+  })
+})
+
+describe('swap: when the undo fails too, same-day swaps, the mid-drag hint', () => {
+  const drop = (mealId, date) => act(async () => {
+    dnd.onDragEnd({ active: { id: `meal:${mealId}` }, over: { id: `day:${date}` } })
+  })
+  const twoMeals = () => [meal(), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })]
+  afterEach(() => { fakeDragState = null })
+
+  it('half a swap saved and the undo fails: shows what is really saved, and says so', async () => {
+    setWeek({ meals: twoMeals() })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
+    // what the database really holds now: gnocchi moved to Wed, tacos still on Wed
+    setWeek({ meals: [meal({ planned_on: '2026-11-04' }), meal({ id: 'm2', planned_on: '2026-11-04', name: 'Tacos', vault_id: 'v2' })] })
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't finish swapping those meals. Here's where they are now.")
+    expect(within(dayRow('Wed Nov 4')).getByText('Sheet-pan gnocchi')).toBeInTheDocument()
+    expect(within(dayRow('Wed Nov 4')).getByText('Tacos')).toBeInTheDocument()
+  })
+
+  it('…and if even the reload fails, it says to refresh (never a silent mismatch)', async () => {
+    setWeek({ meals: twoMeals() })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    pm.moveMeal.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline')).mockRejectedValueOnce(new Error('offline'))
+    pm.loadWeek.mockRejectedValue(new Error('offline'))
+    await drop('m1', '2026-11-04')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't finish swapping those meals. Refresh to see where they are.")
+  })
+
+  it('two meals on the same day swap their order', async () => {
+    setWeek({ meals: [meal({ id: 'm1', planned_on: '2026-11-04', position: 0 }),
+      meal({ id: 'm2', planned_on: '2026-11-04', position: 1, name: 'Tacos', vault_id: 'v2' })] })
+    renderPage()
+    await screen.findByRole('region', { name: 'Wed Nov 4' })
+    await act(async () => { dnd.onDragEnd({ active: { id: 'meal:m1' }, over: { id: 'slot:m2' } }) })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(1, supabase, 'm1', { plannedOn: '2026-11-04', position: 1 })
+    expect(pm.moveMeal).toHaveBeenNthCalledWith(2, supabase, 'm2', { plannedOn: '2026-11-04', position: 0 })
+  })
+
+  it('mid-drag, the target day says what it will swap with (card, or a one-meal day) — not for an empty day', async () => {
+    setWeek({ meals: twoMeals() })
+    fakeDragState = { active: { id: 'meal:m1' }, over: { id: 'slot:m2' } }
+    const { rerender } = renderPage()
+    expect(await within(await screen.findByRole('region', { name: 'Wed Nov 4' })).findByTestId('swap-hint')).toHaveTextContent('⇄ Swap with Tacos')
+    fakeDragState = { active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } }
+    rerender(<PrepTable userId="u1" today={TODAY} />)
+    expect(within(dayRow('Wed Nov 4')).getByTestId('swap-hint')).toHaveTextContent('⇄ Swap with Tacos')
+    fakeDragState = { active: { id: 'meal:m1' }, over: { id: 'day:2026-11-05' } }
+    rerender(<PrepTable userId="u1" today={TODAY} />)
+    expect(screen.queryByTestId('swap-hint')).not.toBeInTheDocument()
+  })
+
+  it('screen readers hear "would swap" over a one-meal day too', async () => {
+    setWeek({ meals: twoMeals() })
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    expect(dnd.accessibility.announcements.onDragOver({ active: { id: 'meal:m1' }, over: { id: 'day:2026-11-04' } }))
+      .toBe('Sheet-pan gnocchi would swap with Tacos.')
   })
 })
 

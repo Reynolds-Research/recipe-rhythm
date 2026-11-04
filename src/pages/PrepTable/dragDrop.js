@@ -100,14 +100,18 @@ export function resolveDrop(event, mealsById, mealsByDate = {}) {
  *
  * @param {(mealId: string) => string|undefined} mealName
  * @param {(date: string) => string} dayName   e.g. "Wed Nov 4"
+ * @param {(mealId: string) => string|undefined} [dayOfMeal]  a meal's date
+ * @param {(date: string) => string|null} [onlyMealOn]  the id of a day's only meal, else null
  */
-export function dragAnnouncements(mealName, dayName, dayOfMeal = () => null) {
+export function dragAnnouncements(mealName, dayName, dayOfMeal = () => null, onlyMealOn = () => null) {
   const meal = (id) => mealName(String(id).replace(/^(meal|slot):/, '')) ?? 'meal'
   const target = (over) => {
     if (!over) return null
     const id = String(over.id)
-    if (id.startsWith('slot:')) return { swap: true, text: meal(id) }
-    return { swap: false, text: dayName(id.replace(/^day:/, '')) }
+    if (id.startsWith('slot:')) return { swap: true, text: meal(id), day: dayOfMeal(id.slice(5)) }
+    const d = id.replace(/^day:/, '')
+    const only = onlyMealOn(d)      // a day with exactly one meal swaps with it
+    return only ? { swap: true, text: meal(only), day: d } : { swap: false, text: dayName(d) }
   }
   return {
     onDragStart: ({ active }) => `Picked up ${meal(active.id)}.`,
@@ -119,10 +123,7 @@ export function dragAnnouncements(mealName, dayName, dayOfMeal = () => null) {
     onDragEnd: ({ active, over }) => {
       const t = target(over)
       if (!t) return `${meal(active.id)} put back.`
-      if (t.swap) {
-        const d = dayOfMeal(String(over.id).slice(5))
-        return `${meal(active.id)} swapped with ${t.text}${d ? ` on ${dayName(d)}` : ''}.`
-      }
+      if (t.swap) return `${meal(active.id)} swapped with ${t.text}${t.day ? ` on ${dayName(t.day)}` : ''}.`
       return `${meal(active.id)} moved to ${t.text}.`
     },
     onDragCancel: ({ active }) => `Cancelled. ${meal(active.id)} stays where it was.`,

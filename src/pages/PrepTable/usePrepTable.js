@@ -95,14 +95,16 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     console.error('[PrepTable] load failed', err)
   }, [])
 
-  /** Reload whatever week is on screen now (not the one a save started on). */
+  /** Reload whatever week is on screen now (not the one a save started on). true if it loaded. */
   const reload = useCallback(async () => {
     const seq = ++loadSeq.current
     const start = weekRef.current
     try {
       applyLoad(seq, start, await queryWeek(start))
+      return true
     } catch (err) {
       loadFailed(seq, err)
+      return false
     }
   }, [queryWeek, applyLoad, loadFailed])
 
@@ -252,12 +254,26 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
       return true
     } catch (err) {
       console.error('[PrepTable] move failed', err)
+      let undone = true
       if (firstSaved) {
-        // Half a swap went through: put the dragged meal back (best effort).
-        await moveMeal(supabase, mealId, from).catch((e) => console.error('[PrepTable] undo failed', e))
+        // Half a swap went through: put the dragged meal back.
+        undone = await moveMeal(supabase, mealId, from).then(() => true, (e) => {
+          console.error('[PrepTable] undo failed', e)
+          return false
+        })
       }
-      setWeek((w) => (w && w.weekStart === before.weekStart ? before : w))
-      setError(other ? "Couldn't swap those meals. Try again." : "Couldn't move that meal. Try again.")
+      if (undone) {
+        // Nothing changed in the database: show the week as it was.
+        setWeek((w) => (w && w.weekStart === before.weekStart ? before : w))
+        setError(other ? "Couldn't swap those meals. Try again." : "Couldn't move that meal. Try again.")
+      } else {
+        // Half-swapped and the undo failed too: show what's really saved, or,
+        // if even that can't load, say plainly that a refresh is needed.
+        const loaded = await reload()
+        setError(loaded
+          ? "Couldn't finish swapping those meals. Here's where they are now."
+          : "Couldn't finish swapping those meals. Refresh to see where they are.")
+      }
       return false
     } finally {
       setBusy(false)

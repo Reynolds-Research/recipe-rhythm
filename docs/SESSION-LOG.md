@@ -15,7 +15,7 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 **Verified:** Vitest 910/910 (18 new). Two real bugs caught and fixed: a failed drop's reload cleared the error message (a test); offline, a failed save + failed reload left the meal on the wrong day (reviewer) — now the week from before the drop is put straight back. Four deliberate breaks (offline revert, PointerSensor swap, keyboard drag on the whole card, no busy guard) each failed exactly the right test. Screen-reader announcements use meal + day names; eslint, build, `lint:ds`. Real Chromium with fake data: mouse drag Mon → Wed lit the target and saved; touch quick swipe moved nothing, press-and-hold + drag Tue → Thu saved; no errors.
 
-Extra bug found in the real-browser check and fixed: a mouse/touch drag let go outside every day could still drop on whatever the card overlapped (that fallback is now keyboard-only). Vitest 920/920 after the swap work; five deliberate breaks of the swap logic each failed a test.
+Extra bug found in the real-browser check and fixed: a mouse/touch drag let go outside every day could still drop on whatever the card overlapped (that fallback is now keyboard-only). Vitest 925/925 after the swap work; seven deliberate breaks of the swap logic each failed a test. Reviewer round 3 FAIL: if half a swap saved and the undo also failed, the screen showed the old plan — now it reloads what is really saved, or says to refresh.
 
 **Open / owed:** she tries the drag + swap version on a preview, then tick 2b-2.
 

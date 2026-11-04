@@ -112,6 +112,7 @@ export default function PrepTable({ userId, today }) {
                       (id) => mealsById[id]?.name,
                       (d) => `${dateLabel(d).weekday} ${dateLabel(d).monthDay}`,
                       (id) => mealsById[id]?.planned_on,
+                      (d) => (pt.mealsByDate[d]?.length === 1 ? pt.mealsByDate[d][0].id : null),
                     ),
                   }}
                   onDragEnd={(event) => {
