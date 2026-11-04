@@ -6,6 +6,23 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-04 (later) — PRD-008 2b-3: Confirm the week + groceries
+
+**Done:** PR (open), branch `feat/prd-008-confirm-week`. Ticked 2b-2 (#216 + #218 merged, both used it on phones).
+- "Confirm the week" (bottom of the week): stamps a `week_confirmations` row for Sun–Sat, then makes the week's grocery list from exactly its meals through the existing `/api/grocery-list`, and opens it in a sheet. Empty days from today on are told ("Wed Nov 4 has no meal yet. The grocery list will skip it." → Confirm anyway / Not yet), never blocking. Meals not in the Cookbook are left off and named under the list.
+- Confirmed week: "✓ Confirmed <day>" + Grocery list button. After an edit (the 2a trigger stamps `changed_at`): banner at the top, **Update list** or **Keep as is** (Matt's choice, both). If the list can't be made, the week stays confirmed and offers "Make the grocery list".
+- Remaking never edits the old list: new list → link → clear the stamp only if it's still the one we saw (a partner's edit meanwhile keeps the prompt) → delete the old list.
+- `src/lib/weekGroceries.js`; `src/lib/groceryRecipes.js` (recipe-building moved out of `GroceryListBody`, unchanged); `WeekConfirm.jsx`, `GrocerySheet.jsx`. No migration (2a tables are on prod; checked read-only: 0 confirmations, 4 rules).
+- Matt decided: the list shows in a read-only sheet on the Prep Table; share + add-your-own stay on the Groceries tab until 2c.
+
+**Verified:** Vitest 973/973 (34 new), eslint, build, `lint:ds`. Nine deliberate breaks: eight each failed the right test; the ninth ("stamp twice") is unreachable (Confirm only shows on an unconfirmed week). Real Chromium at phone width with the stateful fake Supabase + a stubbed AI: confirm → empty-day prompt → Confirm anyway → list sheet; changed banner → Update list → new list linked, old one deleted, stamp cleared; no page errors. Reviewer (fresh context): **PASS**; its flags 1, 2 and 4 fixed (stale sheet after changing weeks, a linked list reported as failed, an unchecked link), each with a test. Not fixed (harmless): two partners remaking at once leaves a spare unlinked list; the "No ingredients saved for…" note stays until the next confirm / week change.
+
+**Open / owed (Matt):** merge the PR; then she confirms one real week on a preview deploy (same `git archive` + `vercel deploy --build-env VITE_NEW_PREP_TABLE=true` steps as 2b-2). That writes a real confirmation + list on prod and makes one AI call. Then tick 2b-3.
+
+**Next:** 2c, Switch-over (fresh session).
+
+---
+
 ## 2026-11-04 — PRD-008 2b-2 follow-up: drag-and-drop + brand orange
 
 **Done:** PR (open), branch `feat/prd-008-week-drag`. Her feedback after trying the new Prep Table: she liked it; wants to **drag meals between days** (part of how she plans) and **brand colours** (the cooked tick was green).
