@@ -34,7 +34,7 @@ function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, on
       data-swap-target={(swapHere && !isDragging) || undefined}
       className={`relative flex items-center gap-1 rounded-xl px-1 py-1 min-h-[48px] select-none cursor-grab active:cursor-grabbing border-2 transition-[background-color,border-color,box-shadow] ${
         isDragging ? 'border-brand-500 bg-brand-50 shadow-lg'
-          : swapHere ? 'border-dashed border-brand-500 bg-brand-50'
+          : swapHere ? 'border-transparent bg-brand-100'
           : 'border-transparent bg-cream-50'
       }`}
     >
@@ -121,7 +121,8 @@ export default function DayRow({
   const isPast = date < today
   const isToday = date === today
   const empty = meals.length === 0
-  // The whole day is a drop target; it lights up while a meal hovers over it.
+  // The whole day is a drop target; a soft tint shows it while a meal hovers
+  // over it (kept subtle on purpose — Matt, 2026-11-04).
   const { setNodeRef, isOver } = useDroppable({ id: dayDropId(date) })
   const swapName = swapTargetName(useDndContext(), date, meals)
 
@@ -131,7 +132,7 @@ export default function DayRow({
       aria-label={`${weekday} ${monthDay}`}
       data-date={date}
       data-drop-over={isOver || undefined}
-      className={`card p-3 space-y-2 transition-colors ${isOver ? 'border-2 border-dashed border-brand-400 bg-brand-50' : ''}`}
+      className={`card p-3 space-y-2 transition-colors ${isOver ? 'bg-brand-50' : ''}`}
     >
       <header className="flex items-center justify-between gap-2">
         <h3 className="font-bold text-gray-900">

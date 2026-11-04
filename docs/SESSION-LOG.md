@@ -19,7 +19,9 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 Extra bug found in the real-browser check and fixed: a mouse/touch drag let go outside every day could still drop on whatever the card overlapped (that fallback is now keyboard-only). Vitest 939/939 after the swap + tick work; ten deliberate breaks of the swap logic each failed a test. Reviewer round 3 FAIL: if half a swap saved and the undo also failed, the screen showed the old plan — now it reloads what is really saved, or says to refresh.
 
-**Open / owed:** she tries the drag + swap version on a preview, then tick 2b-2.
+- **After both tried it on their phones ("looks and works great"):** Matt asked for subtler drag feedback — the dashed outlines are gone; the day being dragged over gets a soft tint (brand-50), a meal card about to be swapped a slightly stronger one (brand-100); the "⇄ Swap with …" text and the solid outline on the card being carried stay.
+
+**Open / owed:** Matt merges #218; then tick 2b-2 (both have used the drag version on their phones).
 
 **Next:** 2b-3, Confirm the week + groceries (fresh session).
 
