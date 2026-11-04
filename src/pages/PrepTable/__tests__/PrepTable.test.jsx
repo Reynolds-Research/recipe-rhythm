@@ -627,7 +627,7 @@ describe('the cooked tick when a meal moves (Matt, 2026-11-04)', () => {
   const curry = (over = {}) => meal({ id: 'c1', planned_on: '2026-11-01', name: 'Green curry', vault_id: 'v1',
     cooked: true, cooked_at: '2026-11-02T03:00:00.000Z', ...over })
 
-  it('dragged into the future → the tick comes off (saved and on screen)', async () => {
+  it('dragged into the future → the tick comes off (saved; future days show no tick box)', async () => {
     setWeek({ meals: [curry()] })
     renderPage()
     await screen.findByRole('region', { name: 'Sun Nov 1' })
