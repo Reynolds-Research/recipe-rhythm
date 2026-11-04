@@ -31,6 +31,14 @@ import {
 } from '../../lib/plannedMeals'
 import { addDays, shiftWeek, shownDates, thisWeekStart, toggleDay as nextDays } from '../../lib/weekRange'
 import { suggestForDays } from '../../lib/weekSuggest'
+import {
+  confirmWeek as stampWeek,
+  keepListAsIs,
+  loadConfirmation,
+  loadGroceryItems,
+  makeWeekGroceryList,
+  WeekGroceryError,
+} from '../../lib/weekGroceries'
 
 /** A copy of `obj` without `key` (for dropping one proposal). */
 function without(obj, key) {
@@ -69,23 +77,27 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const [skipped, setSkipped] = useState([])      // recipe ids dismissed this visit
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [making, setMaking] = useState(false)     // the grocery-list AI call is running
+  const [notice, setNotice] = useState(null)      // a note under "Confirmed" (not an error)
+  const [groceries, setGroceries] = useState({ open: false, loading: false, failed: false, items: [] })
   // Numbered loads: only the newest one may change the screen, so a slow
   // reload (after a save) can never paint over a week opened since (← / →).
   const loadSeq = useRef(0)
   const weekRef = useRef(weekStart)          // the week on screen, for reloads
   useEffect(() => { weekRef.current = weekStart }, [weekStart])
 
-  /** The week, Maybe list and tray, as plain data (no state changes here). */
+  /** The week, its confirmation, Maybe list and tray, as plain data (no state changes here). */
   const queryWeek = useCallback((start) => Promise.all([
     loadWeek(supabase, userId, start),
     loadMaybeList(supabase, userId),
     loadDidntGetTo(supabase, userId, today),
+    loadConfirmation(supabase, userId, start),
   ]), [userId, today])
 
   /** Show a load's result, unless a newer load has started since. */
-  const applyLoad = useCallback((seq, start, [w, m, t]) => {
+  const applyLoad = useCallback((seq, start, [w, m, t, c]) => {
     if (seq !== loadSeq.current) return
-    setWeek({ ...w, weekStart: start })
+    setWeek({ ...w, weekStart: start, confirmation: c ?? null })
     setMaybe(m)
     setTray(t)
     setError(null)
@@ -161,15 +173,21 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     }
   }, [reload])
 
+  const leaveWeek = () => {
+    setProposals({})
+    setNotice(null)
+    setGroceries((g) => ({ ...g, open: false }))
+  }
+
   const goWeek = (n) => {
     if (busy) return
-    setProposals({})
+    leaveWeek()
     setWeek(null)
     setWeekStart((s) => shiftWeek(s, n))
   }
   const goThisWeek = () => {
     if (busy) return
-    setProposals({})
+    leaveWeek()
     setWeek(null)
     setWeekStart(thisWeekStart(today))
   }
@@ -359,6 +377,100 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     setProposals((p) => without(p, date))
   }
 
+  // ---- Confirm the week + groceries (2b-3) ------------------------------
+  const confirmation = current?.confirmation ?? null
+
+  /** Shown days from today on with no meal: told before confirming, never blocking. */
+  const emptyDays = emptyUpcoming
+
+  /** Meals this week that can't go on the list (no cookbook recipe). */
+  const leftOff = useMemo(() => meals.filter((m) => !m.vault_id).map((m) => m.name), [meals])
+
+  const openGroceries = async (listId = confirmation?.grocery_list_id) => {
+    if (!listId) return
+    setGroceries({ open: true, loading: true, failed: false, items: [] })
+    try {
+      const items = await loadGroceryItems(supabase, listId)
+      setGroceries({ open: true, loading: false, failed: false, items })
+    } catch (err) {
+      console.error('[PrepTable] grocery list load failed', err)
+      setGroceries({ open: true, loading: false, failed: true, items: [] })
+    }
+  }
+  const closeGroceries = () => setGroceries((g) => ({ ...g, open: false }))
+
+  /**
+   * Make the list for `conf`, reload, and open it. Failures leave the week
+   * confirmed (the stamp is her say; the list can be made again).
+   * `failMsg` is for an unexpected failure.
+   */
+  const makeList = async (conf, failMsg) => {
+    setMaking(true)
+    let made = null
+    let message = null
+    try {
+      made = await makeWeekGroceryList(supabase, userId, conf)
+    } catch (err) {
+      console.error('[PrepTable] grocery list failed', err)
+      if (err instanceof WeekGroceryError && err.code === 'no_recipes') {
+        setNotice("None of this week's meals are cookbook recipes with ingredients, so there's no grocery list yet.")
+      } else {
+        message = failMsg
+      }
+    } finally {
+      setMaking(false)
+    }
+    await reload()
+    if (message) setError(message)
+    if (made) {
+      setNotice(made.noIngredients.length
+        ? `No ingredients saved for ${made.noIngredients.join(', ')}. Open ${made.noIngredients.length === 1 ? 'it' : 'them'} in your Cookbook and save to include ${made.noIngredients.length === 1 ? 'it' : 'them'}.`
+        : null)
+      openGroceries(made.listId)
+    }
+    return Boolean(made)
+  }
+
+  /** Her final say: stamp the week, then make its grocery list. */
+  const confirm = async () => {
+    if (busy || !current) return false
+    setBusy(true)
+    setNotice(null)
+    try {
+      let conf = confirmation
+      if (!conf) {
+        try {
+          conf = await stampWeek(supabase, userId, weekStart)
+        } catch (err) {
+          console.error('[PrepTable] confirm failed', err)
+          setError("Couldn't confirm the week. Try again.")
+          return false
+        }
+      }
+      return await makeList(conf, "The week is confirmed, but the grocery list couldn't be made. Try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** "Update grocery list" (after a change) or "Make the grocery list" (none yet). */
+  const updateList = async () => {
+    if (busy || !confirmation) return false
+    setBusy(true)
+    setNotice(null)
+    try {
+      return await makeList(confirmation, "Couldn't make the grocery list. Try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** "Keep as is": the list stays, the prompt goes. */
+  const keepAsIs = () => {
+    if (busy || !confirmation) return false
+    return act(() => keepListAsIs(supabase, confirmation), "Couldn't save that. Try again.")
+  }
+
   return {
     today,
     weekStart,
@@ -389,5 +501,18 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     suggestDay,
     acceptProposal,
     dismissProposal,
+    confirmation,
+    changedSinceConfirmed: Boolean(confirmation?.changed_at),
+    canConfirm: !confirmation && meals.length > 0 && addDays(weekStart, 6) >= today,
+    emptyDays,
+    leftOff,
+    making,
+    notice,
+    groceries,
+    confirm,
+    updateList,
+    keepAsIs,
+    openGroceries: () => openGroceries(),
+    closeGroceries,
   }
 }

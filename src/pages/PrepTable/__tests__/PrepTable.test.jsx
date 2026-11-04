@@ -17,6 +17,16 @@ vi.mock('../../../lib/plannedMeals', async (importOriginal) => ({
   removeMeal: vi.fn(),
   setCooked: vi.fn(),
 }))
+// 2b-3: Confirm the week + groceries. Mocked the same way (tested on its own in
+// src/lib/__tests__/weekGroceries.test.js); the error class is the real one.
+vi.mock('../../../lib/weekGroceries', async (importOriginal) => ({
+  WeekGroceryError: (await importOriginal()).WeekGroceryError,
+  loadConfirmation: vi.fn(),
+  confirmWeek: vi.fn(),
+  makeWeekGroceryList: vi.fn(),
+  keepListAsIs: vi.fn(),
+  loadGroceryItems: vi.fn(),
+}))
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(async () => null) }))
 vi.mock('../../../lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 // The real drag-and-drop context, wrapped so a test can "drop" a meal by
@@ -38,6 +48,7 @@ vi.mock('@dnd-kit/core', async (importOriginal) => {
 })
 
 import * as pm from '../../../lib/plannedMeals'
+import * as wg from '../../../lib/weekGroceries'
 import { MouseSensor, TouchSensor, KeyboardSensor } from '@dnd-kit/core'
 import { supabase } from '../../../lib/supabase'
 import PrepTable from '../index'
@@ -83,6 +94,7 @@ beforeEach(() => {
   pm.loadMaybeList.mockResolvedValue([])
   pm.loadDidntGetTo.mockResolvedValue([])
   for (const f of ['saveWeekDays', 'addMeal', 'moveMeal', 'removeMeal', 'setCooked']) pm[f].mockResolvedValue({})
+  wg.loadConfirmation.mockResolvedValue(null)
   vi.spyOn(Math, 'random').mockReturnValue(0.5)
 })
 afterEach(() => vi.restoreAllMocks())
@@ -689,5 +701,187 @@ describe('colours match the app (brand orange, not green)', () => {
     const dot = box.firstElementChild
     expect(dot.className).toMatch(/bg-brand-600/)
     expect(dot.className).not.toMatch(/green/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 2b-3 — Confirm the week + groceries (PRD-008 §4.4–4.5, P0.6)
+// ---------------------------------------------------------------------------
+const FULL_WEEK = [ // a meal on every shown day from today (Mon) on
+  meal({ id: 'a', planned_on: '2026-11-02', name: 'Sheet-pan gnocchi', vault_id: 'v3' }),
+  meal({ id: 'b', planned_on: '2026-11-03', name: 'Green curry', vault_id: 'v1' }),
+  meal({ id: 'c', planned_on: '2026-11-04', name: 'Turkey tacos', vault_id: 'v2' }),
+  meal({ id: 'd', planned_on: '2026-11-05', name: 'Pizza out', vault_id: null }),
+]
+const CONF = {
+  id: 'c1', starts_on: '2026-11-01', ends_on: '2026-11-07', user_id: 'u1',
+  confirmed_at: '2026-11-02T18:00:00', changed_at: null, grocery_list_id: 'L1',
+}
+const ITEMS = [
+  { id: 'i1', name: 'Limes', quantity: '6', section: 'Produce' },
+  { id: 'i2', name: 'Ground turkey', quantity: '1 lb', section: 'Meat & Seafood' },
+]
+const confirmButton = () => screen.findByRole('button', { name: 'Confirm the week' })
+
+describe('Confirm the week', () => {
+  beforeEach(() => {
+    wg.confirmWeek.mockResolvedValue({ ...CONF, grocery_list_id: null })
+    wg.makeWeekGroceryList.mockResolvedValue({ listId: 'L1', notInCookbook: ['Pizza out'], noIngredients: [] })
+    wg.loadGroceryItems.mockResolvedValue(ITEMS)
+    wg.keepListAsIs.mockResolvedValue(true)
+  })
+
+  it('an empty week has nothing to confirm', async () => {
+    renderPage()
+    await screen.findByRole('region', { name: 'Mon Nov 2' })
+    expect(screen.queryByRole('button', { name: 'Confirm the week' })).not.toBeInTheDocument()
+  })
+
+  it('confirm → stamps this week, makes its list, and opens it', async () => {
+    setWeek({ meals: FULL_WEEK })
+    wg.loadConfirmation.mockResolvedValueOnce(null).mockResolvedValue(CONF)
+    renderPage()
+    await userEvent.click(await confirmButton())
+
+    expect(wg.confirmWeek).toHaveBeenCalledWith(supabase, 'u1', '2026-11-01')
+    expect(wg.makeWeekGroceryList).toHaveBeenCalledWith(supabase, 'u1', { ...CONF, grocery_list_id: null })
+    const sheet = await screen.findByTestId('grocery-sheet')
+    expect(wg.loadGroceryItems).toHaveBeenCalledWith(supabase, 'L1')
+    expect(within(sheet).getByRole('region', { name: 'Produce' })).toHaveTextContent('Limes6')
+    expect(within(sheet).getByRole('region', { name: 'Meat & Seafood' })).toHaveTextContent('Ground turkey1 lb')
+    expect(sheet).toHaveTextContent('Not on the list (not in your Cookbook): Pizza out.')
+    expect(screen.getByRole('region', { name: 'Week confirmed' })).toHaveTextContent('Confirmed Mon Nov 2')
+  })
+
+  it('empty nights are told, never blocking: "Not yet" waits, "Confirm anyway" confirms', async () => {
+    setWeek({ meals: [FULL_WEEK[0]] }) // only Monday has a meal
+    renderPage()
+    await userEvent.click(await confirmButton())
+    expect(screen.getByRole('region', { name: 'Confirm the week' }))
+      .toHaveTextContent('Tue Nov 3, Wed Nov 4 and Thu Nov 5 have no meal yet. The grocery list will skip them.')
+    expect(wg.confirmWeek).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Not yet' }))
+    expect(wg.confirmWeek).not.toHaveBeenCalled()
+
+    await userEvent.click(await confirmButton())
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm anyway' }))
+    expect(wg.confirmWeek).toHaveBeenCalledTimes(1)
+  })
+
+  it('one empty night reads in the singular', async () => {
+    setWeek({ meals: FULL_WEEK.slice(0, 3) }) // Thursday empty
+    renderPage()
+    await userEvent.click(await confirmButton())
+    expect(screen.getByText('Thu Nov 5 has no meal yet. The grocery list will skip it.')).toBeInTheDocument()
+  })
+
+  it('a past week offers no Confirm', async () => {
+    setWeek({ meals: FULL_WEEK })
+    renderPage()
+    await confirmButton()
+    await userEvent.click(screen.getByRole('button', { name: 'Previous week' }))
+    expect(await screen.findByTestId('week-title')).toHaveTextContent('Oct 25 – 31')
+    expect(screen.queryByRole('button', { name: 'Confirm the week' })).not.toBeInTheDocument()
+  })
+
+  it("the stamp fails: says so and makes no list", async () => {
+    setWeek({ meals: FULL_WEEK })
+    wg.confirmWeek.mockRejectedValue(new Error('offline'))
+    renderPage()
+    await userEvent.click(await confirmButton())
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't confirm the week. Try again.")
+    expect(wg.makeWeekGroceryList).not.toHaveBeenCalled()
+  })
+
+  it('the list fails: the week stays confirmed and offers to make the list', async () => {
+    setWeek({ meals: FULL_WEEK })
+    wg.loadConfirmation.mockResolvedValueOnce(null).mockResolvedValue({ ...CONF, grocery_list_id: null })
+    wg.makeWeekGroceryList.mockRejectedValueOnce(new wg.WeekGroceryError('api', 'boom'))
+    renderPage()
+    await userEvent.click(await confirmButton())
+    expect(await screen.findByRole('alert'))
+      .toHaveTextContent("The week is confirmed, but the grocery list couldn't be made. Try again.")
+    expect(screen.queryByTestId('grocery-sheet')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Make the grocery list' }))
+    expect(wg.confirmWeek).toHaveBeenCalledTimes(1) // not stamped twice
+    expect(wg.makeWeekGroceryList).toHaveBeenCalledTimes(2)
+    expect(await screen.findByTestId('grocery-sheet')).toBeInTheDocument()
+  })
+
+  it('no cookbook recipes in the week: confirmed, with a plain note instead of a list', async () => {
+    setWeek({ meals: [meal({ planned_on: '2026-11-02', vault_id: null, name: 'Pizza out' })] })
+    wg.loadConfirmation.mockResolvedValueOnce(null).mockResolvedValue({ ...CONF, grocery_list_id: null })
+    wg.makeWeekGroceryList.mockRejectedValue(new wg.WeekGroceryError('no_recipes', 'none'))
+    renderPage()
+    await userEvent.click(await confirmButton())
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm anyway' }))
+    expect(await screen.findByText(/None of this week's meals are cookbook recipes/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+})
+
+describe('changed since you confirmed → update the grocery list?', () => {
+  beforeEach(() => {
+    setWeek({ meals: FULL_WEEK })
+    wg.makeWeekGroceryList.mockResolvedValue({ listId: 'L2', notInCookbook: [], noIngredients: [] })
+    wg.loadGroceryItems.mockResolvedValue(ITEMS)
+    wg.keepListAsIs.mockResolvedValue(true)
+  })
+
+  it('a confirmed, unchanged week shows the stamp and its list, no prompt', async () => {
+    wg.loadConfirmation.mockResolvedValue(CONF)
+    renderPage()
+    expect(await screen.findByRole('region', { name: 'Week confirmed' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Changed since you confirmed' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Confirm the week' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Grocery list' }))
+    expect(await screen.findByTestId('grocery-sheet')).toHaveTextContent('Limes')
+    expect(wg.loadGroceryItems).toHaveBeenCalledWith(supabase, 'L1')
+  })
+
+  it('an edit after confirming shows the prompt (the stamp is re-read after every save)', async () => {
+    wg.loadConfirmation.mockResolvedValueOnce(CONF).mockResolvedValue({ ...CONF, changed_at: '2026-11-02T19:00:00+00:00' })
+    renderPage()
+    await screen.findByRole('region', { name: 'Week confirmed' })
+    expect(screen.queryByRole('region', { name: 'Changed since you confirmed' })).not.toBeInTheDocument()
+
+    await userEvent.click(within(dayRow('Tue Nov 3')).getByRole('button', { name: /Remove/ }))
+    expect(await screen.findByRole('region', { name: 'Changed since you confirmed' }))
+      .toHaveTextContent('This week changed since you confirmed it. Update the grocery list?')
+  })
+
+  it('"Update list" remakes the list from the stamp it saw, and opens it', async () => {
+    const changed = { ...CONF, changed_at: '2026-11-02T19:00:00+00:00' }
+    wg.loadConfirmation.mockResolvedValueOnce(changed).mockResolvedValue({ ...CONF, grocery_list_id: 'L2' })
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Update list' }))
+    expect(wg.makeWeekGroceryList).toHaveBeenCalledWith(supabase, 'u1', changed)
+    expect(wg.confirmWeek).not.toHaveBeenCalled()
+    expect(await screen.findByTestId('grocery-sheet')).toBeInTheDocument()
+    expect(wg.loadGroceryItems).toHaveBeenCalledWith(supabase, 'L2')
+    expect(screen.queryByRole('region', { name: 'Changed since you confirmed' })).not.toBeInTheDocument()
+  })
+
+  it('"Keep as is" clears the prompt without making a list', async () => {
+    const changed = { ...CONF, changed_at: '2026-11-02T19:00:00+00:00' }
+    wg.loadConfirmation.mockResolvedValueOnce(changed).mockResolvedValue(CONF)
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Keep as is' }))
+    expect(wg.keepListAsIs).toHaveBeenCalledWith(supabase, changed)
+    expect(wg.makeWeekGroceryList).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Changed since you confirmed' })).not.toBeInTheDocument())
+  })
+
+  it('a failed update says so and keeps the prompt', async () => {
+    const changed = { ...CONF, changed_at: '2026-11-02T19:00:00+00:00' }
+    wg.loadConfirmation.mockResolvedValue(changed)
+    wg.makeWeekGroceryList.mockRejectedValue(new Error('offline'))
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Update list' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't make the grocery list. Try again.")
+    expect(screen.getByRole('region', { name: 'Changed since you confirmed' })).toBeInTheDocument()
   })
 })

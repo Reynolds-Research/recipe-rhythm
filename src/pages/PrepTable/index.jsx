@@ -8,12 +8,14 @@ import DayRow from './DayRow'
 import { dateLabel, weekTitle } from './labels'
 import AddMealSheet from './AddMealSheet'
 import DayChoiceSheet from './DayChoiceSheet'
+import WeekConfirm, { ChangedBanner } from './WeekConfirm'
+import GrocerySheet from './GrocerySheet'
 import { dayUnderPointer, dragAnnouncements, resolveDrop, usePrepTableSensors } from './dragDrop'
 
 /**
  * The new Prep Table (PRD-008 P0.4, phase 2b-2), shown when VITE_NEW_PREP_TABLE
- * is "true". Meals sit on dates; nothing locks. Confirm the week and the
- * grocery list arrive in 2b-3; Matt's nights in phase 3.
+ * is "true". Meals sit on dates; nothing locks. "Confirm the week" stamps the
+ * week and makes its grocery list (2b-3); Matt's nights come in phase 3.
  */
 export default function PrepTable({ userId, today }) {
   const pt = usePrepTable(userId, today ? { today } : undefined)
@@ -91,6 +93,10 @@ export default function PrepTable({ userId, today }) {
               </div>
             ) : (
               <>
+                {pt.changedSinceConfirmed && !pt.making && (
+                  <ChangedBanner busy={pt.busy} onUpdate={pt.updateList} onKeep={pt.keepAsIs} />
+                )}
+
                 <DayButtons dayArgs={pt.dayArgs} onToggle={pt.toggleDay} disabled={pt.busy} />
 
                 {pt.canSuggest && (
@@ -141,6 +147,19 @@ export default function PrepTable({ userId, today }) {
                   ))}
                 </div>
                 </DndContext>
+
+                <WeekConfirm
+                  key={pt.dayArgs.weekStart}
+                  confirmation={pt.confirmation}
+                  canConfirm={pt.canConfirm}
+                  emptyDays={pt.emptyDays}
+                  busy={pt.busy}
+                  making={pt.making}
+                  notice={pt.notice}
+                  onConfirm={pt.confirm}
+                  onMakeList={pt.updateList}
+                  onOpenList={pt.openGroceries}
+                />
 
                 {pt.tray.length > 0 && (
                   <section aria-label="Didn't get to these" className="rounded-2xl border border-cream-200 bg-cream-100/50 p-4 space-y-2">
@@ -213,6 +232,15 @@ export default function PrepTable({ userId, today }) {
           const t = addTarget; setAddTarget(null)
           pt.moveTo(meal, t)
         }}
+      />
+
+      <GrocerySheet
+        open={pt.groceries.open}
+        loading={pt.groceries.loading}
+        failed={pt.groceries.failed}
+        items={pt.groceries.items}
+        leftOff={pt.leftOff}
+        onClose={pt.closeGroceries}
       />
 
       <DayChoiceSheet

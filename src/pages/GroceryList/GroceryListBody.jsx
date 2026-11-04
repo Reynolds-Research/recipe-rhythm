@@ -7,35 +7,7 @@ import { apiFetch } from '../../lib/apiClient'
 import { fetchMostRecentPlan } from '../../lib/mealPlanReader'
 import { getPreferences } from '../../lib/preferences'
 import { GROCERY_SECTIONS } from '../../lib/constants'
-
-/**
- * PRD-006 Bite δ: format a single structured-ingredient entry as a string
- * the grocery-list AI can read. The model gets quantity + unit inline so
- * it scales the actual recipe quantity instead of re-estimating from the
- * name. Examples:
- *   { name: 'olive oil', quantity: '2', unit: 'tbsp' }       → "olive oil: 2 tbsp"
- *   { name: 'garlic clove', quantity: '3', unit: null,
- *     notes: 'minced' }                                       → "garlic clove: 3, minced"
- *   { name: 'kosher salt', quantity: null, unit: null,
- *     notes: 'to taste' }                                     → "kosher salt: to taste"
- *   { name: 'olive oil' }                                     → "olive oil"
- *
- * Returns null when the entry has no usable name.
- */
-function formatStructuredIngredient(entry) {
-  if (!entry || typeof entry.name !== 'string') return null
-  const name = entry.name.trim()
-  if (!name) return null
-
-  const qty = typeof entry.quantity === 'string' ? entry.quantity.trim() : ''
-  const unit = typeof entry.unit === 'string' ? entry.unit.trim() : ''
-  const notes = typeof entry.notes === 'string' ? entry.notes.trim() : ''
-
-  const measureParts = [qty, unit].filter(Boolean).join(' ').trim()
-  const tail = [measureParts, notes].filter(Boolean).join(', ')
-
-  return tail ? `${name}: ${tail}` : name
-}
+import { GROCERY_VAULT_COLUMNS, groceryPrefs, recipesFromMeals } from '../../lib/groceryRecipes'
 
 export default function GroceryListBody({ userId }) {
   const [loading, setLoading]       = useState(true)
@@ -114,7 +86,7 @@ export default function GroceryListBody({ userId }) {
       //    and surfaced to the user instead of silently dropped.
       const { data: planItems, error: piErr } = await supabase
         .from('meal_plan_items')
-        .select('name, vault_id, vault(name, servings, ingredients_structured, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits)')
+        .select(`name, vault_id, vault(${GROCERY_VAULT_COLUMNS})`)
         .eq('meal_plan_id', activePlan.id)
         .eq('is_shortlisted', false)
       if (piErr) throw piErr
@@ -123,51 +95,13 @@ export default function GroceryListBody({ userId }) {
       // returns the row defaults (adults=2, children=0) when the user has never
       // opened Settings — see src/lib/preferences.js.
       const prefs = await getPreferences(userId, supabase)
-      const householdSize = (prefs?.adults ?? 2) + (prefs?.children ?? 0)
-      const safeHouseholdSize = Math.max(1, householdSize)
-      const pantryStaples = Array.isArray(prefs?.pantry_staples) ? prefs.pantry_staples : []
+      const { householdSize: safeHouseholdSize, pantryStaples } = groceryPrefs(prefs)
 
-      // 2. Build recipes array.
-      //    Preference order:
-      //      1. ingredients_structured — names + quantities + units + notes (Bite δ)
-      //      2. ingredients_classified — names only (PRD-004 Phase A backfill)
-      //      3. chip arrays            — fallback for the oldest rows
-      const skippedNoVault = []
-      const recipes = []
-      for (const item of planItems ?? []) {
-        if (!item.vault_id || !item.vault) {
-          skippedNoVault.push(item.name)
-          continue
-        }
-        const v = item.vault
-
-        let ingredients = null
-        const structured = v.ingredients_structured
-        if (Array.isArray(structured) && structured.length > 0) {
-          ingredients = structured
-            .map(formatStructuredIngredient)
-            .filter(Boolean)
-        }
-        if (!ingredients || ingredients.length === 0) {
-          const classified = v.ingredients_classified
-          if (Array.isArray(classified) && classified.length > 0) {
-            ingredients = classified.map(c => c?.name).filter(Boolean)
-          }
-        }
-        if (!ingredients || ingredients.length === 0) {
-          ingredients = [
-            ...(v.proteins         || []),
-            ...(typeof v.main_carb === 'string' && v.main_carb ? [v.main_carb] : []),
-            ...(v.vegetables       || []),
-            ...(v.dairy_components || []),
-            ...(v.fruits           || []),
-          ].filter(Boolean)
-        }
-        if (ingredients.length === 0) {
-          console.warn('[GroceryList] no ingredient data for vault recipe:', v.name)
-          continue
-        }
-        recipes.push({ name: v.name, ingredients, servings: v.servings ?? null })
+      // 2. Build recipes array (src/lib/groceryRecipes.js — shared with the
+      //    new Prep Table's Confirm the week).
+      const { recipes, notInCookbook: skippedNoVault, noIngredients } = recipesFromMeals(planItems)
+      for (const name of noIngredients) {
+        console.warn('[GroceryList] no ingredient data for vault recipe:', name)
       }
       if (skippedNoVault.length) {
         console.warn('[GroceryList] skipped (no vault row):', skippedNoVault)
