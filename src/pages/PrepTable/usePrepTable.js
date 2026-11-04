@@ -388,13 +388,16 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
 
   const openGroceries = async (listId = confirmation?.grocery_list_id) => {
     if (!listId) return
+    // Tied to the week it was opened on: if she moves to another week while
+    // it loads, the sheet stays closed (it never shows last week's list).
+    const forWeek = weekRef.current
     setGroceries({ open: true, loading: true, failed: false, items: [] })
     try {
       const items = await loadGroceryItems(supabase, listId)
-      setGroceries({ open: true, loading: false, failed: false, items })
+      if (weekRef.current === forWeek) setGroceries({ open: true, loading: false, failed: false, items })
     } catch (err) {
       console.error('[PrepTable] grocery list load failed', err)
-      setGroceries({ open: true, loading: false, failed: true, items: [] })
+      if (weekRef.current === forWeek) setGroceries({ open: true, loading: false, failed: true, items: [] })
     }
   }
   const closeGroceries = () => setGroceries((g) => ({ ...g, open: false }))

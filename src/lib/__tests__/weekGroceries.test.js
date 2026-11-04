@@ -152,6 +152,7 @@ describe('makeWeekGroceryList', () => {
     const sb = makeSupabase({
       'planned_meals.select': ok([TACOS, ONE_OFF]),
       'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([{ id: 'c1' }]),
     })
     const fetchApi = api()
     const out = await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi })
@@ -186,7 +187,7 @@ describe('makeWeekGroceryList', () => {
     const sb = makeSupabase({
       'planned_meals.select': ok([TACOS]),
       'grocery_lists.insert': ok({ id: 'L2' }),
-      'week_confirmations.update': [ok(null), ok([{ id: 'c1' }])],
+      'week_confirmations.update': [ok([{ id: 'c1' }]), ok([{ id: 'c1' }])],
     })
     await makeWeekGroceryList(sb, USER, confirmation({ grocery_list_id: 'L1', changed_at: seen }), { fetchApi: api() })
 
@@ -235,6 +236,30 @@ describe('makeWeekGroceryList', () => {
 })
 
 // ---------------------------------------------------------------------------
+describe('makeWeekGroceryList: after the list is linked', () => {
+  it('the confirmation is gone (0 rows linked): the new list is thrown away, the old one kept', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([]),
+    })
+    await expect(makeWeekGroceryList(sb, USER, confirmation({ grocery_list_id: 'L1' }), { fetchApi: api() }))
+      .rejects.toThrow('the confirmation is gone')
+    expect(sb.calls.filter((c) => c.op === 'delete').map((c) => c.filters)).toEqual([[['eq', 'id', 'L2']]])
+  })
+
+  it('clearing the stamp fails: the list still counts as made and the old one is still deleted', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': [ok([{ id: 'c1' }]), fail('offline')],
+    })
+    const out = await makeWeekGroceryList(sb, USER, confirmation({ grocery_list_id: 'L1', changed_at: 'x' }), { fetchApi: api() })
+    expect(out.listId).toBe('L2')
+    expect(sb.calls.filter((c) => c.op === 'delete').map((c) => c.filters)).toEqual([[['eq', 'id', 'L1']]])
+  })
+})
+
 describe('changed since confirmed', () => {
   it('"Keep as is" clears the stamp only if it is still the one we saw', async () => {
     const seen = '2026-11-09T18:00:00+00:00'

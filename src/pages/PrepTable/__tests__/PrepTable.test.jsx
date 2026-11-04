@@ -875,6 +875,19 @@ describe('changed since you confirmed → update the grocery list?', () => {
       expect(screen.queryByRole('region', { name: 'Changed since you confirmed' })).not.toBeInTheDocument())
   })
 
+  it("moving to another week while the list loads never shows last week's list", async () => {
+    wg.loadConfirmation.mockResolvedValue(CONF)
+    let finish
+    wg.loadGroceryItems.mockImplementation(() => new Promise((r) => { finish = r }))
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: 'Grocery list' }))
+    expect(screen.getByTestId('grocery-sheet')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Next week' }))
+    await act(async () => finish(ITEMS))
+    expect(await screen.findByTestId('week-title')).toHaveTextContent('Nov 8 – 14')
+    expect(screen.queryByTestId('grocery-sheet')).not.toBeInTheDocument()
+  })
+
   it('a failed update says so and keeps the prompt', async () => {
     const changed = { ...CONF, changed_at: '2026-11-02T19:00:00+00:00' }
     wg.loadConfirmation.mockResolvedValue(changed)

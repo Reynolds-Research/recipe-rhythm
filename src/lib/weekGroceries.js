@@ -176,19 +176,24 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
         is_adhoc: false,
       }))))
     }
-    check(
+    const linked = check(
       await supabase
         .from('week_confirmations')
         .update({ grocery_list_id: list.id })
-        .eq('id', confirmation.id),
+        .eq('id', confirmation.id)
+        .select('id'),
     )
+    if (!linked?.length) throw new Error('makeWeekGroceryList: the confirmation is gone')
   } catch (err) {
     // Not linked yet: throw the half-made list away; the old one is untouched.
     await supabase.from('grocery_lists').delete().eq('id', list.id).then(() => {}, () => {})
     throw err
   }
 
-  await clearChanged(supabase, confirmation)
+  // The list is made and linked: a failure from here on is not a failure to
+  // make it. Worst case the prompt stays, or an old list is left over.
+  await clearChanged(supabase, confirmation).catch((err) =>
+    console.warn('[weekGroceries] "changed" stamp not cleared', err))
 
   const oldId = confirmation.grocery_list_id
   if (oldId && oldId !== list.id) {
