@@ -458,7 +458,7 @@ export function useVault(userId) {
       const fields = await fillRecipeIngredients(supabase, userId, recipe, { images })
       if (!fields) return { ok: false, reason: 'unreadable' }
       setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...fields } : r))
-      return { ok: true, count: fields.ingredients_structured.length }
+      return { ok: true, count: fields.ingredients_structured.length, list: fields.ingredients_structured }
     } catch (err) {
       console.error('[Vault] readRecipeScreenshots failed:', err?.message || err)
       return { ok: false, reason: 'failed' }

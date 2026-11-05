@@ -13,7 +13,7 @@ import {
   makeWeekGroceryList,
   WeekGroceryError,
 } from '../weekGroceries'
-import { recipesFromMeals, formatStructuredIngredient, groceryPrefs } from '../groceryRecipes'
+import { recipesFromMeals, formatStructuredIngredient, groceryPrefs, formatAmount } from '../groceryRecipes'
 
 // ---------------------------------------------------------------------------
 // Supabase fake (same shape as plannedMeals.test.js): records every chain;
@@ -99,6 +99,15 @@ describe('groceryRecipes (moved from GroceryListBody)', () => {
     expect(r.noIngredients).toEqual(['Mystery'])
     // Curry (names only) and Salad (tags only) were used without a saved list: a guess.
     expect(r.noList).toEqual(['Curry', 'Salad'])
+  })
+
+  it('never doubles a unit the AI also put in the quantity ("8 ounces ounces")', () => {
+    expect(formatAmount('8 ounces', 'ounces')).toBe('8 ounces')
+    expect(formatAmount('1/4 cup', 'Cup')).toBe('1/4 cup')
+    expect(formatAmount('2', 'tbsp')).toBe('2 tbsp')
+    expect(formatAmount('', 'pinch')).toBe('pinch')
+    expect(formatAmount('3', null)).toBe('3')
+    expect(formatStructuredIngredient({ name: 'penne', quantity: '8 ounces', unit: 'ounces' })).toBe('penne: 8 ounces')
   })
 
   it('household size is adults + children, never below 1', () => {

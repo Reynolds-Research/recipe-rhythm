@@ -12,6 +12,20 @@ export const GROCERY_VAULT_COLUMNS =
   'name, servings, ingredients_structured, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits'
 
 /**
+ * "8 ounces" + "ounces" → "8 ounces" (not "8 ounces ounces"). The AI often
+ * writes the unit inside the quantity AND in the unit field; the unit is only
+ * added when the quantity doesn't already end with it.
+ */
+export function formatAmount(quantity, unit) {
+  const q = typeof quantity === 'string' ? quantity.trim() : ''
+  const u = typeof unit === 'string' ? unit.trim() : ''
+  if (!u) return q
+  if (!q) return u
+  const words = q.toLowerCase().split(/\s+/)
+  return words[words.length - 1] === u.toLowerCase() ? q : `${q} ${u}`
+}
+
+/**
  * PRD-006 Bite δ: format a single structured-ingredient entry as a string
  * the grocery-list AI can read. The model gets quantity + unit inline so
  * it scales the actual recipe quantity instead of re-estimating from the
@@ -30,11 +44,9 @@ export function formatStructuredIngredient(entry) {
   const name = entry.name.trim()
   if (!name) return null
 
-  const qty = typeof entry.quantity === 'string' ? entry.quantity.trim() : ''
-  const unit = typeof entry.unit === 'string' ? entry.unit.trim() : ''
   const notes = typeof entry.notes === 'string' ? entry.notes.trim() : ''
 
-  const measureParts = [qty, unit].filter(Boolean).join(' ').trim()
+  const measureParts = formatAmount(entry.quantity, entry.unit)
   const tail = [measureParts, notes].filter(Boolean).join(', ')
 
   return tail ? `${name}: ${tail}` : name

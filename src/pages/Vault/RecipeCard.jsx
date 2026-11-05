@@ -193,6 +193,7 @@ export default function RecipeCard({
   onRatingChange,
   onIngredientEssentialityChange,
   onReadScreenshots,
+  onDismissScreenshots,
   screenshotStatus = null,
   ingredientSaveNotice,
   source,
@@ -368,21 +369,22 @@ export default function RecipeCard({
             </>
           ) : (
             <>
-              {onReadScreenshots && (
-                <RecipeIngredients
-                  recipe={recipe}
-                  status={screenshotStatus}
-                  onReadScreenshots={(files) => onReadScreenshots(recipe.id, files)}
-                />
-              )}
-
-              {/* PRD-004 Phase D (P0.10 + P0.11) */}
+              {/* PRD-004 Phase D (P0.10 + P0.11): the card's one ingredient list */}
               <IngredientClassificationList
                 classifications={recipe.ingredients_classified}
                 onChange={(name, next) => onIngredientEssentialityChange?.(recipe.id, name, next)}
                 recipeName={recipe.name}
                 saveNotice={ingredientSaveNotice}
               />
+
+              {onReadScreenshots && (
+                <RecipeIngredients
+                  recipe={recipe}
+                  status={screenshotStatus}
+                  onReadScreenshots={(files) => onReadScreenshots(recipe.id, files)}
+                  onDismiss={() => onDismissScreenshots?.()}
+                />
+              )}
 
               <ComponentRow label="Protein"  values={recipe.proteins} />
               <ComponentRow label="Carb"     values={recipe.main_carb ? [recipe.main_carb] : []} />

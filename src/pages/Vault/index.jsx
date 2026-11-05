@@ -351,6 +351,7 @@ export default function Vault({ userId }) {
             onIngredientEssentialityChange={handleIngredientEssentialityChange}
             ingredientSaveNotice={ingredientSaveNotice?.recipeId === recipe.id ? ingredientSaveNotice.kind : null}
             onReadScreenshots={handleReadScreenshots}
+            onDismissScreenshots={() => setScreenshotStatus(null)}
             screenshotStatus={screenshotStatus?.recipeId === recipe.id ? screenshotStatus : null}
           />
         ))}

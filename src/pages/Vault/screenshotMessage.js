@@ -1,6 +1,6 @@
 /** The message for a readRecipeScreenshots result (useVault). */
 export function screenshotMessage(result) {
-  if (result.ok) return { kind: 'done', message: `✓ Read ${result.count} ingredients from your screenshots.` }
+  if (result.ok) return { kind: 'done', message: `✓ Read ${result.count} ingredients from your screenshots.`, list: result.list ?? [] }
   const messages = {
     'too-many': 'Pick up to 3 screenshots.',
     unreadable: 'Couldn’t find an ingredient list in those screenshots. Try clearer ones.',

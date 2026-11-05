@@ -134,36 +134,55 @@ describe('Add a recipe: read ingredients from screenshots', () => {
   })
 })
 
-describe("A saved recipe's ingredient list", () => {
+describe("A saved recipe's card: one ingredient list (the chips); amounts only right after a read", () => {
   const recipe = (over) => ({ id: 'r1', name: 'Penne', ingredients_structured: LIST, ingredients_source: 'estimated', servings: 4, ...over })
+  const DOUBLED = [{ name: 'penne pasta', quantity: '8 ounces', unit: 'ounces', notes: null },
+    { name: 'onion', quantity: '1/2', unit: null, notes: 'chopped finely' }]
 
-  it('shows the list, the servings and that it is an estimate', () => {
-    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={vi.fn()} />)
-    expect(screen.getByText('penne — 1 lb')).toBeInTheDocument()
-    expect(screen.getByText('Serves 4')).toBeInTheDocument()
-    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('Estimated by AI — add screenshots for the real amounts')
+  it('normally shows no amounts list: just where they came from and the servings', () => {
+    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.queryByText('penne — 1 lb')).not.toBeInTheDocument()
+    expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    expect(screen.getByTestId('ingredient-source'))
+      .toHaveTextContent('Amounts estimated by AI — add screenshots for the real ones · Serves 4')
   })
 
   it('from screenshots says so', () => {
-    render(<RecipeIngredients recipe={recipe({ ingredients_source: 'screenshot' })} status={null} onReadScreenshots={vi.fn()} />)
-    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('From your screenshots')
+    render(<RecipeIngredients recipe={recipe({ ingredients_source: 'screenshot' })} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('Amounts from your screenshots · Serves 4')
   })
 
   it('no list: warns that the grocery list will skip it', () => {
-    render(<RecipeIngredients recipe={recipe({ ingredients_structured: null, ingredients_source: null })} status={null} onReadScreenshots={vi.fn()} />)
+    render(<RecipeIngredients recipe={recipe({ ingredients_structured: null, ingredients_source: null })} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
     expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No ingredients yet — the grocery list can’t include this recipe.')
+  })
+
+  it('right after a read: a temporary "Here’s what I read" panel, no doubled units, closed by "Looks right"', async () => {
+    const onDismiss = vi.fn()
+    render(<RecipeIngredients recipe={recipe({ ingredients_source: 'screenshot' })}
+      status={{ kind: 'done', list: DOUBLED }} onReadScreenshots={vi.fn()} onDismiss={onDismiss} />)
+    const panel = screen.getByRole('status', { name: 'Here’s what I read' })
+    expect(panel).toHaveTextContent('Here’s what I read (2)')
+    expect(panel).toHaveTextContent('penne pasta — 8 ounces')
+    expect(panel).not.toHaveTextContent('ounces ounces')
+    expect(panel).toHaveTextContent('onion — 1/2, chopped finely')
+    expect(panel).toHaveTextContent('Saved for your grocery list. This preview closes when you tap below.')
+    expect(screen.queryByTestId('ingredient-source')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Looks right' }))
+    expect(onDismiss).toHaveBeenCalledTimes(1)
   })
 
   it('picking screenshots hands them over', async () => {
     const onRead = vi.fn()
-    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={onRead} />)
+    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={onRead} onDismiss={vi.fn()} />)
     await userEvent.upload(screen.getByLabelText('Screenshots of the Penne recipe (up to 3)'), [file('a.png')])
     expect(onRead).toHaveBeenCalledTimes(1)
     expect(onRead.mock.calls[0][0]).toHaveLength(1)
   })
 
-  it('result messages', () => {
-    expect(screenshotMessage({ ok: true, count: 12 })).toEqual({ kind: 'done', message: '✓ Read 12 ingredients from your screenshots.' })
+  it('result messages carry the list for the panel', () => {
+    expect(screenshotMessage({ ok: true, count: 1, list: LIST.slice(0, 1) }))
+      .toEqual({ kind: 'done', message: '✓ Read 1 ingredients from your screenshots.', list: LIST.slice(0, 1) })
     expect(screenshotMessage({ ok: false, reason: 'too-many' }).message).toBe('Pick up to 3 screenshots.')
     expect(screenshotMessage({ ok: false, reason: 'failed' }).kind).toBe('error')
   })
@@ -224,7 +243,7 @@ describe('Changing tags never replaces a screenshot list; screenshots replace an
     await waitFor(() => expect(result.current.recipes).toHaveLength(1))
     let out
     await act(async () => { out = await result.current.readRecipeScreenshots('r1', [file('a.png'), file('b.png')]) })
-    expect(out).toEqual({ ok: true, count: 2 })
+    expect(out).toEqual({ ok: true, count: 2, list: LIST })
     const [, , recipe, opts] = ri.fillRecipeIngredients.mock.calls[0]
     expect(recipe.id).toBe('r1')
     expect(opts.images).toHaveLength(2)
