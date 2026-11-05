@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createGroceryListHandler } from '../../../api/_lib/groceryListHandler.js'
-import { buildGroceryList, GroceryListError } from '../groceryList.js'
+import { buildGroceryList, GroceryListError, scaleFactor } from '../groceryList.js'
 import { GROCERY_SECTIONS } from '../constants.js'
 
 function mockRes() {
@@ -582,6 +582,50 @@ describe('Bite γ — household scaling (handler)', () => {
 })
 
 // ---------- Bite γ — buildGroceryList prompt interpolation ----------
+
+describe('scaling: never down, only up (decided 2026-11-05)', () => {
+  it('scaleFactor: 3 people, recipe for 4 → as written; 6 people → ×1.5', () => {
+    expect(scaleFactor(3, 4)).toBe(1)
+    expect(scaleFactor(2, 4)).toBe(1)
+    expect(scaleFactor(6, 4)).toBe(1.5)
+    expect(scaleFactor(5, 3)).toBe(1.67)
+    expect(scaleFactor(3, null)).toBe(1)
+  })
+
+  it("her household of 3: each recipe line says 'multiply amounts by 1 (as written)'", async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Shrimp Tacos', ingredients: ['shrimp: 1 lb'], servings: 4 }],
+      householdSize: 3,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('Shrimp Tacos (yields 4 servings; multiply amounts by 1 (as written))')
+    expect(prompt).toContain('NEVER scaled down')
+    expect(prompt).not.toMatch(/household_size \/ yield|3 \/ yield/)
+  })
+
+  it('a bigger household gets the exact multiplier, worked out in code', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Pasta', ingredients: ['spaghetti'], servings: 4 }],
+      householdSize: 6,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('Pasta (yields 4 servings; multiply amounts by 1.5)')
+  })
+
+  it('the prompt carries the fixes from her real week (salmon weight, no "whole", no sixteenths, merge onions)', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({ recipes: [{ name: 'X', ingredients: ['a'] }], anthropicClient: client })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('4 fillets → "1½ lb"')
+    expect(prompt).toContain('never the word "whole"')
+    expect(prompt).toContain('never sixteenths')
+    expect(prompt).toContain('"small onion" and "yellow onion" are ONE line')
+  })
+})
 
 describe('Bite γ — buildGroceryList scaling (prompt)', () => {
   it('interpolates householdSize and servings into the prompt', async () => {
