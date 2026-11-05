@@ -3,7 +3,9 @@ import { describe, it, expect, vi } from 'vitest'
 // Household size comes from preferences; keep it fixed here.
 vi.mock('../preferences', () => ({
   getPreferences: vi.fn(async () => ({ adults: 2, children: 1, pantry_staples: ['salt'] })),
+  upsertPreferences: vi.fn(async (_u, patch) => ({ pantry_staples: patch.pantry_staples })),
 }))
+import { getPreferences, upsertPreferences } from '../preferences'
 
 import {
   confirmWeek,
@@ -11,6 +13,8 @@ import {
   loadConfirmation,
   loadGroceryItems,
   makeWeekGroceryList,
+  setAlwaysHave,
+  setAssumed,
   WeekGroceryError,
 } from '../weekGroceries'
 import { recipesFromMeals, formatStructuredIngredient, groceryPrefs, formatAmount } from '../groceryRecipes'
@@ -186,7 +190,8 @@ describe('makeWeekGroceryList', () => {
 
     const items = sb.calls.find((c) => c.table === 'grocery_list_items' && c.op === 'insert')
     expect(items.payload).toEqual([{
-      list_id: 'L2', name: 'Tortillas', quantity: '8', section: 'Bakery', is_bought: false, is_adhoc: false,
+      list_id: 'L2', name: 'Tortillas', quantity: '8', recipe_quantity: null, section: 'Bakery',
+      assumed: false, is_bought: false, is_adhoc: false,
     }])
     const link = sb.calls.find((c) => c.table === 'week_confirmations' && c.op === 'update')
     expect(link.payload).toEqual({ grocery_list_id: 'L2' })
@@ -289,6 +294,58 @@ describe('changed since confirmed', () => {
     const sb = makeSupabase()
     expect(await keepListAsIs(sb, confirmation())).toBe(true)
     expect(sb.calls).toEqual([])
+  })
+})
+
+describe('shop amounts + Assumed you have', () => {
+  it('saves what to buy, what the recipes use, and the assumed flag', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([{ id: 'c1' }]),
+    })
+    const fetchApi = api([
+      { name: 'Avocados', quantity: '2', recipe_quantity: '1½', section: 'Produce', assumed: false },
+      { name: 'Cumin', quantity: '1 jar', recipe_quantity: '2¼ tsp', section: 'Pantry', assumed: true },
+    ])
+    await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi })
+    const items = sb.calls.find((c) => c.table === 'grocery_list_items' && c.op === 'insert')
+    expect(items.payload.map(({ name, quantity, recipe_quantity, assumed }) =>
+      ({ name, quantity, recipe_quantity, assumed }))).toEqual([
+      { name: 'Avocados', quantity: '2', recipe_quantity: '1½', assumed: false },
+      { name: 'Cumin', quantity: '1 jar', recipe_quantity: '2¼ tsp', assumed: true },
+    ])
+  })
+
+  it('loads the new columns', async () => {
+    const sb = makeSupabase({ 'grocery_list_items.select': ok([]) })
+    await loadGroceryItems(sb, 'L1')
+    expect(sb.calls[0].columns).toBe('id, name, quantity, recipe_quantity, section, assumed')
+  })
+
+  it('Add moves an assumed item onto the list (and Undo moves it back)', async () => {
+    const sb = makeSupabase({ 'grocery_list_items.update': ok([{ id: 'i9', assumed: false }]) })
+    expect(await setAssumed(sb, 'i9', false)).toEqual({ id: 'i9', assumed: false })
+    expect(sb.calls[0].payload).toEqual({ assumed: false })
+    expect(sb.calls[0].filters).toEqual([['eq', 'id', 'i9']])
+  })
+
+  it('Add fails loudly when the item is gone', async () => {
+    const sb = makeSupabase({ 'grocery_list_items.update': ok([]) })
+    await expect(setAssumed(sb, 'gone', false)).rejects.toThrow(/not found/)
+  })
+
+  it('Always have adds the item to the pantry list, keeping what is there', async () => {
+    getPreferences.mockResolvedValueOnce({ pantry_staples: ['olive oil', 'garlic'] })
+    expect(await setAlwaysHave({}, USER, 'Cumin', true)).toEqual(['olive oil', 'garlic', 'cumin'])
+    expect(upsertPreferences).toHaveBeenLastCalledWith(USER, { pantry_staples: ['olive oil', 'garlic', 'cumin'] }, {})
+  })
+
+  it('Always have twice does not add it twice; Undo takes it out', async () => {
+    getPreferences.mockResolvedValueOnce({ pantry_staples: ['cumin'] })
+    expect(await setAlwaysHave({}, USER, 'cumin', true)).toEqual(['cumin'])
+    getPreferences.mockResolvedValueOnce({ pantry_staples: ['olive oil', 'cumin'] })
+    expect(await setAlwaysHave({}, USER, 'Cumin', false)).toEqual(['olive oil'])
   })
 })
 

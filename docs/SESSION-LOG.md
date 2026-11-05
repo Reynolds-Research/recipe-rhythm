@@ -6,6 +6,21 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-05 (night) — Grocery list: shop amounts + "Assumed you have"
+
+**Done:** PR (open), branch `feat/grocery-shop-amounts` (includes the link-test docs commits). Mockup "Grocery Shop Amounts Mockup" agreed. Matt's concern: a weekly "Check you have" would re-ask spices that last months. Her answer: she checks the cupboard right before making the list when home, otherwise guesses. Decided: **"Assumed you have"**, stated not asked; Add / Always have, both with Undo; Always have writes the existing pantry list.
+- Migration `20261105000002`: `grocery_list_items.recipe_quantity` + `assumed`. `quantity` now means what to buy. Rehearsed on preview: preview = prod for the table; applied twice; verify 4/4; rollback fingerprint identical (`9d3ad52e…` / 1052 / `7fc5dd4a…`); re-applied. **Not on prod yet.**
+- `groceryList.js` prompt: two amounts, store units, fractions not decimals, the assumed rule; parse keeps only a real `true`. `src/lib/groceryAmounts.js`: fractions, "same amount?", pantry match, list split.
+- `weekGroceries.js`: saves/loads the new columns; `setAssumed`, `setAlwaysHave`. `GrocerySheet.jsx` + `usePrepTable` wiring; subtitle "Nov 1 – 7 · 5 dinners".
+
+**Verified:** Vitest 1056/1056 before the docs, eslint, `lint:ds`, build. Seven deliberate breaks each failed a test. **Not verified:** a real AI call (the PC's `.env` key is the old revoked one, 401), so how good the store units are is unknown until her preview test. Not changed: the old Groceries tab and the share page show the buy amount as before, with assumed items as plain lines (they move to confirmed weeks at 2c).
+
+**Open / owed (Matt):** (1) apply `20261105000002` to prod and run its verify, before any deploy; (2) merge #224, then this PR; (3) on a preview, she re-makes the Nov 1–7 list (Update list) and checks the amounts. Optional: a working key in the PC's `.env` so I can check AI output before her.
+
+**Next:** tick this item after her preview test; then 2c, Switch-over.
+
+---
+
 ## 2026-11-05 (evening) — Link-reading test; grocery shop-amounts mockup
 
 **Done:** branch `docs/link-read-test` (this PR, docs only).

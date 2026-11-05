@@ -26,6 +26,8 @@ vi.mock('../../../lib/weekGroceries', async (importOriginal) => ({
   makeWeekGroceryList: vi.fn(),
   keepListAsIs: vi.fn(),
   loadGroceryItems: vi.fn(),
+  setAssumed: vi.fn(),
+  setAlwaysHave: vi.fn(),
 }))
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(async () => null) }))
 vi.mock('../../../lib/supabase', () => ({ supabase: { from: vi.fn() } }))
@@ -752,6 +754,32 @@ describe('Confirm the week', () => {
     expect(within(sheet).getByRole('region', { name: 'Meat & Seafood' })).toHaveTextContent('Ground turkey1 lb')
     expect(sheet).toHaveTextContent('Not on the list (not in your Cookbook): Pizza out.')
     expect(screen.getByRole('region', { name: 'Week confirmed' })).toHaveTextContent('Confirmed Mon Nov 2')
+  })
+
+  it('Assumed you have: Add saves and moves the item onto the list; Always have saves her pantry list', async () => {
+    setWeek({ meals: FULL_WEEK })
+    wg.loadConfirmation.mockResolvedValue(CONF)
+    wg.loadGroceryItems.mockResolvedValue([
+      ...ITEMS,
+      { id: 'i3', name: 'soy sauce', quantity: '1 bottle', recipe_quantity: '3 tbsp', section: 'Pantry', assumed: true },
+      { id: 'i4', name: 'cumin', quantity: '1 jar', recipe_quantity: '2¼ tsp', section: 'Pantry', assumed: true },
+    ])
+    wg.setAssumed.mockResolvedValue({ id: 'i3', assumed: false })
+    wg.setAlwaysHave.mockResolvedValue(['cumin'])
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: /Grocery list/ }))
+    const sheet = await screen.findByTestId('grocery-sheet')
+    expect(sheet).toHaveTextContent('Nov 1 – 7 · 4 dinners')
+    expect(within(sheet).queryByRole('region', { name: 'Pantry' })).not.toBeInTheDocument()
+
+    await userEvent.click(within(sheet).getByRole('button', { name: /Assumed you have/ }))
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Add Soy sauce' }))
+    expect(wg.setAssumed).toHaveBeenCalledWith(supabase, 'i3', false)
+    expect(await within(sheet).findByRole('region', { name: 'Pantry' })).toHaveTextContent('Soy sauceRecipes use 3 tbsp1 bottle')
+
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Always have Cumin' }))
+    expect(wg.setAlwaysHave).toHaveBeenCalledWith(supabase, 'u1', 'cumin', true)
+    expect(await within(sheet).findByText('Not shown, in your pantry list: cumin.')).toBeInTheDocument()
   })
 
   it('empty nights are told, never blocking: "Not yet" waits, "Confirm anyway" confirms', async () => {

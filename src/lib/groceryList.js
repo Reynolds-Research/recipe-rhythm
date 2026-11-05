@@ -20,6 +20,7 @@
  * writing the result to the grocery_lists / grocery_list_items tables.
  */
 import { GROCERY_SECTIONS } from './constants.js'
+import { friendlyAmount } from './groceryAmounts.js'
 
 const MODEL = 'claude-haiku-4-5-20251001'
 
@@ -71,12 +72,24 @@ Pantry staples the user already has — EXCLUDE any matching ingredient entirely
 Instructions:
 1. Each recipe lists its yield and its ingredients. When an ingredient is given with a quantity (e.g. "olive oil: 2 tbsp"), use that quantity as the baseline for scaling — do NOT re-estimate. When an ingredient is given without a quantity (e.g. just "olive oil"), estimate a reasonable amount per recipe-yield first. Then scale the resulting quantity by (household_size / yield) — a recipe that yields 4 servings, in a 6-person household, scales every quantity by 1.5.
 2. Consolidate identical or near-identical ingredients across recipes into a single line item AFTER scaling. If olive oil appears in three recipes, it must appear ONCE in the output, with quantities summed.
-3. Express each consolidated quantity as a free-text string (e.g. "3 lbs", "2 bunches", "5 cloves", "1 dozen"). If you cannot reasonably estimate, return null for that item's quantity.
-4. Categorize each item into exactly one of these grocery store sections: ${sectionsLine}. Use exactly the spelling shown — do not invent new sections.
-5. Skip any ingredient that matches a pantry staple by case-insensitive substring.
+3. Give TWO amounts per item, as free-text strings. Write fractions as ½ ¼ ¾ ⅓ ⅔ ⅛ — never decimals like 1.125.
+   - "recipe_quantity": the scaled, consolidated total the recipes use (e.g. "1⅛ lb", "2¼ cups", "1½ tsp").
+   - "quantity": what to BUY at a US grocery store, rounded UP to how the item is sold: whole produce as a count ("2", not "1½ avocados"), herbs and green onions by the bunch, cabbage or lettuce by the head, leafy greens by the bag with a typical size ("1 bag (5 oz)"), meat and fish to the next ¼ lb ("1¼ lb"), tortillas and bread by the pack or loaf, sauces and spices by the container ("1 bottle", "1 jar").
+   If you cannot reasonably estimate an amount, use null for it.
+4. Set "assumed" to true ONLY for long-lasting cupboard items most kitchens already keep and that last for months: salt, pepper, dried spices and dried herbs, cooking oils, vinegars, soy sauce and similar bottled sauces or cooking wines (mirin, sake), sugar, honey, flour, baking soda and powder, sesame seeds. Everything else is false — fresh produce and herbs, meat, fish, dairy, eggs, bread, tortillas, pasta, canned goods and anything perishable.
+5. Categorize each item into exactly one of these grocery store sections: ${sectionsLine}. Use exactly the spelling shown — do not invent new sections.
+6. Skip any ingredient that matches a pantry staple by case-insensitive substring.
 
 Respond with valid JSON ONLY — no prose, no markdown fences, no explanation:
-{"items": [{"name": "<ingredient name>", "quantity": "<free-text quantity or null>", "section": "<one of the sections>"}, ...]}`
+{"items": [{"name": "<ingredient name>", "quantity": "<what to buy, or null>", "recipe_quantity": "<what the recipes use, or null>", "section": "<one of the sections>", "assumed": <true or false>}, ...]}`
+}
+
+/** Free-text amount → trimmed friendly string, or null. */
+function amountOrNull(value) {
+  if (typeof value !== 'string') return null
+  const v = value.trim()
+  if (!v || v.toLowerCase() === 'null') return null
+  return friendlyAmount(v)
 }
 
 /**
@@ -110,7 +123,9 @@ const DEFAULT_SERVINGS = 4
  *                                          household_preferences defaults.
  * @param {object}   args.anthropicClient   Instantiated Anthropic SDK client.
  *
- * @returns {Promise<{items: Array<{name: string, quantity: string|null, section: string}>}>}
+ * @returns {Promise<{items: Array<{name: string, quantity: string|null,
+ *   recipe_quantity: string|null, section: string, assumed: boolean}>}>}
+ *   `quantity` is what to buy (store units); `recipe_quantity` what the recipes use.
  *
  * @throws {GroceryListError} if the model returns malformed JSON or the
  *         wrong shape (missing/non-array `items`).
@@ -146,13 +161,14 @@ export async function buildGroceryList({
 
   const userMessage = buildUserMessage({ recipes: resolvedRecipes, pantryStaples, householdSize })
 
-  // Token budget: ~25 tokens per ingredient covers {name, quantity, section}.
-  // Floor at 400 for the JSON envelope; cap at 2000 to bound runaway input.
+  // Token budget: ~45 tokens per ingredient covers {name, quantity,
+  // recipe_quantity, section, assumed}. Floor at 400 for the JSON envelope;
+  // cap at 3000 to bound runaway input.
   const totalIngredients = recipes.reduce(
     (acc, r) => acc + (Array.isArray(r.ingredients) ? r.ingredients.length : 0),
     0,
   )
-  const maxTokens = Math.min(2000, Math.max(400, 25 * totalIngredients + 200))
+  const maxTokens = Math.min(3000, Math.max(400, 45 * totalIngredients + 200))
 
   const msg = await anthropicClient.messages.create({
     model: MODEL,
@@ -198,14 +214,14 @@ export async function buildGroceryList({
       section = 'Other'
     }
 
-    // Quantity is free-text per OQ.A. Treat empty / "null" string as null.
-    let quantity = null
-    if (typeof entry.quantity === 'string') {
-      const q = entry.quantity.trim()
-      if (q && q.toLowerCase() !== 'null') quantity = q
-    }
+    // Amounts are free-text per OQ.A. Empty / "null" string → null; any
+    // decimal the model slipped in becomes a kitchen fraction (1.125 → 1⅛).
+    const quantity = amountOrNull(entry.quantity)
+    const recipe_quantity = amountOrNull(entry.recipe_quantity)
+    // Only a real `true` counts: anything else stays on the list.
+    const assumed = entry.assumed === true
 
-    items.push({ name, quantity, section })
+    items.push({ name, quantity, recipe_quantity, section, assumed })
   }
 
   return { items }

@@ -17,6 +17,12 @@ import { dayUnderPointer, dragAnnouncements, resolveDrop, usePrepTableSensors } 
  * is "true". Meals sit on dates; nothing locks. "Confirm the week" stamps the
  * week and makes its grocery list (2b-3); Matt's nights come in phase 3.
  */
+/** "Nov 1 – 7 · 5 dinners" under the grocery sheet's title. */
+function groceriesSubtitle(pt) {
+  const n = pt.mealCount ?? 0
+  return `${weekTitle(pt.weekStart, pt.weekEnd)} · ${n} ${n === 1 ? 'dinner' : 'dinners'}`
+}
+
 export default function PrepTable({ userId, today }) {
   const pt = usePrepTable(userId, today ? { today } : undefined)
   const [tab, setTab] = useState('week')
@@ -239,7 +245,11 @@ export default function PrepTable({ userId, today }) {
         loading={pt.groceries.loading}
         failed={pt.groceries.failed}
         items={pt.groceries.items}
+        staples={pt.groceries.staples}
+        subtitle={pt.groceries.open ? groceriesSubtitle(pt) : null}
         leftOff={pt.leftOff}
+        onSetAssumed={pt.setItemAssumed}
+        onSetAlwaysHave={pt.setAlwaysHave}
         onClose={pt.closeGroceries}
       />
 
