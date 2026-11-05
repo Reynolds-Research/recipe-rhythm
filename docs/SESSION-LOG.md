@@ -6,6 +6,24 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-05 — Recipe ingredients: save them, read screenshots, fill the gaps
+
+**Why:** her first confirmed week (preview, real data). Amounts like "1.125 lbs shrimp"; linked recipes didn't feed their real ingredients; Penne alla Vodka added nothing. Found (prod, read-only): all 4 linked recipes that week had no saved amounts or servings (added Oct 31 – Nov 3); new recipes never saved the list `analyze-recipe` returns (only the 2026-05 backfill had); 9 of 36 recipes affected; `analyze-recipe` can't open links (URL is just text); the Cookbook photo was never sent to the AI. The odd decimals = AI-estimated amounts × household 3 ÷ assumed yield 4.
+
+**Done:** PR (open), branch `feat/recipe-ingredients`. Matt decided: separate screenshot button (up to 3, not the photo); fill the 9 now as marked estimates, replaceable by screenshots; save stays instant, list fills in the background.
+- Migration `20261105000001_vault_ingredients_source` (`'screenshot'` / `'estimated'`), verify + rollback. Rehearsed on preview: preview = prod fingerprints, applied twice, verify 4/4, write checks 3/3, rollback fingerprint identical, re-applied. **Not on prod yet.**
+- `analyze-recipe`: up to 3 images, "copy exactly" rule; 400 on more / wrong type / empty.
+- `src/lib/recipeIngredients.js`; Cookbook form button; recipe card list + source + replace-by-screenshot; Settings "Fill in N recipes" (only recipes with no list; replaced the old re-extract-everything button); suggestions + LogMode save the estimate; a tag edit never re-estimates a screenshot list; an estimate is guarded in the database too.
+- Confirm the week names recipes that added nothing or whose part is a guess.
+
+**Verified:** Vitest 1014/1015 (the 1 = RecipeCard "Last cooked" DST test, fails on `main` too); eslint, build, `lint:ds`. Nine deliberate breaks each failed a test. Real Chromium: a 1290×2796 screenshot → 738×1600 JPEG, 142 KB (3 fit far under Vercel's 4.5 MB). **Not verified:** a real AI read of a screenshot — the Mac's `.env` still has the old, revoked Anthropic key (401). Reviewer (fresh context): **PASS**; flags 1–4 fixed (deploy-order note, estimate guarded in the DB, Save waits for screenshots, servings > 0 + `estimateFields` test).
+
+**Open / owed (Matt):** (1) apply `20261105000001` to prod and run its verify — before anything ships, or the Cookbook won't load; (2) merge the PR; (3) on a preview: Settings → "Fill in 9 recipes", then she adds screenshots to one real NYT recipe and re-confirms the week; (4) optional: put the new Anthropic key in the Mac's `.env` (local AI calls fail today). Then tick the item.
+
+**Next:** Grocery list: shop amounts + "Check you have".
+
+---
+
 ## 2026-11-04 (later) — PRD-008 2b-3: Confirm the week + groceries
 
 **Done:** PR (open), branch `feat/prd-008-confirm-week`. Ticked 2b-2 (#216 + #218 merged, both used it on phones).
