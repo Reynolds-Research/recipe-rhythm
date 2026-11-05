@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Sparkles, Loader2, X, Camera, Image as ImageIcon, ScanText } from 'lucide-react'
+import { Sparkles, Loader2, X, Image as ImageIcon } from 'lucide-react'
 import { analyzeRecipe } from '../../lib/analyzeRecipe'
 import { estimateFields, ingredientFields, prepareScreenshot, readIngredients, MAX_SCREENSHOTS } from '../../lib/recipeIngredients'
 import { normalizeMealName, toTitleCase } from '../../lib/mealNameNormalize'
 import { useHaptics } from '../../hooks/useHaptics'
 import ChipPicker from './ChipPicker'
+import RecipeSource from './RecipeSource'
 import MealNameConfirmSheet from '../../components/MealNameConfirmSheet'
 import {
   CUISINE_OPTIONS, FLAVOR_OPTIONS, PROTEIN_OPTIONS,
@@ -273,78 +274,22 @@ export default function RecipeForm({
           placeholder="Recipe name (e.g. Thai meatball soup)"
           className="input-base"
         />
-        <div className="flex gap-2">
-          <input
-            type="url"
-            value={recipeUrl}
-            onChange={e => { setRecipeUrl(e.target.value); setAiApplied(false) }}
-            placeholder="Recipe URL (optional)"
-            className="input-base flex-1"
-          />
-          <div className="relative">
-            <button
-              type="button"
-              className={`h-full border rounded-xl px-4 flex items-center justify-center transition-colors relative overflow-hidden ${
-                imagePreview ? 'bg-brand-50 border-brand-500 text-brand-600' : 'bg-white border-cream-200 text-brand-500 hover:bg-brand-50'
-              }`}
-              title="Upload recipe image"
-              aria-label="Upload recipe image"
-            >
-              {imagePreview ? <ImageIcon size={20} /> : <Camera size={20} />}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                onChange={handleImageUpload}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* Screenshots: an alternative to the link (e.g. NYT Cooking is paywalled), not the main action. */}
-        <label className={`inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-700 hover:text-brand-800 cursor-pointer ${shots.reading ? 'opacity-60 pointer-events-none' : ''}`}>
-          {shots.reading
-            ? <><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Reading screenshots…</>
-            : <><ScanText size={14} aria-hidden="true" /> Or read ingredients from screenshots</>}
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            aria-label="Screenshots of the recipe's ingredients (up to 3)"
-            disabled={shots.reading}
-            onChange={(e) => { handleScreenshots(e.target.files); e.target.value = '' }}
-          />
-        </label>
-        {ingredients?.ingredients_source === 'screenshot' && !shots.reading && (
-          <p role="status" className="text-sm text-gray-900">
-            ✓ {ingredients.ingredients_structured.length} ingredients read from {shots.count === 1 ? 'your screenshot' : `${shots.count} screenshots`}
-            {ingredients.servings ? ` · serves ${ingredients.servings}` : ''}
-          </p>
-        )}
-        {shots.error && <p role="alert" className="text-sm text-red-800">{shots.error}</p>}
-        {imagePreview && (
-          <div className="relative inline-block mt-4 mb-2">
-            <img
-              src={imagePreview}
-              alt="Preview"
-              className="h-32 w-32 object-cover rounded-xl shadow-sm border border-cream-200"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                URL.revokeObjectURL(imagePreview)
-                setImageFile(null)
-                setImagePreview(null)
-              }}
-              aria-label="Remove image"
-              className="absolute -top-2 -right-2 bg-white text-gray-700 rounded-full p-1 shadow-sm border border-cream-100 hover:text-red-600 transition-colors"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        )}
+        <RecipeSource
+          name={name.trim()}
+          link={recipeUrl.trim() || null}
+          onSaveLink={(url) => { setRecipeUrl(url ?? ''); setAiApplied(false) }}
+          source={ingredients?.ingredients_source ?? null}
+          servings={ingredients?.servings ?? null}
+          hasList={Boolean(ingredients?.ingredients_structured?.length)}
+          hasNames
+          showStatus={false}
+          reading={shots.reading}
+          error={shots.error}
+          readSummary={ingredients?.ingredients_source === 'screenshot'
+            ? `✓ ${ingredients.ingredients_structured.length} ingredients read from ${shots.count === 1 ? 'your screenshot' : `${shots.count} screenshots`}`
+            : null}
+          onScreenshots={handleScreenshots}
+        />
 
 
         <button
@@ -421,6 +366,41 @@ export default function RecipeForm({
       />
 
 
+
+      {/* The dish's photo: optional, below the details (screenshots of the recipe are in Recipe source). */}
+      <label className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-gray-700 hover:text-gray-900 cursor-pointer">
+        <ImageIcon size={14} aria-hidden="true" />
+        {imagePreview ? 'Change the photo' : 'Add a photo of the dish (optional)'}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          aria-label="Upload recipe image"
+          onChange={handleImageUpload}
+        />
+      </label>
+        {imagePreview && (
+          <div className="relative inline-block mb-2">
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="h-32 w-32 object-cover rounded-xl shadow-sm border border-cream-200"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                URL.revokeObjectURL(imagePreview)
+                setImageFile(null)
+                setImagePreview(null)
+              }}
+              aria-label="Remove image"
+              className="absolute -top-2 -right-2 bg-white text-gray-700 rounded-full p-1 shadow-sm border border-cream-100 hover:text-red-600 transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
       <button
         onClick={handleSubmit}

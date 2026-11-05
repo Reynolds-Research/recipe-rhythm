@@ -22,7 +22,7 @@ vi.mock('../../../lib/vaultOptions', () => ({
   addVaultOption: vi.fn().mockResolvedValue({ error: null }),
   migrateLocalStorageExtras: vi.fn().mockResolvedValue({ migrated: 0 }),
 }))
-const { insert, rows } = vi.hoisted(() => ({ insert: vi.fn(), rows: { vault: [] } }))
+const { insert, rows, update } = vi.hoisted(() => ({ insert: vi.fn(), rows: { vault: [] }, update: vi.fn() }))
 vi.mock('../../../lib/supabase', () => {
   const chain = (table) => {
     const c = {}
@@ -30,6 +30,7 @@ vi.mock('../../../lib/supabase', () => {
     c.order = () => Promise.resolve({ data: table === 'vault' ? rows.vault : [], error: null })
     c.then = (res) => Promise.resolve({ data: [], error: null }).then(res)
     c.insert = insert
+    c.update = (p) => { update(table, p); return c }
     return c
   }
   return { supabase: { from: vi.fn(chain) } }
@@ -38,8 +39,8 @@ vi.mock('../../../lib/supabase', () => {
 import * as ri from '../../../lib/recipeIngredients'
 import { analyzeRecipe } from '../../../lib/analyzeRecipe'
 import RecipeForm from '../RecipeForm'
-import RecipeIngredients from '../RecipeIngredients'
-import { screenshotMessage } from '../screenshotMessage'
+import RecipeSource from '../RecipeSource'
+import { screenshotMessage, cleanLink } from '../recipeSourceHelpers'
 import { useVault } from '../useVault'
 
 const LIST = [
@@ -67,9 +68,9 @@ describe('Add a recipe: read ingredients from screenshots', () => {
     const user = userEvent.setup()
     const onSubmit = renderForm()
     await user.type(screen.getByPlaceholderText(/recipe name/i), 'Penne alla Vodka')
-    await user.upload(screen.getByLabelText(/Screenshots of the recipe's ingredients/), [file('a.png'), file('b.png')])
+    await user.upload(screen.getByLabelText(/Screenshots of the .*ingredients/), [file('a.png'), file('b.png')])
 
-    expect(await screen.findByRole('status')).toHaveTextContent('✓ 2 ingredients read from 2 screenshots · serves 4')
+    expect(await screen.findByText('✓ 2 ingredients read from 2 screenshots · Serves 4')).toBeInTheDocument()
     expect(ri.readIngredients).toHaveBeenCalledWith({
       name: 'Penne alla Vodka', url: '',
       images: [{ data: 'b64-a.png', mediaType: 'image/jpeg' }, { data: 'b64-b.png', mediaType: 'image/jpeg' }],
@@ -87,7 +88,7 @@ describe('Add a recipe: read ingredients from screenshots', () => {
     const user = userEvent.setup()
     renderForm()
     await user.type(screen.getByPlaceholderText(/recipe name/i), 'Penne')
-    await user.upload(screen.getByLabelText(/Screenshots of the recipe's ingredients/), [file('a.png')])
+    await user.upload(screen.getByLabelText(/Screenshots of the .*ingredients/), [file('a.png')])
     expect(await screen.findByText('Reading screenshots…')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Save to vault/i })).toBeDisabled()
     await act(async () => finish(READ))
@@ -97,7 +98,7 @@ describe('Add a recipe: read ingredients from screenshots', () => {
   it('more than 3 screenshots: says so and reads nothing', async () => {
     const user = userEvent.setup()
     renderForm()
-    await user.upload(screen.getByLabelText(/Screenshots of the recipe's ingredients/),
+    await user.upload(screen.getByLabelText(/Screenshots of the .*ingredients/),
       [file('1.png'), file('2.png'), file('3.png'), file('4.png')])
     expect(await screen.findByRole('alert')).toHaveTextContent('Pick up to 3 screenshots.')
     expect(ri.readIngredients).not.toHaveBeenCalled()
@@ -108,7 +109,7 @@ describe('Add a recipe: read ingredients from screenshots', () => {
     const user = userEvent.setup()
     const onSubmit = renderForm()
     await user.type(screen.getByPlaceholderText(/recipe name/i), 'Penne')
-    await user.upload(screen.getByLabelText(/Screenshots of the recipe's ingredients/), [file('a.png')])
+    await user.upload(screen.getByLabelText(/Screenshots of the .*ingredients/), [file('a.png')])
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t find an ingredient list in those screenshots')
     await user.click(screen.getByRole('button', { name: /Save to vault/i }))
     expect(onSubmit.mock.calls[0][0].ingredients).toBeNull()
@@ -126,79 +127,104 @@ describe('Add a recipe: read ingredients from screenshots', () => {
     expect(onSubmit.mock.calls[0][0].ingredients).toMatchObject({ ingredients_source: 'estimated', servings: null })
 
     await user.type(screen.getByPlaceholderText(/recipe name/i), 'Tacos')
-    await user.upload(screen.getByLabelText(/Screenshots of the recipe's ingredients/), [file('a.png')])
-    await screen.findByRole('status')
+    await user.upload(screen.getByLabelText(/Screenshots of the .*ingredients/), [file('a.png')])
+    await screen.findByText(/ingredients read from your screenshot/)
     await user.click(screen.getByRole('button', { name: /Auto-fill/ }))
     await user.click(screen.getByRole('button', { name: /Save to vault/i }))
     expect(onSubmit.mock.calls[1][0].ingredients.ingredients_source).toBe('screenshot')
   })
 })
 
-describe("A saved recipe's card: one ingredient list (the chips); amounts only right after a read", () => {
-  const recipe = (over) => ({ id: 'r1', name: 'Penne', ingredients_structured: LIST, ingredients_source: 'estimated', servings: 4, ...over })
+describe("Recipe source (card and Add a recipe): link and screenshots side by side", () => {
   const DOUBLED = [{ name: 'penne pasta', quantity: '8 ounces', unit: 'ounces', notes: null },
     { name: 'onion', quantity: '1/2', unit: null, notes: 'chopped finely' }]
+  function renderSource(over = {}) {
+    const props = {
+      name: 'Penne', link: null, onSaveLink: vi.fn(), source: null, servings: null, hasList: false, hasNames: true,
+      onScreenshots: vi.fn(), onDismissRead: vi.fn(), ...over,
+    }
+    render(<RecipeSource {...props} />)
+    return props
+  }
 
-  it('normally shows no amounts list: just where they came from and the servings', () => {
-    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
-    expect(screen.queryByText('penne — 1 lb')).not.toBeInTheDocument()
-    expect(screen.queryByRole('list')).not.toBeInTheDocument()
-    expect(screen.getByTestId('ingredient-source'))
-      .toHaveTextContent('Amounts estimated by AI — add screenshots for the real ones · Serves 4')
+  it('no source: "Add link" and "Add screenshots" side by side, as small actions, and a short status', () => {
+    renderSource()
+    expect(screen.getByRole('button', { name: 'Add link' }).className).not.toMatch(/btn-/)
+    expect(screen.getByText('Add screenshots').closest('label').className).not.toMatch(/btn-/)
+    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No amounts saved yet.')
   })
 
-  it('from screenshots says so', () => {
-    render(<RecipeIngredients recipe={recipe({ ingredients_source: 'screenshot' })} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
-    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('Amounts from your screenshots · Serves 4')
+  it('no names either: "No ingredients yet."', () => {
+    renderSource({ hasNames: false })
+    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No ingredients yet.')
   })
 
-  it('no list: warns that the grocery list will skip it', () => {
-    render(<RecipeIngredients recipe={recipe({ ingredients_structured: null, ingredients_source: null })} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
-    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No ingredients yet — the grocery list can’t include this recipe.')
+  it('add a link right on the card: paste, Save → saved (https:// added), no Edit needed', async () => {
+    const p = renderSource()
+    await userEvent.click(screen.getByRole('button', { name: 'Add link' }))
+    await userEvent.type(screen.getByLabelText('Recipe link'), 'cooking.nytimes.com/recipes/penne')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(p.onSaveLink).toHaveBeenCalledWith('https://cooking.nytimes.com/recipes/penne')
   })
 
-  it('names but no amounts: says the grocery list will guess, never "no ingredients"', () => {
-    render(<RecipeIngredients recipe={recipe({ ingredients_structured: null, ingredients_source: null,
-      ingredients_classified: [{ name: 'capsicum', essentiality: 'essential', source: 'ai' }] })}
-      status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
-    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No amounts saved — the grocery list will guess them.')
-    expect(screen.queryByText(/No ingredients yet/)).not.toBeInTheDocument()
+  it('Cancel saves nothing', async () => {
+    const p = renderSource()
+    await userEvent.click(screen.getByRole('button', { name: 'Add link' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(p.onSaveLink).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Recipe link')).not.toBeInTheDocument()
   })
 
-  it('the screenshot option is a small link, not a big button', () => {
-    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
-    const option = screen.getByText('Read ingredients from screenshots').closest('label')
-    expect(option.className).not.toMatch(/btn-/)
+  it('a saved link shows short, opens in a new tab, and can be changed (empty = removed)', async () => {
+    const p = renderSource({ link: 'https://www.example.com/penne', hasList: true, source: 'estimated', servings: 4 })
+    const a = screen.getByRole('link', { name: 'example.com/penne' })
+    expect(a).toHaveAttribute('href', 'https://www.example.com/penne')
+    expect(a).toHaveAttribute('target', '_blank')
+    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('Amounts estimated · Serves 4')
+    await userEvent.click(screen.getByRole('button', { name: 'Change' }))
+    await userEvent.clear(screen.getByLabelText('Recipe link'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(p.onSaveLink).toHaveBeenCalledWith(null)
   })
 
-  it('right after a read: a temporary "Here’s what I read" panel, no doubled units, closed by "Looks right"', async () => {
-    const onDismiss = vi.fn()
-    render(<RecipeIngredients recipe={recipe({ ingredients_source: 'screenshot' })}
-      status={{ kind: 'done', list: DOUBLED }} onReadScreenshots={vi.fn()} onDismiss={onDismiss} />)
+  it('from screenshots: says so, with Replace; no status line', () => {
+    renderSource({ source: 'screenshot', hasList: true, servings: 4 })
+    expect(screen.getByText('Amounts from your screenshots · Serves 4')).toBeInTheDocument()
+    expect(screen.getByText('Replace').closest('label')).toBeInTheDocument()
+    expect(screen.queryByTestId('ingredient-source')).not.toBeInTheDocument()
+  })
+
+  it('right after a read: a quiet "Here’s what I read" panel, no doubled units, closed by "Looks right"', async () => {
+    const p = renderSource({ source: 'screenshot', hasList: true, servings: 4, justRead: DOUBLED })
     const panel = screen.getByRole('status', { name: 'Here’s what I read' })
-    expect(panel).toHaveTextContent('Here’s what I read (2)')
+    expect(panel).toHaveTextContent('Here’s what I read · Serves 4')
     expect(panel).toHaveTextContent('penne pasta — 8 ounces')
     expect(panel).not.toHaveTextContent('ounces ounces')
-    expect(panel).toHaveTextContent('onion — 1/2, chopped finely')
-    expect(panel).toHaveTextContent('Saved for your grocery list. This preview closes when you tap below.')
-    expect(screen.queryByTestId('ingredient-source')).not.toBeInTheDocument()
+    expect(panel).toHaveTextContent('Saved for your grocery list.')
+    expect(panel.className).not.toMatch(/dashed/)
     await userEvent.click(screen.getByRole('button', { name: 'Looks right' }))
-    expect(onDismiss).toHaveBeenCalledTimes(1)
+    expect(p.onDismissRead).toHaveBeenCalledTimes(1)
   })
 
-  it('picking screenshots hands them over', async () => {
-    const onRead = vi.fn()
-    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={onRead} onDismiss={vi.fn()} />)
-    await userEvent.upload(screen.getByLabelText('Screenshots of the Penne recipe (up to 3)'), [file('a.png')])
-    expect(onRead).toHaveBeenCalledTimes(1)
-    expect(onRead.mock.calls[0][0]).toHaveLength(1)
+  it('picking screenshots hands them over; while reading, says so', async () => {
+    const p = renderSource()
+    await userEvent.upload(screen.getByLabelText("Screenshots of the Penne recipe's ingredients (up to 3)"), [file('a.png')])
+    expect(p.onScreenshots).toHaveBeenCalledTimes(1)
   })
 
-  it('result messages carry the list for the panel', () => {
+  it('reading and error states', () => {
+    renderSource({ reading: true, error: 'Pick up to 3 screenshots.' })
+    expect(screen.getByText('Reading screenshots…')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Pick up to 3 screenshots.')
+  })
+
+  it('cleanLink and result messages', () => {
+    expect(cleanLink('  ')).toBeNull()
+    expect(cleanLink('example.com/x')).toBe('https://example.com/x')
+    expect(cleanLink('http://example.com')).toBe('http://example.com')
     expect(screenshotMessage({ ok: true, count: 1, list: LIST.slice(0, 1) }))
       .toEqual({ kind: 'done', message: '✓ Read 1 ingredients from your screenshots.', list: LIST.slice(0, 1) })
     expect(screenshotMessage({ ok: false, reason: 'too-many' }).message).toBe('Pick up to 3 screenshots.')
-    expect(screenshotMessage({ ok: false, reason: 'failed' }).kind).toBe('error')
   })
 })
 
@@ -272,5 +298,18 @@ describe('Changing tags never replaces a screenshot list; screenshots replace an
     await act(async () => { out = await result.current.readRecipeScreenshots('r1', [1, 2, 3, 4].map((n) => file(`${n}.png`))) })
     expect(out).toEqual({ ok: false, reason: 'too-many' })
     expect(ri.prepareScreenshot).not.toHaveBeenCalled()
+  })
+})
+
+describe('setRecipeLink (card link without Edit)', () => {
+  it('updates the screen at once and saves recipe_url for the household', async () => {
+    rows.vault = [{ id: 'r1', name: 'Penne', recipe_url: null, created_at: '2026-11-01' }]
+    const { result } = renderHook(() => useVault('u1'))
+    await waitFor(() => expect(result.current.recipes).toHaveLength(1))
+    let out
+    await act(async () => { out = await result.current.setRecipeLink('r1', 'https://example.com/p') })
+    expect(out).toEqual({ ok: true })
+    expect(result.current.recipes[0].recipe_url).toBe('https://example.com/p')
+    expect(update).toHaveBeenCalledWith('vault', { recipe_url: 'https://example.com/p' })
   })
 })
