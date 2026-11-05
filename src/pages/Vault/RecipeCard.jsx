@@ -377,14 +377,6 @@ export default function RecipeCard({
                 saveNotice={ingredientSaveNotice}
               />
 
-              {onReadScreenshots && (
-                <RecipeIngredients
-                  recipe={recipe}
-                  status={screenshotStatus}
-                  onReadScreenshots={(files) => onReadScreenshots(recipe.id, files)}
-                  onDismiss={() => onDismissScreenshots?.()}
-                />
-              )}
 
               <ComponentRow label="Protein"  values={recipe.proteins} />
               <ComponentRow label="Carb"     values={recipe.main_carb ? [recipe.main_carb] : []} />
@@ -410,6 +402,16 @@ export default function RecipeCard({
                   <ExternalLink size={14} className="shrink-0" />
                   <span className="truncate">{recipe.recipe_url.replace(/^https?:\/\//, '')}</span>
                 </a>
+              )}
+
+              {/* Next to the recipe link: where the amounts come from, and screenshots as the alternative. */}
+              {onReadScreenshots && (
+                <RecipeIngredients
+                  recipe={recipe}
+                  status={screenshotStatus}
+                  onReadScreenshots={(files) => onReadScreenshots(recipe.id, files)}
+                  onDismiss={() => onDismissScreenshots?.()}
+                />
               )}
 
               {recipe.image_url && (

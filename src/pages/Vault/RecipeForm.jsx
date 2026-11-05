@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Sparkles, Loader2, X, Camera, Image as ImageIcon } from 'lucide-react'
+import { Sparkles, Loader2, X, Camera, Image as ImageIcon, ScanText } from 'lucide-react'
 import { analyzeRecipe } from '../../lib/analyzeRecipe'
 import { estimateFields, ingredientFields, prepareScreenshot, readIngredients, MAX_SCREENSHOTS } from '../../lib/recipeIngredients'
 import { normalizeMealName, toTitleCase } from '../../lib/mealNameNormalize'
@@ -302,6 +302,28 @@ export default function RecipeForm({
           </div>
         </div>
 
+        {/* Screenshots: an alternative to the link (e.g. NYT Cooking is paywalled), not the main action. */}
+        <label className={`inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-700 hover:text-brand-800 cursor-pointer ${shots.reading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {shots.reading
+            ? <><Loader2 size={14} className="animate-spin" aria-hidden="true" /> Reading screenshots…</>
+            : <><ScanText size={14} aria-hidden="true" /> Or read ingredients from screenshots</>}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr-only"
+            aria-label="Screenshots of the recipe's ingredients (up to 3)"
+            disabled={shots.reading}
+            onChange={(e) => { handleScreenshots(e.target.files); e.target.value = '' }}
+          />
+        </label>
+        {ingredients?.ingredients_source === 'screenshot' && !shots.reading && (
+          <p role="status" className="text-sm text-gray-900">
+            ✓ {ingredients.ingredients_structured.length} ingredients read from {shots.count === 1 ? 'your screenshot' : `${shots.count} screenshots`}
+            {ingredients.servings ? ` · serves ${ingredients.servings}` : ''}
+          </p>
+        )}
+        {shots.error && <p role="alert" className="text-sm text-red-800">{shots.error}</p>}
         {imagePreview && (
           <div className="relative inline-block mt-4 mb-2">
             <img
@@ -324,27 +346,6 @@ export default function RecipeForm({
           </div>
         )}
 
-        <label className={`btn-secondary inline-flex items-center justify-center gap-2 cursor-pointer ${shots.reading ? 'opacity-60 pointer-events-none' : ''}`}>
-          {shots.reading
-            ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Reading screenshots…</>
-            : <><Camera size={16} aria-hidden="true" /> Read ingredients from screenshots</>}
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            aria-label="Screenshots of the recipe's ingredients (up to 3)"
-            disabled={shots.reading}
-            onChange={(e) => { handleScreenshots(e.target.files); e.target.value = '' }}
-          />
-        </label>
-        {ingredients?.ingredients_source === 'screenshot' && !shots.reading && (
-          <p role="status" className="text-sm text-gray-900">
-            ✓ {ingredients.ingredients_structured.length} ingredients read from {shots.count === 1 ? 'your screenshot' : `${shots.count} screenshots`}
-            {ingredients.servings ? ` · serves ${ingredients.servings}` : ''}
-          </p>
-        )}
-        {shots.error && <p role="alert" className="text-sm text-red-800">{shots.error}</p>}
 
         <button
           type="button"

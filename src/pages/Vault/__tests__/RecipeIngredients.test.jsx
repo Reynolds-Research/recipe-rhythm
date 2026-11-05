@@ -157,6 +157,20 @@ describe("A saved recipe's card: one ingredient list (the chips); amounts only r
     expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No ingredients yet — the grocery list can’t include this recipe.')
   })
 
+  it('names but no amounts: says the grocery list will guess, never "no ingredients"', () => {
+    render(<RecipeIngredients recipe={recipe({ ingredients_structured: null, ingredients_source: null,
+      ingredients_classified: [{ name: 'capsicum', essentiality: 'essential', source: 'ai' }] })}
+      status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
+    expect(screen.getByTestId('ingredient-source')).toHaveTextContent('No amounts saved — the grocery list will guess them.')
+    expect(screen.queryByText(/No ingredients yet/)).not.toBeInTheDocument()
+  })
+
+  it('the screenshot option is a small link, not a big button', () => {
+    render(<RecipeIngredients recipe={recipe()} status={null} onReadScreenshots={vi.fn()} onDismiss={vi.fn()} />)
+    const option = screen.getByText('Read ingredients from screenshots').closest('label')
+    expect(option.className).not.toMatch(/btn-/)
+  })
+
   it('right after a read: a temporary "Here’s what I read" panel, no doubled units, closed by "Looks right"', async () => {
     const onDismiss = vi.fn()
     render(<RecipeIngredients recipe={recipe({ ingredients_source: 'screenshot' })}

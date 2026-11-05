@@ -1,4 +1,4 @@
-import { Camera, Loader2, Check } from 'lucide-react'
+import { ScanText, Loader2, Check } from 'lucide-react'
 import { formatAmount } from '../../lib/groceryRecipes'
 
 /** "olive oil — 2 tbsp", "garlic — 3, minced", "salt". */
@@ -30,12 +30,18 @@ export default function RecipeIngredients({ recipe, status, onReadScreenshots, o
   const hasList = Array.isArray(recipe.ingredients_structured) && recipe.ingredients_structured.length > 0
   const reading = status?.kind === 'reading'
   const justRead = status?.kind === 'done' && Array.isArray(status.list) ? status.list : null
-  const sourceText = !hasList
-    ? 'No ingredients yet — the grocery list can’t include this recipe.'
-    : (SOURCE_TEXT[recipe.ingredients_source] ?? null)
+  const hasNames = Array.isArray(recipe.ingredients_classified) && recipe.ingredients_classified.length > 0
+  // Three honest states: amounts saved (and from where); ingredient names but
+  // no amounts (the grocery list guesses them); nothing at all.
+  const sourceText = hasList
+    ? (SOURCE_TEXT[recipe.ingredients_source] ?? null)
+    : hasNames
+      ? 'No amounts saved — the grocery list will guess them.'
+      : 'No ingredients yet — the grocery list can’t include this recipe.'
+  const warn = !hasList
 
   return (
-    <section aria-label="Ingredient amounts" className="space-y-2" onClick={(e) => e.stopPropagation()}>
+    <section aria-label="Ingredient amounts" className="space-y-1" onClick={(e) => e.stopPropagation()}>
       {justRead && (
         <div role="status" aria-label="Here’s what I read"
           className="rounded-2xl border-2 border-dashed border-brand-200 bg-brand-50 p-4 space-y-2">
@@ -51,13 +57,14 @@ export default function RecipeIngredients({ recipe, status, onReadScreenshots, o
       )}
 
       {!justRead && (sourceText || recipe.servings) && (
-        <p className={`text-sm ${hasList ? 'helper-text' : 'text-amber-800 font-medium'}`} data-testid="ingredient-source">
+        <p className={`text-sm ${warn ? 'text-amber-800' : 'helper-text'}`} data-testid="ingredient-source">
           {[sourceText, hasList && recipe.servings ? `Serves ${recipe.servings}` : null].filter(Boolean).join(' · ')}
         </p>
       )}
 
-      <label className={`btn-secondary py-3 flex items-center justify-center gap-2 cursor-pointer ${reading ? 'opacity-60 pointer-events-none' : ''}`}>
-        {reading ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <Camera size={18} aria-hidden="true" />}
+      {/* An option, not the main action: a small text link (44px tall to tap). */}
+      <label className={`inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-700 hover:text-brand-800 cursor-pointer ${reading ? 'opacity-60 pointer-events-none' : ''}`}>
+        {reading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <ScanText size={14} aria-hidden="true" />}
         {reading ? 'Reading screenshots…' : 'Read ingredients from screenshots'}
         <input
           type="file"
