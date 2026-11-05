@@ -116,6 +116,7 @@ export default function Vault({ userId }) {
     trigger('light')
     setEditingId(recipe.id)
     setEditFields({
+      name:             recipe.name             || '',
       cuisine_type:     recipe.cuisine_type     || '',
       flavor_profile:   recipe.flavor_profile   || '',
       proteins:         recipe.proteins         || [],
@@ -144,8 +145,11 @@ export default function Vault({ userId }) {
       vegetables:       editFields.vegetables       || [],
       fruits:           editFields.fruits           || [],
     }
-    await updateRecipe(id, editFields)
+    const result = await updateRecipe(id, editFields)
     setSavingEdit(false)
+    // Rename blocked (blank or duplicate name): keep the editor open so the
+    // user can fix the name without losing their other edits.
+    if (result && !result.ok) return
     setEditingId(null)
     setEditFields({})
 
