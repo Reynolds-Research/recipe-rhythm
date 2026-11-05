@@ -423,7 +423,7 @@ export default function RecipeForm({
 
       <button
         onClick={handleSubmit}
-        disabled={!name.trim() || saving || normalizing}
+        disabled={!name.trim() || saving || normalizing || shots.reading}
         className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {saving ? 'Saving…' : normalizing ? 'Checking spelling…' : 'Save to vault'}

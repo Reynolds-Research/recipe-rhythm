@@ -81,6 +81,19 @@ describe('Add a recipe: read ingredients from screenshots', () => {
     })
   })
 
+  it('Save waits while screenshots are being read (so their list is never lost)', async () => {
+    let finish
+    ri.readIngredients.mockImplementation(() => new Promise((r) => { finish = r }))
+    const user = userEvent.setup()
+    renderForm()
+    await user.type(screen.getByPlaceholderText(/recipe name/i), 'Penne')
+    await user.upload(screen.getByLabelText(/Screenshots of the recipe's ingredients/), [file('a.png')])
+    expect(await screen.findByText('Reading screenshots…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save to vault/i })).toBeDisabled()
+    await act(async () => finish(READ))
+    expect(screen.getByRole('button', { name: /Save to vault/i })).toBeEnabled()
+  })
+
   it('more than 3 screenshots: says so and reads nothing', async () => {
     const user = userEvent.setup()
     renderForm()

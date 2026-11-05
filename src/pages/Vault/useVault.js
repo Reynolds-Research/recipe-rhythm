@@ -380,7 +380,7 @@ export function useVault(userId) {
       ingredients_source: Array.isArray(components.ingredients_structured) && components.ingredients_structured.length
         ? 'estimated' : null,
     }
-    if (components.servings_inferred && Number.isInteger(components.servings)) update.servings = components.servings
+    if (components.servings_inferred && Number.isInteger(components.servings) && components.servings > 0) update.servings = components.servings
     if (components.proteins              !== undefined) update.proteins              = components.proteins              ?? null
     if (components.cooking_method        !== undefined) update.cooking_method        = components.cooking_method        ?? null
     if (components.main_carb             !== undefined) update.main_carb             = components.main_carb             ?? null

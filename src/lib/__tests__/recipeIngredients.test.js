@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   chipsOf,
+  estimateFields,
   fillMissingIngredients,
   fillRecipeIngredients,
   hasIngredientList,
@@ -24,19 +25,21 @@ function components(over = {}) {
 }
 
 /** A tiny supabase fake: records calls; vault select returns `rows`. */
-function makeSupabase({ rows = [], updateError = null } = {}) {
+function makeSupabase({ rows = [], updateError = null, updatedRows = null } = {}) {
   const sb = { calls: [] }
   sb.from = (table) => {
     const call = { table, op: null, payload: null, filters: [] }
     sb.calls.push(call)
     const chain = {
-      select() { call.op = 'select'; return chain },
+      select() { if (!call.op) call.op = 'select'; return chain },
       update(p) { call.op = 'update'; call.payload = p; return chain },
+      or(f) { call.filters.push(['or', f]); return chain },
       eq(c, v) { call.filters.push(['eq', c, v]); return chain },
       is(c, v) { call.filters.push(['is', c, v]); return chain },
       order() { return chain },
       then(res, rej) {
-        const r = call.op === 'select' ? { data: rows, error: null } : { data: null, error: updateError }
+        const r = call.op === 'select' ? { data: rows, error: null }
+          : { data: updateError ? null : (updatedRows ?? [{ id: 'r' }]), error: updateError }
         return Promise.resolve(r).then(res, rej)
       },
     }
@@ -98,7 +101,16 @@ describe('fillRecipeIngredients', () => {
     expect(f.ingredients_source).toBe('screenshot')
     const upd = sb.calls.find((c) => c.op === 'update')
     expect(upd.payload).toMatchObject({ ingredients_structured: LIST, servings: 4, ingredients_source: 'screenshot' })
+    // screenshots replace any list: no guard
     expect(upd.filters).toEqual([['eq', 'id', 'r1'], ['eq', 'household_id', HH]])
+  })
+
+  it('an estimate is guarded in the database too: screenshots added meanwhile win', async () => {
+    const sb = makeSupabase({ updatedRows: [] }) // the row became 'screenshot' since we read it
+    const f = await fillRecipeIngredients(sb, USER, PENNE, { analyze: async () => components() })
+    expect(f).toBeNull()
+    const upd = sb.calls.find((c) => c.op === 'update')
+    expect(upd.filters).toContainEqual(['or', 'ingredients_source.is.null,ingredients_source.eq.estimated'])
   })
 
   it('an estimate never overwrites a screenshot list', async () => {
@@ -151,5 +163,16 @@ describe('filling every recipe with no list', () => {
     const upd = sb.calls.filter((c) => c.op === 'update')
     expect(upd).toHaveLength(1)
     expect(upd[0].payload.ingredients_source).toBe('estimated')
+  })
+})
+
+describe('estimateFields (Cookbook suggestions, saving a logged meal)', () => {
+  it('an estimate with servings only when the AI found them', () => {
+    expect(estimateFields(components())).toMatchObject({ ingredients_structured: LIST, servings: 4, ingredients_source: 'estimated' })
+    expect(estimateFields(components({ servings_inferred: false })).servings).toBeNull()
+  })
+  it('no list → nothing to save', () => {
+    expect(estimateFields(null)).toEqual({})
+    expect(estimateFields(components({ ingredients_structured: [] }))).toEqual({})
   })
 })

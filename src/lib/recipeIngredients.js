@@ -120,9 +120,14 @@ export async function fillRecipeIngredients(supabase, userId, recipe, { images =
   if (!result) return null
   const fields = ingredientFields(result, recipe.ingredients_classified)
   const householdId = await getHouseholdId(supabase, userId)
-  const { error } = await supabase.from('vault').update(fields).eq('id', recipe.id).eq('household_id', householdId)
+  let query = supabase.from('vault').update(fields).eq('id', recipe.id).eq('household_id', householdId)
+  // An estimate is checked against the database, not only the copy we were
+  // handed: screenshots added meanwhile (e.g. while Settings works through its
+  // list) win, and the estimate writes nothing.
+  if (!images.length) query = query.or('ingredients_source.is.null,ingredients_source.eq.estimated')
+  const { data, error } = await query.select('id')
   if (error) throw error
-  return fields
+  return data?.length ? fields : null
 }
 
 const MISSING_COLUMNS =
