@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, X, Camera, Image as ImageIcon } from 'lucide-react'
 import { analyzeRecipe } from '../../lib/analyzeRecipe'
+import { estimateFields, ingredientFields, prepareScreenshot, readIngredients, MAX_SCREENSHOTS } from '../../lib/recipeIngredients'
 import { normalizeMealName, toTitleCase } from '../../lib/mealNameNormalize'
 import { useHaptics } from '../../hooks/useHaptics'
 import ChipPicker from './ChipPicker'
@@ -65,6 +66,10 @@ export default function RecipeForm({
   // PRD-004 Phase C (P0.8): when AI analyze runs, store the classification
   // result so it flows through to the vault insert.
   const [ingredientsClassified, setIngredientsClassified] = useState(null)
+  // The recipe's ingredient list (ingredientFields shape) from screenshots or
+  // the AI button; null = none yet (estimated in the background after save).
+  const [ingredients, setIngredients] = useState(null)
+  const [shots, setShots] = useState({ reading: false, error: null, count: 0 })
 
   const [imageFile, setImageFile]       = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -119,11 +124,39 @@ export default function RecipeForm({
         setPrepTimeMinutes(s.prep_time_minutes)
       }
       setIngredientsClassified(s.ingredients_classified ?? null)
+      // Keep the estimate's ingredient list too — unless screenshots already
+      // gave the real one.
+      const estimate = estimateFields(s)
+      setIngredients((cur) => (cur?.ingredients_source === 'screenshot' || !estimate.ingredients_structured ? cur : estimate))
       setAiApplied(true)
     } else {
       setAiError(true)
     }
     setSuggesting(false)
+  }
+
+  /** Read the real ingredient list from up to 3 screenshots (e.g. NYT Cooking). */
+  const handleScreenshots = async (fileList) => {
+    const files = Array.from(fileList ?? [])
+    if (files.length === 0 || shots.reading) return
+    if (files.length > MAX_SCREENSHOTS) {
+      setShots({ reading: false, error: `Pick up to ${MAX_SCREENSHOTS} screenshots.`, count: 0 })
+      return
+    }
+    setShots({ reading: true, error: null, count: files.length })
+    try {
+      const images = await Promise.all(files.map((f) => prepareScreenshot(f)))
+      const result = await readIngredients({ name: name.trim(), url: recipeUrl.trim(), images })
+      if (!result) {
+        setShots({ reading: false, error: 'Couldn’t find an ingredient list in those screenshots. Try clearer ones.', count: 0 })
+        return
+      }
+      setIngredients(ingredientFields(result, ingredientsClassified))
+      setShots({ reading: false, error: null, count: files.length })
+    } catch (err) {
+      console.error('[RecipeForm] screenshots failed', err)
+      setShots({ reading: false, error: 'Couldn’t read those screenshots. Try again.', count: 0 })
+    }
   }
 
   const resetForm = () => {
@@ -141,6 +174,8 @@ export default function RecipeForm({
     setFruits([])
     setPrepTimeMinutes(null)
     setIngredientsClassified(null)
+    setIngredients(null)
+    setShots({ reading: false, error: null, count: 0 })
     setAiApplied(false)
     setAiError(false)
     if (imagePreview) URL.revokeObjectURL(imagePreview)
@@ -166,6 +201,7 @@ export default function RecipeForm({
       prepTimeMinutes,
       imageFile,
       ingredientsClassified,
+      ingredients,
     })
     if (result?.ok) resetForm()
   }
@@ -288,6 +324,28 @@ export default function RecipeForm({
           </div>
         )}
 
+        <label className={`btn-secondary inline-flex items-center justify-center gap-2 cursor-pointer ${shots.reading ? 'opacity-60 pointer-events-none' : ''}`}>
+          {shots.reading
+            ? <><Loader2 size={16} className="animate-spin" aria-hidden="true" /> Reading screenshots…</>
+            : <><Camera size={16} aria-hidden="true" /> Read ingredients from screenshots</>}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr-only"
+            aria-label="Screenshots of the recipe's ingredients (up to 3)"
+            disabled={shots.reading}
+            onChange={(e) => { handleScreenshots(e.target.files); e.target.value = '' }}
+          />
+        </label>
+        {ingredients?.ingredients_source === 'screenshot' && !shots.reading && (
+          <p role="status" className="text-sm text-gray-900">
+            ✓ {ingredients.ingredients_structured.length} ingredients read from {shots.count === 1 ? 'your screenshot' : `${shots.count} screenshots`}
+            {ingredients.servings ? ` · serves ${ingredients.servings}` : ''}
+          </p>
+        )}
+        {shots.error && <p role="alert" className="text-sm text-red-800">{shots.error}</p>}
+
         <button
           type="button"
           onClick={handleManualSuggest}
@@ -365,7 +423,7 @@ export default function RecipeForm({
 
       <button
         onClick={handleSubmit}
-        disabled={!name.trim() || saving || normalizing}
+        disabled={!name.trim() || saving || normalizing || shots.reading}
         className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {saving ? 'Saving…' : normalizing ? 'Checking spelling…' : 'Save to vault'}

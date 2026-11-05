@@ -97,6 +97,8 @@ describe('groceryRecipes (moved from GroceryListBody)', () => {
     ])
     expect(r.notInCookbook).toEqual(['Pizza out'])
     expect(r.noIngredients).toEqual(['Mystery'])
+    // Curry (names only) and Salad (tags only) were used without a saved list: a guess.
+    expect(r.noList).toEqual(['Curry', 'Salad'])
   })
 
   it('household size is adults + children, never below 1', () => {
@@ -171,7 +173,7 @@ describe('makeWeekGroceryList', () => {
       pantryStaples: ['salt'],
       householdSize: 3,
     })
-    expect(out).toEqual({ listId: 'L2', notInCookbook: ['Pizza out'], noIngredients: [] })
+    expect(out).toEqual({ listId: 'L2', notInCookbook: ['Pizza out'], noIngredients: [], noList: [] })
 
     const items = sb.calls.find((c) => c.table === 'grocery_list_items' && c.op === 'insert')
     expect(items.payload).toEqual([{

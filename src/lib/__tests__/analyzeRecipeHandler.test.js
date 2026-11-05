@@ -532,3 +532,46 @@ describe('createAnalyzeRecipeHandler — Phase C: auto-classify chain (P0.8)', (
     expect(res.body.components.ingredients_classified).toBeNull()
   })
 })
+
+describe('createAnalyzeRecipeHandler — screenshots of the real recipe', () => {
+  const img = (n) => ({ data: `img${n}`, mediaType: 'image/jpeg' })
+  const run = async (body) => {
+    const anthropic = fakeAnthropic(JSON.stringify({ ingredients_structured: [], servings: 2 }))
+    const res = mockRes()
+    await createAnalyzeRecipeHandler({ anthropic })({ body }, res)
+    return { anthropic, res, content: anthropic.messages.create.mock.calls[0]?.[0].messages[0].content }
+  }
+
+  it('sends up to 3 screenshots as images, plus the copy-exactly rule', async () => {
+    const { content, res } = await run({ name: 'Penne', images: [img(1), img(2), img(3)] })
+    expect(res.statusCode).toBe(200)
+    expect(content.filter((c) => c.type === 'image').map((c) => c.source.data)).toEqual(['img1', 'img2', 'img3'])
+    const text = content.find((c) => c.type === 'text').text
+    expect(text).toContain('(See the 3 attached images)')
+    expect(text).toContain('Take every ingredient and its amount exactly as written')
+  })
+
+  it('more than 3 → 400, no AI call', async () => {
+    const { anthropic, res } = await run({ name: 'x', images: [img(1), img(2), img(3), img(4)] })
+    expect(res.statusCode).toBe(400)
+    expect(res.body).toEqual({ error: 'invalid_images', max_images: 3 })
+    expect(anthropic.messages.create).not.toHaveBeenCalled()
+  })
+
+  it('a non-image type or empty data → 400', async () => {
+    expect((await run({ images: [{ data: 'x', mediaType: 'application/pdf' }] })).res.statusCode).toBe(400)
+    expect((await run({ images: [{ data: '', mediaType: 'image/png' }] })).res.statusCode).toBe(400)
+  })
+
+  it('the older single image still works', async () => {
+    const { content } = await run({ name: 'x', imageBase64: 'one', mediaType: 'image/png' })
+    expect(content[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'one' } })
+    expect(content[1].text).toContain('(See attached image)')
+  })
+
+  it('no images → no copy-exactly rule (an estimate)', async () => {
+    const { content } = await run({ name: 'x' })
+    expect(content).toHaveLength(1)
+    expect(content[0].text).not.toContain('exactly as written')
+  })
+})

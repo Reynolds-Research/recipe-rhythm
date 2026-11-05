@@ -52,6 +52,7 @@ import * as wg from '../../../lib/weekGroceries'
 import { MouseSensor, TouchSensor, KeyboardSensor } from '@dnd-kit/core'
 import { supabase } from '../../../lib/supabase'
 import PrepTable from '../index'
+import { thinRecipesNote } from '../usePrepTable'
 
 const TODAY = '2026-11-02' // Monday; the week is Sun Nov 1 – Sat Nov 7
 
@@ -896,5 +897,27 @@ describe('changed since you confirmed → update the grocery list?', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Update list' }))
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't make the grocery list. Try again.")
     expect(screen.getByRole('region', { name: 'Changed since you confirmed' })).toBeInTheDocument()
+  })
+})
+
+describe('the list says which recipes it could not really use', () => {
+  it('note: no ingredients (left off) and no saved list (a guess), with the fix', () => {
+    expect(thinRecipesNote({ noIngredients: [], noList: [] })).toBeNull()
+    expect(thinRecipesNote({ noIngredients: ['Mystery'], noList: ['Penne alla Vodka'] })).toBe(
+      'Mystery added nothing (no ingredients). Penne alla Vodka has no ingredient list, so its part is a guess. ' +
+      'Add screenshots in the Cookbook for the real amounts.')
+    expect(thinRecipesNote({ noList: ['A', 'B'] })).toMatch(/^A, B have no ingredient list, so their part is a guess\./)
+  })
+
+  it('shown under "Confirmed" after the list is made', async () => {
+    setWeek({ meals: FULL_WEEK })
+    wg.loadConfirmation.mockResolvedValueOnce(null).mockResolvedValue(CONF)
+    wg.confirmWeek.mockResolvedValue({ ...CONF, grocery_list_id: null })
+    wg.makeWeekGroceryList.mockResolvedValue({ listId: 'L1', notInCookbook: [], noIngredients: [], noList: ['Green curry'] })
+    wg.loadGroceryItems.mockResolvedValue(ITEMS)
+    renderPage()
+    await userEvent.click(await confirmButton())
+    expect(await screen.findByRole('region', { name: 'Week confirmed' }))
+      .toHaveTextContent('Green curry has no ingredient list, so its part is a guess.')
   })
 })

@@ -1,3 +1,4 @@
+import RecipeIngredients from './RecipeIngredients'
 import { Trash2, ChevronDown, ChevronUp, ExternalLink, Star, Sparkles } from 'lucide-react'
 import { formatLastCooked } from '../../lib/dateUtils'
 import ChipPicker from './ChipPicker'
@@ -191,6 +192,8 @@ export default function RecipeCard({
   onDelete,
   onRatingChange,
   onIngredientEssentialityChange,
+  onReadScreenshots,
+  screenshotStatus = null,
   ingredientSaveNotice,
   source,
 }) {
@@ -365,6 +368,14 @@ export default function RecipeCard({
             </>
           ) : (
             <>
+              {onReadScreenshots && (
+                <RecipeIngredients
+                  recipe={recipe}
+                  status={screenshotStatus}
+                  onReadScreenshots={(files) => onReadScreenshots(recipe.id, files)}
+                />
+              )}
+
               {/* PRD-004 Phase D (P0.10 + P0.11) */}
               <IngredientClassificationList
                 classifications={recipe.ingredients_classified}

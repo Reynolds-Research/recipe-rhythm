@@ -15,6 +15,9 @@ export async function analyzeRecipe(arg) {
   // the extractor prompt. Omitted when undefined so old call sites stay
   // wire-identical to pre-D1.
   let userChips
+  // Screenshots of the recipe ([{ data, mediaType }], up to 3): the AI copies
+  // the ingredients from them instead of estimating.
+  let images
 
   if (typeof arg === 'string') {
     name = arg
@@ -24,10 +27,12 @@ export async function analyzeRecipe(arg) {
     imageBase64 = arg.imageBase64 || null
     mediaType = arg.mediaType || null
     userChips = arg.userChips
+    images = arg.images
   }
 
   const body = { name, url, imageBase64, mediaType }
   if (userChips !== undefined) body.userChips = userChips
+  if (Array.isArray(images) && images.length) body.images = images
 
   let res
   try {

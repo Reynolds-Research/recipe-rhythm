@@ -4,6 +4,7 @@ import Logo from '../../components/Logo'
 import { useHaptics } from '../../hooks/useHaptics'
 import RecipeForm from './RecipeForm'
 import RecipeCard from './RecipeCard'
+import { screenshotMessage } from './screenshotMessage'
 import { useVault } from './useVault'
 import { chipsRequireReExtraction } from '../../lib/chipDiff'
 import SkeletonRecipeCard from '../../components/SkeletonRecipeCard'
@@ -52,6 +53,7 @@ export default function Vault({ userId }) {
     setRating,
     setIngredientEssentiality,
     reExtractIngredients,
+    readRecipeScreenshots,
   } = useVault(userId)
 
   const [showForm, setShowForm]     = useState(false)
@@ -68,6 +70,8 @@ export default function Vault({ userId }) {
   // PRD-004 Phase D: inline save notice for ingredient essentiality toggle.
   // Shape: { recipeId: string, kind: 'saved' | 'error' } | null.
   const [ingredientSaveNotice, setIngredientSaveNotice] = useState(null)
+  // Reading a recipe's ingredients from screenshots: { recipeId, kind, message } | null.
+  const [screenshotStatus, setScreenshotStatus] = useState(null)
   // Search text. Page state only — not in the URL or localStorage.
   const [query, setQuery] = useState('')
   const { trigger } = useHaptics()
@@ -85,6 +89,13 @@ export default function Vault({ userId }) {
     setSaving(false)
     if (result.ok) setShowForm(false)
     return result
+  }
+
+  const handleReadScreenshots = async (recipeId, files) => {
+    if (screenshotStatus?.kind === 'reading') return
+    setScreenshotStatus({ recipeId, kind: 'reading' })
+    const result = await readRecipeScreenshots(recipeId, files)
+    setScreenshotStatus({ recipeId, ...screenshotMessage(result) })
   }
 
   const handleDelete = async (id) => {
@@ -160,7 +171,7 @@ export default function Vault({ userId }) {
     if (chipsRequireReExtraction(preSave, nextChips)) {
       setReExtractStatus({ kind: 'progress', message: 'Updating ingredients…' })
       try {
-        await reExtractIngredients(id, {
+        const reExtracted = await reExtractIngredients(id, {
           protein:          editFields.proteins,
           cooking_method:   editFields.cooking_method,
           main_carb:        editFields.main_carb,
@@ -170,6 +181,11 @@ export default function Vault({ userId }) {
           fruit:            editFields.fruits,
           prep_time:        editFields.prep_time_minutes,
         })
+        if (reExtracted === null) {
+          // Its ingredients came from her screenshots: kept as they are.
+          setReExtractStatus(null)
+          return
+        }
         setReExtractStatus({ kind: 'success', message: 'Ingredients updated to match' })
         setTimeout(() => {
           setReExtractStatus(prev => (prev?.kind === 'success' ? null : prev))
@@ -334,6 +350,8 @@ export default function Vault({ userId }) {
             onRatingChange={handleRatingChange}
             onIngredientEssentialityChange={handleIngredientEssentialityChange}
             ingredientSaveNotice={ingredientSaveNotice?.recipeId === recipe.id ? ingredientSaveNotice.kind : null}
+            onReadScreenshots={handleReadScreenshots}
+            screenshotStatus={screenshotStatus?.recipeId === recipe.id ? screenshotStatus : null}
           />
         ))}
 

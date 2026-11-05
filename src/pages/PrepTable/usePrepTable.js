@@ -40,6 +40,18 @@ import {
   WeekGroceryError,
 } from '../../lib/weekGroceries'
 
+/**
+ * Says which recipes the list couldn't really use, so a gap is never silent:
+ * none with no ingredients at all (left off), or ones with no saved list
+ * (their part is a guess). The fix for both: screenshots in the Cookbook.
+ */
+export function thinRecipesNote({ noIngredients = [], noList = [] } = {}) {
+  const parts = []
+  if (noIngredients.length) parts.push(`${noIngredients.join(', ')} added nothing (no ingredients).`)
+  if (noList.length) parts.push(`${noList.join(', ')} ${noList.length === 1 ? 'has' : 'have'} no ingredient list, so ${noList.length === 1 ? 'its' : 'their'} part is a guess.`)
+  return parts.length ? `${parts.join(' ')} Add screenshots in the Cookbook for the real amounts.` : null
+}
+
 /** A copy of `obj` without `key` (for dropping one proposal). */
 function without(obj, key) {
   const next = { ...obj }
@@ -426,9 +438,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     await reload()
     if (message) setError(message)
     if (made) {
-      setNotice(made.noIngredients.length
-        ? `No ingredients saved for ${made.noIngredients.join(', ')}. Open ${made.noIngredients.length === 1 ? 'it' : 'them'} in your Cookbook and save to include ${made.noIngredients.length === 1 ? 'it' : 'them'}.`
-        : null)
+      setNotice(thinRecipesNote(made))
       openGroceries(made.listId)
     }
     return Boolean(made)

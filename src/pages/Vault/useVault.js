@@ -8,6 +8,7 @@ import {
   migrateLocalStorageExtras,
 } from '../../lib/vaultOptions'
 import { mergeWithUserOverrides, applyOverride } from '../../lib/classificationOverrides'
+import { estimateFields, fillRecipeIngredients, prepareScreenshot, MAX_SCREENSHOTS } from '../../lib/recipeIngredients'
 
 // Cookbook rows for a user, each with its last-cooked date; null if the vault
 // query failed. A plain query (no React state), so the mount effect can apply
@@ -28,7 +29,7 @@ async function queryRecipes(userId) {
   const [vaultRes, lastCookedRes] = await Promise.all([
     supabase
       .from('vault')
-      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified')
+      .select('id, name, cuisine_type, flavor_profile, notes, recipe_url, image_url, created_at, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, auto_completed, family_rating, prep_time_minutes, ingredients_classified, ingredients_structured, servings, ingredients_source')
       .eq('household_id', householdId)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
@@ -167,6 +168,10 @@ export function useVault(userId) {
     prepTimeMinutes,
     imageFile,
     ingredientsClassified,
+    // Recipe ingredients (src/lib/recipeIngredients.js ingredientFields):
+    // read from screenshots or estimated in the form. null = none yet; then
+    // they're estimated in the background right after the save.
+    ingredients = null,
   }) => {
     const finalName = name.trim()
     if (!finalName) return { ok: false, reason: 'no-name' }
@@ -242,7 +247,11 @@ export function useVault(userId) {
       }
     }
 
+    // The id is made here (not by the database) so the background fill below
+    // can find the new row without reading it back.
+    const id = crypto.randomUUID()
     const { error } = await supabase.from('vault').insert({
+      id,
       user_id:                userId,
       name:                   finalName,
       image_url:              publicUrl,
@@ -261,11 +270,25 @@ export function useVault(userId) {
       fruits:                 fruits.length          ? fruits          : null,
       prep_time_minutes:      prepTimeMinutes        ?? null,
       ingredients_classified: ingredientsClassified  ?? null,
+      ...(ingredients ?? {}),
     })
 
     if (error) return { ok: false, reason: 'insert-failed', error }
 
     await fetchRecipes()
+    if (!ingredients?.ingredients_structured) {
+      // Saved instantly; the ingredient list is estimated in the background
+      // (decided 2026-11-05: logging stays fast). If it fails, the recipe just
+      // shows "no ingredients yet" and the grocery list names it.
+      fillRecipeIngredients(supabase, userId, {
+        id, name: finalName, recipe_url: recipeUrl?.trim() || '',
+        proteins, cooking_method: cookingMethod, main_carb: mainCarb, dietary_tags: dietaryTags,
+        dairy_components: dairyComponents, vegetables, fruits, prep_time_minutes: prepTimeMinutes,
+        ingredients_classified: ingredientsClassified ?? null, ingredients_source: null,
+      })
+        .then((fields) => (fields ? fetchRecipes() : null))
+        .catch((err) => console.warn('[Vault] background ingredient fill failed:', err?.message || err))
+    }
     return { ok: true }
   }
 
@@ -287,6 +310,7 @@ export function useVault(userId) {
       fruits:                 analysis?.fruits                 ?? [],
       prep_time_minutes:      analysis?.prep_time_minutes      ?? null,
       ingredients_classified: analysis?.ingredients_classified ?? null,
+      ...estimateFields(analysis),
     })
     await fetchRecipes()
   }
@@ -364,6 +388,9 @@ export function useVault(userId) {
   const reExtractIngredients = async (recipeId, chips) => {
     const recipe = recipes.find(r => r.id === recipeId)
     if (!recipe) throw new Error(`recipe ${recipeId} not found in local cache`)
+    // Her screenshots are the real recipe: a tag change never replaces them
+    // with an estimate. Returns null so the caller shows nothing.
+    if (recipe.ingredients_source === 'screenshot') return null
 
     const components = await analyzeRecipe({
       name: recipe.name,
@@ -378,7 +405,10 @@ export function useVault(userId) {
     // for fields the user left empty (e.g. dietary_tags).
     const update = {
       ingredients_structured: components.ingredients_structured ?? null,
+      ingredients_source: Array.isArray(components.ingredients_structured) && components.ingredients_structured.length
+        ? 'estimated' : null,
     }
+    if (components.servings_inferred && Number.isInteger(components.servings) && components.servings > 0) update.servings = components.servings
     if (components.proteins              !== undefined) update.proteins              = components.proteins              ?? null
     if (components.cooking_method        !== undefined) update.cooking_method        = components.cooking_method        ?? null
     if (components.main_carb             !== undefined) update.main_carb             = components.main_carb             ?? null
@@ -410,6 +440,29 @@ export function useVault(userId) {
 
     setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...update } : r))
     return data
+  }
+
+  /**
+   * Read a saved recipe's real ingredient list from up to 3 screenshots
+   * (e.g. NYT Cooking, which is paywalled). Replaces whatever list it had.
+   * Returns { ok: true, count } or { ok: false, reason }.
+   */
+  const readRecipeScreenshots = async (recipeId, files) => {
+    const recipe = recipes.find(r => r.id === recipeId)
+    if (!recipe) return { ok: false, reason: 'not-found' }
+    const picked = Array.from(files ?? [])
+    if (picked.length === 0) return { ok: false, reason: 'none' }
+    if (picked.length > MAX_SCREENSHOTS) return { ok: false, reason: 'too-many' }
+    try {
+      const images = await Promise.all(picked.map((f) => prepareScreenshot(f)))
+      const fields = await fillRecipeIngredients(supabase, userId, recipe, { images })
+      if (!fields) return { ok: false, reason: 'unreadable' }
+      setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...fields } : r))
+      return { ok: true, count: fields.ingredients_structured.length }
+    } catch (err) {
+      console.error('[Vault] readRecipeScreenshots failed:', err?.message || err)
+      return { ok: false, reason: 'failed' }
+    }
   }
 
   /**
@@ -488,5 +541,6 @@ export function useVault(userId) {
     setRating,
     setIngredientEssentiality,
     reExtractIngredients,
+    readRecipeScreenshots,
   }
 }

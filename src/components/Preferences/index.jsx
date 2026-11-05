@@ -12,11 +12,10 @@ import {
   getActivePeriodItems,
   deleteMealPlanItems,
 } from '../../lib/mealPlanItems'
-import { analyzeRecipe } from '../../lib/analyzeRecipe'
+import { fillMissingIngredients, loadMissingIngredients } from '../../lib/recipeIngredients'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 import Logo from '../Logo'
 import { useHaptics } from '../../hooks/useHaptics'
-import { getHouseholdId } from '../../lib/household'
 
 /**
  * Preferences page (PRD-002 P0.2). Per-section auto-save: each chip toggle,
@@ -59,17 +58,19 @@ export default function Preferences({ userId, onOpenAbout }) {
   // upsert revealed active-period meals that violate the new preferences.
   const [violatorsBanner, setViolatorsBanner] = useState(null)
   const [removingViolators, setRemovingViolators] = useState(false)
-  // PRD-006 D1 (TEMPORARY — remove once the user has run the backfill once;
-  // tracked as a follow-up in RECIPE_TODOS.md). Drives the one-shot
-  // "re-extract every recipe's ingredients" button below.
-  const [backfillState, setBackfillState] = useState({
-    running: false,
-    current: 0,
-    total: 0,
-    succeeded: 0,
-    failed: 0,
-    done: false,
-  })
+  // Recipes with no ingredient list (the grocery list skips them), and the
+  // one-tap fill that estimates them. Replaced the old "re-extract every
+  // recipe" button (PRD-006 D1), which also rewrote recipes that were fine.
+  const [missing, setMissing] = useState(null)        // recipes with no list, once loaded
+  const [fillState, setFillState] = useState({ running: false, current: 0, total: 0, result: null })
+
+  useEffect(() => {
+    let cancelled = false
+    loadMissingIngredients(supabase, userId)
+      .then((rows) => { if (!cancelled) setMissing(rows) })
+      .catch((err) => console.warn('[Preferences] missing ingredients: load failed', err?.message || err))
+    return () => { cancelled = true }
+  }, [userId])
 
   // Track per-field "saved" timeouts so a rapid second save resets the flash.
   const savedTimerRef = useRef(null)
@@ -270,80 +271,24 @@ export default function Preferences({ userId, onOpenAbout }) {
     saveField('children', next, prefs.children ?? 0)
   }
 
-  // PRD-006 D1 (TEMPORARY — remove after the user has run this once).
-  // Walks every active vault row, calls /api/analyze-recipe with the recipe's
-  // existing chips pinned as ground truth, and writes the new
-  // ingredients_structured back. Sequential (not parallel) to be kind to
-  // upstream rate limits.
-  const runBackfill = async () => {
-    if (backfillState.running) return
-    let householdId
+  // Estimate the ingredient list for every recipe that has none. Recipes that
+  // already have a list are never touched.
+  const runFillMissing = async () => {
+    if (fillState.running) return
+    setFillState({ running: true, current: 0, total: missing?.length ?? 0, result: null })
+    let result = null
     try {
-      householdId = await getHouseholdId(supabase, userId)
+      result = await fillMissingIngredients(supabase, userId, {
+        onProgress: ({ current, total }) => setFillState((s) => ({ ...s, current, total })),
+      })
     } catch (err) {
-      console.error('[Preferences] backfill: no household:', err?.message || err)
-      setBackfillState({ running: false, current: 0, total: 0, succeeded: 0, failed: 0, done: true })
-      return
+      console.error('[Preferences] fill missing ingredients failed', err)
     }
-    const { data: rows, error } = await supabase
-      .from('vault')
-      .select('id, name, recipe_url, proteins, cooking_method, main_carb, dietary_tags, dairy_components, vegetables, fruits, prep_time_minutes')
-      .eq('household_id', householdId)
-      .is('deleted_at', null)
-    if (error) {
-      console.error('[Preferences] backfill: failed to load vault:', error.message)
-      setBackfillState({ running: false, current: 0, total: 0, succeeded: 0, failed: 0, done: true })
-      return
-    }
-    const total = rows?.length ?? 0
-    setBackfillState({ running: true, current: 0, total, succeeded: 0, failed: 0, done: false })
-    let succeeded = 0
-    let failed = 0
-    for (let i = 0; i < total; i++) {
-      const row = rows[i]
-      setBackfillState(s => ({ ...s, current: i + 1 }))
-      try {
-        const components = await analyzeRecipe({
-          name: row.name,
-          url: row.recipe_url || '',
-          userChips: {
-            protein:          row.proteins,
-            cooking_method:   row.cooking_method,
-            main_carb:        row.main_carb,
-            dietary_tags:     row.dietary_tags,
-            dairy_components: row.dairy_components,
-            vegetables:       row.vegetables,
-            fruit:            row.fruits,
-            prep_time:        row.prep_time_minutes,
-          },
-        })
-        if (!components) throw new Error('analyze-recipe returned no components')
-        const update = {
-          ingredients_structured: components.ingredients_structured ?? null,
-        }
-        if (components.proteins         !== undefined) update.proteins         = components.proteins ?? null
-        if (components.cooking_method   !== undefined) update.cooking_method   = components.cooking_method ?? null
-        if (components.main_carb        !== undefined) update.main_carb        = components.main_carb ?? null
-        if (components.dietary_tags     !== undefined) update.dietary_tags     = components.dietary_tags ?? null
-        if (components.dairy_components !== undefined) update.dairy_components = components.dairy_components ?? null
-        if (components.vegetables       !== undefined) update.vegetables       = components.vegetables ?? null
-        if (components.fruits           !== undefined) update.fruits           = components.fruits ?? null
-        if (components.prep_time_minutes !== undefined) update.prep_time_minutes = components.prep_time_minutes ?? null
-        const { error: upErr } = await supabase
-          .from('vault')
-          .update(update)
-          .eq('id', row.id)
-          .eq('household_id', householdId)
-        if (upErr) throw new Error(upErr.message)
-        succeeded += 1
-      } catch (err) {
-        console.warn(`[Preferences] backfill: ${row.name} failed:`, err?.message || err)
-        failed += 1
-      }
-      setBackfillState(s => ({ ...s, succeeded, failed }))
-    }
-    setBackfillState({ running: false, current: total, total, succeeded, failed, done: true })
+    const left = await loadMissingIngredients(supabase, userId).catch(() => null)
+    if (left) setMissing(left)
+    setFillState({ running: false, current: 0, total: 0, result: result ?? { filled: [], failed: ['all'] } })
   }
+
 
   // TODO: Convert to /settings/preferences route when PRD-003 P0.11 ships react-router.
   return (
@@ -547,45 +492,38 @@ export default function Preferences({ userId, onOpenAbout }) {
           </div>
         </Section>
 
-        {/* TODO(prd-006): remove after first successful backfill run.
-            One-shot section; tracked as a follow-up in RECIPE_TODOS.md. */}
-        <section aria-labelledby="pref-backfill-label">
-          <div className="flex items-center justify-between mb-2">
-            <h2 id="pref-backfill-label" className="section-heading">
-              Re-extract all recipe ingredients
-            </h2>
-          </div>
-          <p className="helper-text mb-3">
-            Walks every recipe in your vault and re-runs ingredient extraction
-            with your current chips pinned as ground truth. One-time fix-up;
-            this section will be removed after you've run it.
-          </p>
-          <button
-            type="button"
-            onClick={runBackfill}
-            disabled={backfillState.running}
-            aria-label="Re-extract ingredients for every recipe"
-            className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-700 text-white rounded-full hover:bg-brand-800 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {backfillState.running
-              ? <Loader2 size={14} className="animate-spin" />
-              : <RefreshCw size={14} />
-            }
-            {backfillState.running
-              ? `Re-extracting ${backfillState.current} of ${backfillState.total}…`
-              : 'Re-extract all recipes'
-            }
-          </button>
-          {backfillState.done && !backfillState.running && (
-            <p
-              className={`text-sm mt-3 ${backfillState.failed > 0 ? 'text-amber-700' : 'text-emerald-700'}`}
-              role="status"
-            >
-              Done — refreshed {backfillState.succeeded} of {backfillState.total} recipe{backfillState.total === 1 ? '' : 's'}
-              {backfillState.failed > 0 && ` (${backfillState.failed} failed — see console)`}.
-            </p>
-          )}
-        </section>
+        {(missing?.length > 0 || fillState.result) && (
+          <section aria-labelledby="pref-missing-label">
+            <h2 id="pref-missing-label" className="section-heading mb-2">Recipes with no ingredient list</h2>
+            {missing?.length > 0 && (
+              <>
+                <p className="helper-text mb-3">
+                  The grocery list can’t include these: {missing.map((r) => r.name).join(', ')}.
+                  Fill them in with AI estimates now, then add screenshots in the Cookbook for the real amounts.
+                </p>
+                <button
+                  type="button"
+                  onClick={runFillMissing}
+                  disabled={fillState.running}
+                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-700 text-white rounded-full hover:bg-brand-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {fillState.running ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {fillState.running
+                    ? `Filling ${fillState.current} of ${fillState.total}…`
+                    : `Fill in ${missing.length} recipe${missing.length === 1 ? '' : 's'}`}
+                </button>
+              </>
+            )}
+            {fillState.result && !fillState.running && (
+              <p role="status" className={`text-sm mt-3 ${fillState.result.failed.length ? 'text-amber-800' : 'text-gray-900'}`}>
+                {fillState.result.filled.length > 0
+                  ? `✓ Filled in ${fillState.result.filled.length} recipe${fillState.result.filled.length === 1 ? '' : 's'}.`
+                  : 'Nothing was filled in.'}
+                {fillState.result.failed.length > 0 && ' Some couldn’t be filled; try again later.'}
+              </p>
+            )}
+          </section>
+        )}
       </div>
 
       <div className="border-t border-cream-100 mt-4">

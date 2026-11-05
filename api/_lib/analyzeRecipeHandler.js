@@ -21,6 +21,34 @@ import { classifyIngredientsCached } from './classifyIngredientsCached.js'
 // fall back to 4 (a reasonable single-household serving count).
 const SERVINGS_HARDCODED_FALLBACK = 4
 
+// Screenshots of a recipe's ingredient list (NYT Cooking is paywalled, so she
+// screenshots it). Up to 3 — a long list can run past one screen.
+export const MAX_IMAGES = 3
+const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+
+// Said whenever images are attached: they are the real recipe, so the model
+// copies, it doesn't estimate.
+export const SCREENSHOT_RULE =
+  'The attached image(s) show the actual recipe. Take every ingredient and its amount exactly as written ' +
+  'in the image(s): do not add, drop or re-estimate ingredients, and keep the amounts and units as written. ' +
+  'If the image(s) state how many servings the recipe makes, use that number for servings; otherwise servings is null.'
+
+/**
+ * The images to send: `images` ([{ data, mediaType }], up to MAX_IMAGES), or
+ * the older single `imageBase64` + `mediaType`. Returns null when `images`
+ * is invalid (too many, wrong type, empty data).
+ */
+function readImages(body) {
+  if (Array.isArray(body?.images)) {
+    if (body.images.length > MAX_IMAGES) return null
+    const ok = body.images.every((i) =>
+      i && typeof i.data === 'string' && i.data.length > 0 && IMAGE_TYPES.has(i.mediaType))
+    return ok ? body.images.map((i) => ({ data: i.data, mediaType: i.mediaType })) : null
+  }
+  if (body?.imageBase64 && body?.mediaType) return [{ data: body.imageBase64, mediaType: body.mediaType }]
+  return []
+}
+
 /**
  * PRD-006 D1: build an optional chip-grounding block that pins user-confirmed
  * chip values as ground truth for the extractor. Returns '' when userChips is
@@ -72,8 +100,6 @@ export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = '
     const {
       name = '',
       url = '',
-      imageBase64 = null,
-      mediaType = null,
       default_servings,
       userChips = null,
     } = req.body || {}
@@ -87,14 +113,14 @@ export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = '
       default_servings > 0
     ) ? default_servings : SERVINGS_HARDCODED_FALLBACK
 
-    // Build the content array — image (if present) + text prompt.
-    const content = []
-    if (imageBase64 && mediaType) {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: mediaType, data: imageBase64 },
-      })
-    }
+    const images = readImages(req.body)
+    if (images === null) return res.status(400).json({ error: 'invalid_images', max_images: MAX_IMAGES })
+
+    // Build the content array — images (if any) + text prompt.
+    const content = images.map((img) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: img.mediaType, data: img.data },
+    }))
 
     // PRD-006 D1: when the caller supplies user-confirmed chip values, pin them
     // as ground truth. When userChips is absent / empty, the chip block is the
@@ -104,7 +130,9 @@ export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = '
     let textPrompt = userChipsBlock + `Analyze this meal/recipe and return a JSON object with its components. Return ONLY valid JSON with no markdown or explanation.\n`
     if (name) textPrompt += `\nRecipe Name: "${name}"`
     if (url) textPrompt += `\nRecipe URL: "${url}"`
-    if (imageBase64) textPrompt += `\n(See attached image)`
+    if (images.length === 1) textPrompt += `\n(See attached image)`
+    if (images.length > 1) textPrompt += `\n(See the ${images.length} attached images)`
+    if (images.length > 0) textPrompt += `\n${SCREENSHOT_RULE}`
     textPrompt += '\n\n' + buildAnalyzeRecipePromptBlock()
     // Belt-and-suspenders reminder to never drop ingredients. The JSON shape
     // block already states this but repeating it outside the shape block gives
