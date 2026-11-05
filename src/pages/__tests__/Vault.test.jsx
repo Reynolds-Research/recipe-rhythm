@@ -555,3 +555,76 @@ describe('Vault — recipe search', () => {
     expect(screen.queryByRole('searchbox', { name: 'Search recipes' })).not.toBeInTheDocument()
   })
 })
+
+describe('Vault — rename a recipe', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Earlier tests leave 'r1' remembered as the expanded card; clear it so
+    // clicking the name opens the card instead of collapsing it.
+    sessionStorage.clear()
+  })
+
+  const recipes = [
+    { id: 'r1', name: 'Tacos', cuisine_type: 'Mexican', family_rating: null, created_at: new Date().toISOString() },
+  ]
+
+  async function openEditor(user) {
+    await waitFor(() => expect(screen.getByText('Tacos')).toBeInTheDocument())
+    await user.click(screen.getByText('Tacos'))
+    await user.click(await screen.findByRole('button', { name: /Edit/i }))
+    return screen.getByRole('textbox', { name: /Recipe name/i })
+  }
+
+  it('pre-fills the current name and saves the edited name (trimmed)', async () => {
+    const payloads = []
+    const { fromImpl } = buildVaultFromMock({ recipes, onUpdate: (p) => payloads.push(p) })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    const input = await openEditor(user)
+    expect(input).toHaveValue('Tacos')
+
+    await user.clear(input)
+    await user.type(input, '  Fish Tacos  ')
+    await user.click(screen.getByRole('button', { name: /Save changes/i }))
+
+    await waitFor(() => expect(payloads.length).toBeGreaterThan(0))
+    expect(payloads[0].name).toBe('Fish Tacos')
+  })
+
+  it('blocks a rename to a name another active recipe already uses', async () => {
+    const payloads = []
+    const { fromImpl } = buildVaultFromMock({
+      recipes,
+      duplicateRows: [{ id: 'other-recipe' }],
+      onUpdate: (p) => payloads.push(p),
+    })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    const input = await openEditor(user)
+
+    await user.clear(input)
+    await user.type(input, 'Chili')
+    await user.click(screen.getByRole('button', { name: /Save changes/i }))
+
+    expect(await screen.findByText('"Chili" is already in your vault!')).toBeInTheDocument()
+    expect(payloads).toHaveLength(0)
+    // Editor stays open so the user can fix the name.
+    expect(screen.getByRole('textbox', { name: /Recipe name/i })).toHaveValue('Chili')
+  })
+
+  it('disables Save changes when the name is blank', async () => {
+    const { fromImpl } = buildVaultFromMock({ recipes })
+    supabase.from.mockImplementation(fromImpl)
+
+    const user = userEvent.setup()
+    render(<Vault userId="test-user" />)
+    const input = await openEditor(user)
+
+    await user.clear(input)
+    expect(screen.getByRole('button', { name: /Save changes/i })).toBeDisabled()
+  })
+})

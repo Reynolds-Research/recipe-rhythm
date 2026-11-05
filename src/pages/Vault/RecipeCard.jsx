@@ -275,6 +275,13 @@ export default function RecipeCard({
         <div className="mt-4 pt-4 border-t border-cream-100 space-y-3">
           {editing ? (
             <>
+              <input
+                value={editFields.name ?? ''}
+                onChange={e => setEditFields(f => ({ ...f, name: e.target.value }))}
+                aria-label="Recipe name"
+                placeholder="Recipe name"
+                className="input-base"
+              />
               <div className="grid grid-cols-2 gap-3">
                 <select value={editFields.cuisine_type} onChange={e => setEditFields(f => ({ ...f, cuisine_type: e.target.value }))} className="input-base text-sm">
                   <option value="">Cuisine…</option>
@@ -343,7 +350,7 @@ export default function RecipeCard({
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => onSaveEdit(recipe.id)}
-                  disabled={savingEdit}
+                  disabled={savingEdit || !(editFields.name ?? '').trim()}
                   className="btn-primary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {savingEdit ? 'Saving…' : 'Save changes'}

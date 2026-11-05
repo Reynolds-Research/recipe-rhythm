@@ -305,15 +305,43 @@ export function useVault(userId) {
   }
 
   const updateRecipe = async (id, fields) => {
+    const householdId = await getHouseholdId(supabase, userId)
+    const current = recipes.find(r => r.id === id)
+    const finalName = (fields.name ?? current?.name ?? '').trim()
+    if (!finalName) {
+      setVaultError('A recipe needs a name.')
+      return { ok: false, reason: 'no-name' }
+    }
+
+    // Renaming: block a name another ACTIVE recipe already uses (same rule
+    // as addRecipe). Only query when the name actually changed. We fetch up
+    // to 2 matches and ignore this recipe's own row, so changing just the
+    // capitalisation ("tacos" -> "Tacos") is allowed.
+    if (finalName.toLowerCase() !== (current?.name ?? '').trim().toLowerCase()) {
+      const { data: existing } = await supabase
+        .from('vault')
+        .select('id')
+        .eq('household_id', householdId)
+        .is('deleted_at', null)
+        .ilike('name', finalName)
+        .limit(2)
+      if (existing?.some(r => r.id !== id)) {
+        setVaultError(`"${finalName}" is already in your vault!`)
+        return { ok: false, reason: 'duplicate' }
+      }
+    }
+
     await supabase.from('vault').update({
       ...fields,
+      name:           finalName,
       cuisine_type:   fields.cuisine_type        || null,
       flavor_profile: fields.flavor_profile      || null,
       notes:          fields.notes.trim()        || null,
       recipe_url:     fields.recipe_url.trim()   || null,
       auto_completed: false,
-    }).eq('id', id).eq('household_id', await getHouseholdId(supabase, userId))
+    }).eq('id', id).eq('household_id', householdId)
     await fetchRecipes()
+    return { ok: true }
   }
 
   /**
