@@ -118,6 +118,20 @@ describe('GrocerySheet — Assumed you have', () => {
     expect(screen.getByRole('button', { name: 'Add Mirin' })).toBeInTheDocument()
   })
 
+  it('while one save runs, every Add / Always have waits (no lost pantry entry)', async () => {
+    const user = userEvent.setup()
+    let finish
+    const onSetAlwaysHave = vi.fn(() => new Promise((r) => { finish = r }))
+    renderSheet({ onSetAlwaysHave })
+    await user.click(screen.getByRole('button', { name: /Assumed you have/ }))
+    await user.click(screen.getByRole('button', { name: 'Always have Cumin' }))
+    expect(screen.getByRole('button', { name: 'Always have Mirin' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add Salt' })).toBeDisabled()
+    finish()
+    expect(await screen.findByText('Won’t show again · in your pantry list')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Always have Mirin' })).toBeEnabled()
+  })
+
   it('hides the group when nothing is assumed', () => {
     renderSheet({ items: ITEMS.filter((i) => !i.assumed) })
     expect(screen.queryByRole('region', { name: 'Assumed you have' })).not.toBeInTheDocument()

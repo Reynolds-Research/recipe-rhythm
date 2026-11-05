@@ -93,7 +93,10 @@ function AssumedGroup({ items, staples, onSetAssumed, onSetAlwaysHave }) {
           <ul>
             {assumed.map((item) => {
               const mark = marks[item.id]
-              const busy = pending === item.id
+              // Any save in flight disables every button: two quick
+              // "Always have" taps would each rewrite the pantry list and
+              // the second could drop the first.
+              const busy = pending !== null
               return (
                 <li key={item.id} className="min-h-[48px] flex items-center justify-between gap-2 border-t border-cream-100">
                   <span className="flex flex-col">
