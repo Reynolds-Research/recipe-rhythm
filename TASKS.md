@@ -59,6 +59,27 @@ Her test of Confirm the week: amounts like "1.125 lbs shrimp" weren't store unit
 - [ ] **Grocery list: shop amounts + "Check you have"** — each line shows what to buy ("1 lb bag") with the recipe total under it; pantry/spice items in a "Check you have" group. (Recommended over a toggle; revisit if she prefers one.)
 - [ ] **Read the real recipe from a link** — likely unnecessary: her main source (NYT) is paywalled and screenshots cover it. Revisit only if she saves links from open sites and wants them read.
 
+## 🍝 Meal shapes (recipe + add-ons) — from her feedback, 2026-11-05
+
+Her planned meals come in three shapes: a whole recipe, a set of simple parts, or a recipe plus an add-on ("Penne alla Vodka + shrimp"). Decided: keep it subtle. A planned meal stays a name plus an optional link to one recipe; add-ons are plain text on the planned meal, never cookbook entries, no component records, no meal-builder screen.
+
+_Found (prod, read-only, 2026-11-05): all three shapes already exist in her plans. "Penne alla Vodka with Shrimp" is linked to the recipe "Penne alla Vodka", so she may already be renaming after picking. Her cookbook has no duplicates (an earlier "full of duplicates" read was wrong; that query covered every account)._
+
+- [ ] **Watch her add a recipe + add-on meal once** — do first. See whether she already renames the meal after picking a recipe. If she does, the gap is mostly that the option is hard to find, and the next item may shrink to a small change that makes it visible. Effort: XS (one observation).
+  - **Done when:** one observation is noted here (renames already / doesn't), and the next item's scope is confirmed or shrunk to match.
+- [ ] **Add-on text on a planned meal** — P2. After she picks a recipe, a small, quiet "+ add something" text action; the meal shows as "Penne alla Vodka + shrimp" and keeps its recipe link. Nothing is written to the cookbook. Match the existing style: a subtle text action, no big button, no dashed outlines. Effort: M.
+  - **Done when:** she can add an add-on to a planned meal on the Prep Table and it shows in the meal's name, with these Vitest cases:
+    - adding an add-on keeps the recipe link (`vault_id` unchanged) and creates no new cookbook row;
+    - the grocery-list input for a meal with an add-on includes both the linked recipe's ingredients and the add-on text, using the injected (mocked) AI client per the existing dependency-injection pattern.
+- [ ] **Grocery list reads add-on text** — P2. Depends on **Add-on text on a planned meal**. The linked recipe brings its own ingredients; the add-on text goes to the AI to estimate, the same way one-off meals work today. Related: **Recipe ingredients: save them, read screenshots, fill the gaps** above, which makes the linked recipe's part real. Effort: S.
+  - **Done when:** confirming a week with "Penne alla Vodka + shrimp" puts the recipe's ingredients and shrimp on the list; Vitest covers the input (the second case above).
+- [ ] **"Usually with…" add-on suggestions** — P3. If a recipe has been paired with the same add-on before, offer it as a one-tap chip. Worked out from past plans when shown; no new stored data. Effort: M.
+  - **Done when:** a recipe paired with the same add-on before shows it as a chip, tapping it adds it, a recipe never paired shows none; Vitest covers the pairing rule; no migration.
+- [ ] **Cookbook cleanup: test data + typo** — P3. Remove the test rows from prod ("Forced Error Test Meal", "Audit Offbyone Probe", security-probe names) and fix the typo "Sesame Chicken Stir Fru". Use the migration workflow: rehearse on preview (apply → verify → roll back → verify → apply), one combined SELECT for verification, a rollback file. Covers the probe row in **R2.4 · QA housekeeping** below; tick that part there too. Effort: S.
+  - **Done when:** the combined verify SELECT shows no test rows and no "Stir Fru"; the preview rehearsal passed with the rollback file; Matt applied it to prod.
+
+**Open question (for her):** How often is the side dish something she'd want saved as a recipe? _Rarely:_ one recipe link plus add-on text is enough. _Often:_ add an optional second link for a side (a second optional column or a small link table, still not a component system). Revisit after **Watch her add a recipe + add-on meal once**, or once there are ~30 more planned meals to count from.
+
 ## Security
 
 - [ ] **Fix high-severity Vite vulnerability** (reported 2026-04-18 by `npm audit`)
