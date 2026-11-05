@@ -24,6 +24,15 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-05 — Vault: rename a recipe
+
+**Done:** PR (open), branch `claude/wonderful-lovelace-ti0378`. Ad-hoc request (not a TASKS item): recipe names are now editable in the Vault edit panel (text box at the top of "Edit"). Trimmed; blank disables Save; renaming to a name another active recipe uses shows "already in your vault" and keeps the editor open (case-only changes allowed). No AI spell-check on rename (a hand edit is deliberate). No migration: plans snapshot the name, so past plans keep the old name by design.
+**Verified:** 3 new tests in `src/pages/__tests__/Vault.test.jsx`; full Vitest 930/930 pass; `npm run build` ok; `lint:ds` clean. 4 test files can't load locally without Supabase env vars (`supabaseUrl is required`), the same on `main`.
+**Open / owed:** check on a phone after the preview deploys.
+**Next:** unchanged; pick up the top of `TASKS.md`.
+
+---
+
 ## 2026-11-04 (later) — PRD-008 2b-3: Confirm the week + groceries
 
 **Done:** PR (open), branch `feat/prd-008-confirm-week`. Ticked 2b-2 (#216 + #218 merged, both used it on phones).
