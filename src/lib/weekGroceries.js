@@ -18,15 +18,20 @@
  *                                                → { listId, notInCookbook, noIngredients, noList }
  *   keepListAsIs(supabase, confirmation)          → true if the stamp was cleared
  *   loadGroceryItems(supabase, listId)            → items
+ *   setAssumed(supabase, itemId, assumed)         → "Assumed you have" ⇄ on the list
+ *   setAlwaysHave(supabase, userId, name, on)     → add / remove `name` in her pantry list
  *
  * Supabase client first, like plannedMeals.js, so tests pass a fake.
  */
 
 import { getHouseholdId } from './household'
-import { getPreferences } from './preferences'
+import { getPreferences, upsertPreferences } from './preferences'
 import { apiFetch } from './apiClient'
 import { GROCERY_VAULT_COLUMNS, groceryPrefs, recipesFromMeals } from './groceryRecipes'
 import { weekBounds, weekStartFor } from './weekRange'
+
+/** A grocery line: what to buy (quantity), what the recipes use, and "Assumed you have". */
+export const GROCERY_ITEM_COLUMNS = 'id, name, quantity, recipe_quantity, section, assumed'
 
 export const CONFIRMATION_COLUMNS =
   'id, household_id, starts_on, ends_on, user_id, confirmed_at, changed_at, grocery_list_id'
@@ -171,7 +176,9 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
         list_id: list.id,
         name: item.name,
         quantity: item.quantity ?? null,
+        recipe_quantity: item.recipe_quantity ?? null,
         section: item.section ?? 'Other',
+        assumed: item.assumed === true,
         is_bought: false,
         is_adhoc: false,
       }))))
@@ -210,8 +217,41 @@ export async function loadGroceryItems(supabase, listId) {
   return check(
     await supabase
       .from('grocery_list_items')
-      .select('id, name, quantity, section')
+      .select(GROCERY_ITEM_COLUMNS)
       .eq('list_id', listId)
       .order('created_at', { ascending: true }),
   ) ?? []
+}
+
+/**
+ * Move an item between "Assumed you have" (true) and the list (false):
+ * Add puts it on the list; Undo puts it back. Returns the saved row.
+ */
+export async function setAssumed(supabase, itemId, assumed) {
+  const rows = check(
+    await supabase
+      .from('grocery_list_items')
+      .update({ assumed })
+      .eq('id', itemId)
+      .select(GROCERY_ITEM_COLUMNS),
+  )
+  if (!rows?.length) throw new Error('setAssumed: item not found')
+  return rows[0]
+}
+
+/**
+ * "Always have": put `name` in the household's pantry list, so future lists
+ * leave it off (the grocery-list server skips staples). `on = false` is Undo.
+ * Reads the list fresh first, so a staple her partner just added isn't lost.
+ * Returns the saved pantry list.
+ */
+export async function setAlwaysHave(supabase, userId, name, on) {
+  const item = String(name ?? '').trim().toLowerCase()
+  if (!item) throw new Error('setAlwaysHave: no name')
+  const prefs = await getPreferences(userId, supabase)
+  const current = Array.isArray(prefs?.pantry_staples) ? prefs.pantry_staples : []
+  const without = current.filter((s) => String(s).trim().toLowerCase() !== item)
+  const next = on ? [...without, item] : without
+  const saved = await upsertPreferences(userId, { pantry_staples: next }, supabase)
+  return saved?.pantry_staples ?? next
 }

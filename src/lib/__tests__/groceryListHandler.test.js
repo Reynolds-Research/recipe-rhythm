@@ -304,8 +304,8 @@ describe('buildGroceryList — output parsing', () => {
       anthropicClient: client,
     })
     expect(result.items).toEqual([
-      { name: 'chicken thighs', quantity: '2 lbs', section: 'Meat & Seafood' },
-      { name: 'lime',           quantity: '2',     section: 'Produce' },
+      { name: 'chicken thighs', quantity: '2 lbs', section: 'Meat & Seafood', recipe_quantity: null, assumed: false },
+      { name: 'lime',           quantity: '2',     section: 'Produce', recipe_quantity: null, assumed: false },
     ])
   })
 
@@ -360,7 +360,7 @@ describe('buildGroceryList — output parsing', () => {
       anthropicClient: client,
     })
     expect(items).toEqual([
-      { name: 'chicken thighs', quantity: '2 lbs', section: 'Meat & Seafood' },
+      { name: 'chicken thighs', quantity: '2 lbs', section: 'Meat & Seafood', recipe_quantity: null, assumed: false },
     ])
   })
 
@@ -377,7 +377,7 @@ describe('buildGroceryList — output parsing', () => {
       pantryStaples: [],
       anthropicClient: client,
     })
-    expect(items).toEqual([{ name: 'lime', quantity: '2', section: 'Produce' }])
+    expect(items).toEqual([{ name: 'lime', quantity: '2', section: 'Produce', recipe_quantity: null, assumed: false }])
   })
 
   it('extracts a JSON object embedded in surrounding prose', async () => {
@@ -389,7 +389,60 @@ describe('buildGroceryList — output parsing', () => {
       pantryStaples: [],
       anthropicClient: client,
     })
-    expect(items).toEqual([{ name: 'lime', quantity: '2', section: 'Produce' }])
+    expect(items).toEqual([{ name: 'lime', quantity: '2', section: 'Produce', recipe_quantity: null, assumed: false }])
+  })
+})
+
+describe('buildGroceryList — shop amounts + Assumed you have', () => {
+  it('keeps what to buy and what the recipes use, and the assumed flag', async () => {
+    const client = fakeAnthropic(JSON.stringify({
+      items: [
+        { name: 'avocado', quantity: '2', recipe_quantity: '1½', section: 'Produce', assumed: false },
+        { name: 'cumin', quantity: '1 jar', recipe_quantity: '2¼ tsp', section: 'Pantry', assumed: true },
+      ],
+    }))
+    const { items } = await buildGroceryList({
+      recipes: [{ name: 'X', ingredients: ['a'] }], pantryStaples: [], anthropicClient: client,
+    })
+    expect(items).toEqual([
+      { name: 'avocado', quantity: '2', recipe_quantity: '1½', section: 'Produce', assumed: false },
+      { name: 'cumin', quantity: '1 jar', recipe_quantity: '2¼ tsp', section: 'Pantry', assumed: true },
+    ])
+  })
+
+  it('turns stray decimals into kitchen fractions (her "1.125 lbs")', async () => {
+    const client = fakeAnthropic(JSON.stringify({
+      items: [{ name: 'shrimp', quantity: '1.25 lb', recipe_quantity: '1.125 lbs', section: 'Meat & Seafood' }],
+    }))
+    const { items } = await buildGroceryList({
+      recipes: [{ name: 'X', ingredients: ['a'] }], pantryStaples: [], anthropicClient: client,
+    })
+    expect(items[0].quantity).toBe('1¼ lb')
+    expect(items[0].recipe_quantity).toBe('1⅛ lbs')
+  })
+
+  it('only a real true counts as assumed (so nothing drops off the list by mistake)', async () => {
+    const client = fakeAnthropic(JSON.stringify({
+      items: [
+        { name: 'a', quantity: '1', section: 'Pantry', assumed: 'true' },
+        { name: 'b', quantity: '1', section: 'Pantry', assumed: 1 },
+        { name: 'c', quantity: '1', section: 'Pantry' },
+      ],
+    }))
+    const { items } = await buildGroceryList({
+      recipes: [{ name: 'X', ingredients: ['a'] }], pantryStaples: [], anthropicClient: client,
+    })
+    expect(items.map((i) => i.assumed)).toEqual([false, false, false])
+  })
+
+  it('asks for store units, both amounts, fractions not decimals, and the assumed rule', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({ recipes: [{ name: 'X', ingredients: ['a'] }], anthropicClient: client })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('what to BUY at a US grocery store')
+    expect(prompt).toContain('"recipe_quantity"')
+    expect(prompt).toContain('never decimals')
+    expect(prompt).toContain('"assumed"')
   })
 })
 

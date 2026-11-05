@@ -37,6 +37,8 @@ import {
   loadConfirmation,
   loadGroceryItems,
   makeWeekGroceryList,
+  setAlwaysHave as savePantryItem,
+  setAssumed as saveAssumed,
   WeekGroceryError,
 } from '../../lib/weekGroceries'
 
@@ -91,7 +93,8 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const [busy, setBusy] = useState(false)
   const [making, setMaking] = useState(false)     // the grocery-list AI call is running
   const [notice, setNotice] = useState(null)      // a note under "Confirmed" (not an error)
-  const [groceries, setGroceries] = useState({ open: false, loading: false, failed: false, items: [] })
+  // staples = her pantry list (for "Assumed you have": what to hide, and the footer)
+  const [groceries, setGroceries] = useState({ open: false, loading: false, failed: false, items: [], staples: [] })
   // Numbered loads: only the newest one may change the screen, so a slow
   // reload (after a save) can never paint over a week opened since (← / →).
   const loadSeq = useRef(0)
@@ -403,14 +406,33 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     // Tied to the week it was opened on: if she moves to another week while
     // it loads, the sheet stays closed (it never shows last week's list).
     const forWeek = weekRef.current
-    setGroceries({ open: true, loading: true, failed: false, items: [] })
+    setGroceries({ open: true, loading: true, failed: false, items: [], staples: [] })
     try {
-      const items = await loadGroceryItems(supabase, listId)
-      if (weekRef.current === forWeek) setGroceries({ open: true, loading: false, failed: false, items })
+      const [items, prefs] = await Promise.all([
+        loadGroceryItems(supabase, listId),
+        getPreferences(userId, supabase).catch(() => null), // the list works without them
+      ])
+      const staples = Array.isArray(prefs?.pantry_staples) ? prefs.pantry_staples : []
+      if (weekRef.current === forWeek) setGroceries({ open: true, loading: false, failed: false, items, staples })
     } catch (err) {
       console.error('[PrepTable] grocery list load failed', err)
-      if (weekRef.current === forWeek) setGroceries({ open: true, loading: false, failed: true, items: [] })
+      if (weekRef.current === forWeek) setGroceries({ open: true, loading: false, failed: true, items: [], staples: [] })
     }
+  }
+
+  /**
+   * "Assumed you have" → Add (assumed = false) or Undo (true). Saves, then
+   * swaps in the saved row. Throws so the sheet can say it didn't save.
+   */
+  const setItemAssumed = async (item, assumed) => {
+    const saved = await saveAssumed(supabase, item.id, assumed)
+    setGroceries((g) => ({ ...g, items: g.items.map((i) => (i.id === saved.id ? { ...i, ...saved } : i)) }))
+  }
+
+  /** "Always have" (on) or its Undo (off): her pantry list in Settings. */
+  const setAlwaysHave = async (item, on) => {
+    const staples = await savePantryItem(supabase, userId, item.name, on)
+    setGroceries((g) => ({ ...g, staples }))
   }
   const closeGroceries = () => setGroceries((g) => ({ ...g, open: false }))
 
@@ -488,6 +510,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     today,
     weekStart,
     weekEnd: addDays(weekStart, 6),
+    mealCount: meals.length,
     loading: !current,
     error,
     clearError: () => setError(null),
@@ -527,5 +550,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     keepAsIs,
     openGroceries: () => openGroceries(),
     closeGroceries,
+    setItemAssumed,
+    setAlwaysHave,
   }
 }
