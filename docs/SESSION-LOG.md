@@ -6,6 +6,29 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-05 (latest) — Recipe source: link and screenshots side by side
+
+**Done:** on PR #222 (branch `fix/recipe-card-one-list`). Matt's phone feedback: the screenshot button was too loud; a recipe's link could only be added through Edit. Mockup "Recipe Source Mockup" (5 screens) agreed after one round (app style, small text actions, quiet panel, short copy).
+- `src/pages/Vault/RecipeSource.jsx`, used on a Cookbook card (above the ingredient chips) and in Add a recipe (under the name): "Add link" and "Add screenshots" side by side as small text actions. A link is added or changed right on the card (no Edit): `useVault.setRecipeLink`; `https://` added if missing; empty = removed. Screenshots: "Amounts from your screenshots · Serves N · Replace". Right after a read, a quiet cream "Here's what I read" box with "Looks right". Status: "Amounts estimated · Serves N" / "No amounts saved yet." / "No ingredients yet."
+- The card's old link line at the bottom is gone (it's in Recipe source). Add a recipe: the photo moved down to "Add a photo of the dish (optional)".
+
+**Verified:** Vitest 1025/1025, eslint, build. Real Chromium at phone width (fake Supabase + stubbed AI): add link on the card → saved; screenshots → panel → Looks right; saved row = link + `screenshot` + servings 4; no page errors.
+
+**Next:** unchanged — her screenshot test on the preview, then Grocery list: shop amounts + "Check you have".
+
+---
+
+## 2026-11-05 (later) — Recipe card: one ingredient list; no doubled units
+
+**Done:** PR (open), branch `fix/recipe-card-one-list`. Matt's feedback after testing #221 on his phone: two ingredient lists on one card is redundant; "8 ounces ounces". Matt decided: the card keeps the essential / optional chips as its one list; the amounts are saved (grocery list) but shown only right after a screenshot read, in a dashed "Here's what I read" panel with "Looks right", which closes it. Below the chips: "Amounts from your screenshots · Serves 4" (or "estimated", or "No ingredients yet").
+- Doubled units: the AI writes the unit in the quantity AND the unit field. `formatAmount` (groceryRecipes.js) adds the unit only when the quantity doesn't already end with it — fixes the card and the grocery-list prompt, including recipes already saved.
+
+**Verified:** Vitest 1020/1020, eslint, build. Real Chromium at phone width with the fake Supabase + a stubbed AI read: before → panel (no "ounces ounces") → "Looks right" → one list; no page errors.
+
+**Next:** unchanged — her screenshot test on the preview, then Grocery list: shop amounts + "Check you have".
+
+---
+
 ## 2026-11-05 — Recipe ingredients: save them, read screenshots, fill the gaps
 
 **Why:** her first confirmed week (preview, real data). Amounts like "1.125 lbs shrimp"; linked recipes didn't feed their real ingredients; Penne alla Vodka added nothing. Found (prod, read-only): all 4 linked recipes that week had no saved amounts or servings (added Oct 31 – Nov 3); new recipes never saved the list `analyze-recipe` returns (only the 2026-05 backfill had); 9 of 36 recipes affected; `analyze-recipe` can't open links (URL is just text); the Cookbook photo was never sent to the AI. The odd decimals = AI-estimated amounts × household 3 ÷ assumed yield 4.

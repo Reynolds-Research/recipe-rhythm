@@ -1,5 +1,5 @@
-import RecipeIngredients from './RecipeIngredients'
-import { Trash2, ChevronDown, ChevronUp, ExternalLink, Star, Sparkles } from 'lucide-react'
+import RecipeSource from './RecipeSource'
+import { Trash2, ChevronDown, ChevronUp, Star, Sparkles } from 'lucide-react'
 import { formatLastCooked } from '../../lib/dateUtils'
 import ChipPicker from './ChipPicker'
 import {
@@ -193,6 +193,8 @@ export default function RecipeCard({
   onRatingChange,
   onIngredientEssentialityChange,
   onReadScreenshots,
+  onDismissScreenshots,
+  onSaveLink,
   screenshotStatus = null,
   ingredientSaveNotice,
   source,
@@ -369,20 +371,30 @@ export default function RecipeCard({
           ) : (
             <>
               {onReadScreenshots && (
-                <RecipeIngredients
-                  recipe={recipe}
-                  status={screenshotStatus}
-                  onReadScreenshots={(files) => onReadScreenshots(recipe.id, files)}
+                <RecipeSource
+                  name={recipe.name}
+                  link={recipe.recipe_url || null}
+                  onSaveLink={(url) => onSaveLink?.(recipe.id, url)}
+                  source={recipe.ingredients_source ?? null}
+                  servings={recipe.servings ?? null}
+                  hasList={Array.isArray(recipe.ingredients_structured) && recipe.ingredients_structured.length > 0}
+                  hasNames={Array.isArray(recipe.ingredients_classified) && recipe.ingredients_classified.length > 0}
+                  reading={screenshotStatus?.kind === 'reading'}
+                  error={screenshotStatus?.kind === 'error' ? screenshotStatus.message : null}
+                  justRead={screenshotStatus?.kind === 'done' ? screenshotStatus.list : null}
+                  onDismissRead={() => onDismissScreenshots?.()}
+                  onScreenshots={(files) => onReadScreenshots(recipe.id, files)}
                 />
               )}
 
-              {/* PRD-004 Phase D (P0.10 + P0.11) */}
+              {/* PRD-004 Phase D (P0.10 + P0.11): the card's one ingredient list */}
               <IngredientClassificationList
                 classifications={recipe.ingredients_classified}
                 onChange={(name, next) => onIngredientEssentialityChange?.(recipe.id, name, next)}
                 recipeName={recipe.name}
                 saveNotice={ingredientSaveNotice}
               />
+
 
               <ComponentRow label="Protein"  values={recipe.proteins} />
               <ComponentRow label="Carb"     values={recipe.main_carb ? [recipe.main_carb] : []} />
@@ -398,17 +410,7 @@ export default function RecipeCard({
                   <p className="helper-text font-serif italic">{recipe.notes}</p>
                 </div>
               )}
-              {recipe.recipe_url && (
-                <a
-                  href={recipe.recipe_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-brand-700 hover:text-brand-800 transition-colors truncate"
-                >
-                  <ExternalLink size={14} className="shrink-0" />
-                  <span className="truncate">{recipe.recipe_url.replace(/^https?:\/\//, '')}</span>
-                </a>
-              )}
+
 
               {recipe.image_url && (
                 <div className="mt-2 rounded-xl overflow-hidden border border-cream-200">

@@ -443,6 +443,25 @@ export function useVault(userId) {
   }
 
   /**
+   * Save (or clear, with null) a recipe's link from its card, without Edit.
+   * Optimistic, like the rating: on failure the Cookbook reloads.
+   */
+  const setRecipeLink = async (recipeId, url) => {
+    setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, recipe_url: url } : r))
+    const { error } = await supabase
+      .from('vault')
+      .update({ recipe_url: url })
+      .eq('id', recipeId)
+      .eq('household_id', await getHouseholdId(supabase, userId))
+    if (error) {
+      console.error('[Vault] setRecipeLink failed:', error.message)
+      await fetchRecipes()
+      return { ok: false }
+    }
+    return { ok: true }
+  }
+
+  /**
    * Read a saved recipe's real ingredient list from up to 3 screenshots
    * (e.g. NYT Cooking, which is paywalled). Replaces whatever list it had.
    * Returns { ok: true, count } or { ok: false, reason }.
@@ -458,7 +477,7 @@ export function useVault(userId) {
       const fields = await fillRecipeIngredients(supabase, userId, recipe, { images })
       if (!fields) return { ok: false, reason: 'unreadable' }
       setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...fields } : r))
-      return { ok: true, count: fields.ingredients_structured.length }
+      return { ok: true, count: fields.ingredients_structured.length, list: fields.ingredients_structured }
     } catch (err) {
       console.error('[Vault] readRecipeScreenshots failed:', err?.message || err)
       return { ok: false, reason: 'failed' }
@@ -542,5 +561,6 @@ export function useVault(userId) {
     setIngredientEssentiality,
     reExtractIngredients,
     readRecipeScreenshots,
+    setRecipeLink,
   }
 }
