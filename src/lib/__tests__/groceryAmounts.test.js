@@ -27,6 +27,20 @@ describe('sameAmount / showRecipeLine', () => {
     expect(showRecipeLine({ quantity: '2', recipe_quantity: '1½' })).toBe(true)
     expect(showRecipeLine({ quantity: '1¼ lb', recipe_quantity: '1⅛ lb' })).toBe(true)
   })
+  it('no pointless line when the recipe total only adds a description (from her real week)', () => {
+    expect(showRecipeLine({ quantity: '1', recipe_quantity: '1 lemon' })).toBe(false)
+    expect(showRecipeLine({ quantity: '2', recipe_quantity: '2 avocados' })).toBe(false)
+    expect(showRecipeLine({ quantity: '1 lb', recipe_quantity: '1 lb trimmed and halved' })).toBe(false)
+  })
+  it('still shows it when the unit or number really differs', () => {
+    expect(showRecipeLine({ quantity: '1 head', recipe_quantity: '1 cup shredded' })).toBe(true)
+    expect(showRecipeLine({ quantity: '1 pack', recipe_quantity: '8 small tortillas' })).toBe(true)
+    expect(showRecipeLine({ quantity: '1 bag (5 oz)', recipe_quantity: '2 cups' })).toBe(true)
+  })
+  it('no line when the recipe amount is not an amount ("chopped", "to taste")', () => {
+    expect(showRecipeLine({ quantity: '1 bunch', recipe_quantity: 'chopped' })).toBe(false)
+    expect(showRecipeLine({ quantity: '1 wedge', recipe_quantity: 'to taste optional' })).toBe(false)
+  })
   it('shows nothing extra for old lists with no recipe total', () => {
     expect(showRecipeLine({ quantity: '2 lbs', recipe_quantity: null })).toBe(false)
   })

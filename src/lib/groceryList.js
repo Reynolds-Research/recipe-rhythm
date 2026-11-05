@@ -50,19 +50,21 @@ function buildUserMessage({ recipes, pantryStaples, householdSize }) {
   const sectionsLine = GROCERY_SECTIONS.join(' | ')
   const staplesLine = pantryStaples.length ? pantryStaples.join(', ') : 'None'
 
-  // Per-recipe block: announce the recipe yield so the model has a
-  // baseline to scale FROM. `servings` is always a positive int here —
+  // Per-recipe block: the recipe's yield and the exact multiplier, worked
+  // out here (never by the model). `servings` is always a positive int here —
   // null was resolved to DEFAULT_SERVINGS in buildGroceryList before
   // we built the message.
   const recipeBlocks = recipes
-    .map(r =>
-      `- ${r.name} (yields ${r.servings} servings)\n  Ingredients: ${r.ingredients.join(', ')}`,
-    )
+    .map(r => {
+      const f = scaleFactor(householdSize, r.servings)
+      const how = f === 1 ? 'multiply amounts by 1 (as written)' : `multiply amounts by ${f}`
+      return `- ${r.name} (yields ${r.servings} servings; ${how})\n  Ingredients: ${r.ingredients.join(', ')}`
+    })
     .join('\n')
 
   return `Generate a consolidated grocery shopping list for the recipes below.
 
-The household has ${householdSize} eaters. Each recipe lists its yield (the number of servings it produces). For each recipe, scale the quantity of every ingredient by (${householdSize} / yield). Then consolidate across recipes.
+The household has ${householdSize} eaters. They cook each recipe whole and eat the leftovers, so a recipe is NEVER scaled down — only up, when it yields fewer servings than the household needs. Each recipe line gives the exact number to multiply its amounts by (1 = as written). Then consolidate across recipes.
 
 Recipes:
 ${recipeBlocks}
@@ -70,11 +72,11 @@ ${recipeBlocks}
 Pantry staples the user already has — EXCLUDE any matching ingredient entirely (case-insensitive substring match): ${staplesLine}
 
 Instructions:
-1. Each recipe lists its yield and its ingredients. When an ingredient is given with a quantity (e.g. "olive oil: 2 tbsp"), use that quantity as the baseline for scaling — do NOT re-estimate. When an ingredient is given without a quantity (e.g. just "olive oil"), estimate a reasonable amount per recipe-yield first. Then scale the resulting quantity by (household_size / yield) — a recipe that yields 4 servings, in a 6-person household, scales every quantity by 1.5.
-2. Consolidate identical or near-identical ingredients across recipes into a single line item AFTER scaling. If olive oil appears in three recipes, it must appear ONCE in the output, with quantities summed.
+1. When an ingredient is given with a quantity (e.g. "olive oil: 2 tbsp"), use that quantity as the baseline for scaling — do NOT re-estimate. When an ingredient is given without a quantity (e.g. just "olive oil"), estimate a reasonable amount for the recipe's yield first. Then multiply by that recipe's number. Use exactly the number given; never compute your own.
+2. Consolidate identical or near-identical ingredients across recipes into a single line item AFTER scaling. If olive oil appears in three recipes, it must appear ONCE in the output, with quantities summed. Words for size, freshness or prep (small, large, medium, fresh, chopped, diced, uncooked) never make a different item: "small onion" and "yellow onion" are ONE line ("onion", amounts summed), as are "fresh ginger" and "ginger". Only a different variety stays apart (red onion vs. yellow onion; paprika vs. smoked paprika).
 3. Give TWO amounts per item, as free-text strings. Write fractions as ½ ¼ ¾ ⅓ ⅔ ⅛ — never decimals like 1.125.
-   - "recipe_quantity": the scaled, consolidated total the recipes use (e.g. "1⅛ lb", "2¼ cups", "1½ tsp").
-   - "quantity": what to BUY at a US grocery store, rounded UP to how the item is sold: whole produce as a count ("2", not "1½ avocados"), herbs and green onions by the bunch, cabbage or lettuce by the head, leafy greens by the bag with a typical size ("1 bag (5 oz)"), meat and fish to the next ¼ lb ("1¼ lb"), tortillas and bread by the pack or loaf, sauces and spices by the container ("1 bottle", "1 jar").
+   - "recipe_quantity": the scaled, consolidated total the recipes use (e.g. "1 lb", "2 cups", "1½ tsp"). Counts are plain numbers ("2", "1½") — never the word "whole". Amounts under ¼ cup go in tbsp or tsp ("3 tbsp", not "3/16 cup"); never sixteenths.
+   - "quantity": what to BUY at a US grocery store, rounded UP to how the item is sold: whole produce as a count ("2", not "1½ avocados"), herbs and green onions by the bunch, cabbage or lettuce by the head, leafy greens by the bag with a typical size ("1 bag (5 oz)"), meat and fish by weight to the next ¼ lb ("1¼ lb") — when a recipe counts pieces (4 salmon fillets, 2 chicken breasts), count about 6 oz per piece (4 fillets → "1½ lb"), tortillas and bread by the pack or loaf, sauces and spices by the container ("1 bottle", "1 jar").
    If you cannot reasonably estimate an amount, use null for it.
 4. Set "assumed" to true ONLY for long-lasting cupboard items most kitchens already keep and that last for months: salt, pepper, dried spices and dried herbs, cooking oils, vinegars, soy sauce and similar bottled sauces or cooking wines (mirin, sake), sugar, honey, flour, baking soda and powder, sesame seeds. Everything else is false — fresh produce and herbs, meat, fish, dairy, eggs, bread, tortillas, pasta, canned goods and anything perishable.
 5. Categorize each item into exactly one of these grocery store sections: ${sectionsLine}. Use exactly the spelling shown — do not invent new sections.
@@ -90,6 +92,17 @@ function amountOrNull(value) {
   const v = value.trim()
   if (!v || v.toLowerCase() === 'null') return null
   return friendlyAmount(v)
+}
+
+/**
+ * What to multiply a recipe's amounts by: household ÷ yield, but never below
+ * 1 — they cook recipes whole and eat leftovers (decided 2026-11-05), so a
+ * 4-serving recipe for 3 people is bought as written; for 6 people, ×1.5.
+ * Rounded to 2 decimals so the prompt shows a clean number.
+ */
+export function scaleFactor(householdSize, servings) {
+  if (!Number.isInteger(servings) || servings < 1) return 1
+  return Math.max(1, Math.round((householdSize / servings) * 100) / 100)
 }
 
 /**

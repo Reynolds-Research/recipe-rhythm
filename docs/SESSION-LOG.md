@@ -6,6 +6,22 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-05 (late night) — Grocery list: real AI check; never scale down
+
+**Done:** PR (open), branch `fix/grocery-no-scale-down`. #224 and #225 merged; `20261105000002` is on prod (checked read-only).
+- First real AI run (Haiku, her Nov 1–7 recipes, household 3, staples olive oil / garlic / rice; key put in the PC's `.env` by Matt). Store units and "Assumed you have" picks good; wrong: salmon "3 lb" for 3 fillets, "¾ whole", "3/16 cup", yellow + small onion as two lines, and every recipe scaled ×¾.
+- **Matt decided: never scale down** (they cook whole recipes and eat leftovers; PRD-006 P0.7 amended). `scaleFactor()` = `max(1, household ÷ servings)`, worked out in code and stated per recipe in the prompt (the model no longer does the division).
+- Prompt: count pieces of meat/fish as ~6 oz each; no "whole"; under ¼ cup in tbsp/tsp; size / fresh / prep words never make a different item.
+- `groceryAmounts.js`: "Recipes use …" only when the recipe total is a real amount and differs by number or unit ("1" = "1 lemon"; "chopped" / "to taste" → no line).
+
+**Verified:** re-run after the fixes (one call each, ~15–17 s): turkey, shrimp, Brussels sprouts 1 lb; salmon 1½ lb; one "onion" line, red onion apart; no "whole" or sixteenths. Vitest 1064/1064, eslint, `lint:ds`.
+
+**Open / owed (Matt):** merge this PR; then on a preview she taps Update list on Nov 1–7. Optional: remove the key from the PC's `.env` when done testing.
+
+**Next:** tick "Grocery list: shop amounts" after her preview test; then 2c, Switch-over.
+
+---
+
 ## 2026-11-05 (night) — Grocery list: shop amounts + "Assumed you have"
 
 **Done:** PR (open), branch `feat/grocery-shop-amounts` (includes the link-test docs commits). Mockup "Grocery Shop Amounts Mockup" agreed. Matt's concern: a weekly "Check you have" would re-ask spices that last months. Her answer: she checks the cupboard right before making the list when home, otherwise guesses. Decided: **"Assumed you have"**, stated not asked; Add / Always have, both with Undo; Always have writes the existing pantry list.

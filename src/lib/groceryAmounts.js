@@ -53,15 +53,43 @@ function normalize(text) {
     .join(' ')
 }
 
-/** Do two amounts say the same thing? ("1.5 lbs" = "1½ lb", "1 large" = "1 Large") */
-export function sameAmount(a, b) {
-  if (!a || !b) return false
-  return normalize(a) === normalize(b)
+// Words that make an amount mean something different ("1 lb" ≠ "1 bunch").
+// Anything else after the number ("1 lemon", "1 lb trimmed") is a description.
+const UNITS = new Set([
+  'lb', 'oz', 'cup', 'tbsp', 'tsp', 'bunch', 'bag', 'head', 'pack', 'package', 'can',
+  'bottle', 'jar', 'container', 'box', 'stick', 'clove', 'pint', 'quart', 'piece', 'loaf',
+  'dozen', 'g', 'kg', 'ml', 'l',
+])
+
+/** "1½ lb trimmed" → { n: '1½', unit: 'lb' }; "2 avocados" → { n: '2', unit: null } */
+function measure(text) {
+  const words = normalize(text).split(' ')
+  if (!/^[\d½¼¾⅓⅔⅛⅜⅝⅞/]+$/.test(words[0] ?? '')) return null
+  return { n: words[0], unit: UNITS.has(words[1]) ? words[1] : null }
 }
 
-/** Show "Recipes use …" under a line only when it adds something. */
+/**
+ * Do two amounts say the same thing? ("1.5 lbs" = "1½ lb"; "1" = "1 lemon";
+ * "1 lb" = "1 lb trimmed and halved"; but "1 head" ≠ "1 cup shredded").
+ * Same number, and the same unit or no unit on one side.
+ */
+export function sameAmount(a, b) {
+  if (!a || !b) return false
+  if (normalize(a) === normalize(b)) return true
+  const x = measure(a)
+  const y = measure(b)
+  if (!x || !y || x.n !== y.n) return false
+  return x.unit === y.unit || !x.unit || !y.unit
+}
+
+/**
+ * Show "Recipes use …" under a line only when it adds something: the recipe
+ * total is a real amount (starts with a number — not "chopped" or "to taste")
+ * and says something different from what to buy.
+ */
 export function showRecipeLine(item) {
-  return Boolean(item?.recipe_quantity) && !sameAmount(item.quantity, item.recipe_quantity)
+  if (!item?.recipe_quantity || !measure(item.recipe_quantity)) return false
+  return !sameAmount(item.quantity, item.recipe_quantity)
 }
 
 /**
