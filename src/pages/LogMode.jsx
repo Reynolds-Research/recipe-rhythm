@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Mic, MicOff, Check, BookOpen, MessageSquare, X } from 'lucide-react'
 import { useSpeech } from '../hooks/useSpeech'
 import { supabase } from '../lib/supabase'
+import { estimateFields } from '../lib/recipeIngredients'
 import { analyzeRecipe } from '../lib/analyzeRecipe'
 import { matchVaultByName } from '../lib/vaultMatch'
 import { normalizeMealName, toTitleCase } from '../lib/mealNameNormalize'
@@ -176,6 +177,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
         vegetables:             analysis?.vegetables               ?? [],
         fruits:                 analysis?.fruits                   ?? [],
         ingredients_classified: analysis?.ingredients_classified   ?? null,
+        ...estimateFields(analysis),
       })
       .select('id')
       .single()

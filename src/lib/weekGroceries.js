@@ -15,7 +15,7 @@
  *   loadConfirmation(supabase, userId, weekStart) → row | null
  *   confirmWeek(supabase, userId, weekStart)      → row (the existing one if already confirmed)
  *   makeWeekGroceryList(supabase, userId, confirmation, { fetchApi })
- *                                                → { listId, notInCookbook, noIngredients }
+ *                                                → { listId, notInCookbook, noIngredients, noList }
  *   keepListAsIs(supabase, confirmation)          → true if the stamp was cleared
  *   loadGroceryItems(supabase, listId)            → items
  *
@@ -141,7 +141,7 @@ async function loadMealsForList(supabase, userId, start, end) {
  */
 export async function makeWeekGroceryList(supabase, userId, confirmation, { fetchApi = apiFetch } = {}) {
   const meals = await loadMealsForList(supabase, userId, confirmation.starts_on, confirmation.ends_on)
-  const { recipes, notInCookbook, noIngredients } = recipesFromMeals(meals)
+  const { recipes, notInCookbook, noIngredients, noList } = recipesFromMeals(meals)
   if (recipes.length === 0) {
     throw new WeekGroceryError('no_recipes', 'No cookbook recipes with ingredients this week', {
       notInCookbook, noIngredients,
@@ -202,7 +202,7 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
     if (error) console.warn('[weekGroceries] old list not deleted', error)
   }
 
-  return { listId: list.id, notInCookbook, noIngredients }
+  return { listId: list.id, notInCookbook, noIngredients, noList }
 }
 
 /** A list's items, oldest first. */

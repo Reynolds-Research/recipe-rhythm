@@ -53,12 +53,15 @@ export function formatStructuredIngredient(entry) {
  *   recipes: Array<{ name: string, ingredients: string[], servings: number|null }>,
  *   notInCookbook: string[],     // meal names with no cookbook recipe (one-offs, AI picks)
  *   noIngredients: string[],     // cookbook recipes with no ingredient data at all
+ *   noList: string[],            // cookbook recipes used WITHOUT a saved ingredient list
+ *                                //   (names or tags only), so their part is a guess
  * }}
  */
 export function recipesFromMeals(meals = []) {
   const recipes = []
   const notInCookbook = []
   const noIngredients = []
+  const noList = []
   for (const item of meals ?? []) {
     if (!item.vault_id || !item.vault) {
       notInCookbook.push(item.name)
@@ -72,6 +75,7 @@ export function recipesFromMeals(meals = []) {
       ingredients = structured.map(formatStructuredIngredient).filter(Boolean)
     }
     if (!ingredients || ingredients.length === 0) {
+      noList.push(v.name)
       const classified = v.ingredients_classified
       if (Array.isArray(classified) && classified.length > 0) {
         ingredients = classified.map(c => c?.name).filter(Boolean)
@@ -87,12 +91,13 @@ export function recipesFromMeals(meals = []) {
       ].filter(Boolean)
     }
     if (ingredients.length === 0) {
+      noList.splice(noList.lastIndexOf(v.name), 1)
       noIngredients.push(v.name)
       continue
     }
     recipes.push({ name: v.name, ingredients, servings: v.servings ?? null })
   }
-  return { recipes, notInCookbook, noIngredients }
+  return { recipes, notInCookbook, noIngredients, noList }
 }
 
 /** Household size + pantry staples from preferences (row defaults: 2 adults, 0 children). */
