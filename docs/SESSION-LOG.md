@@ -6,7 +6,19 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
-## 2026-11-05 (latest) — Recipe source: link and screenshots side by side
+## 2026-11-05 (evening) — Link-reading test; grocery shop-amounts mockup
+
+**Done:** branch `docs/link-read-test` (this PR, docs only).
+- **Link test** (TASKS "Read the real recipe from a link"): prod read-only, her household has 23 linked recipes, only 1 NYT. The other 22 fetched once each from the Mac (Safari user agent), checked for a schema.org Recipe block: 9 have one (8 clean, with amounts + `recipeYield`; 1 run together in one string); 7 blocked (403: gimmesomeoven, ambitiouskitchen); 6 load with no block (broccyourbody, smittenkitchen, enjoybrami = bot check). Recommendation: **keep**, as P2 after shop amounts; the item is rewritten with a Done-when that includes trying it from Vercel.
+- **Mockup** "Grocery Shop Amounts Mockup" (Design canvas, 3 screens) from her real Nov 1–7 list: today / proposed shop amounts / Check you have opened.
+
+**Verified:** counts come from the script output (one fetch per page). Not verified: fetching from Vercel's servers (likely blocked more often; inference); whether the 6 block-less pages have the recipe as plain text.
+
+**Open / owed (Matt):** merge this PR; react to the mockup (placement of Check you have: top vs bottom; which items count as "check you have"; whether "Recipes use" should show on every line).
+
+**Next:** build Grocery list: shop amounts + "Check you have" once the mockup is agreed.
+
+## 2026-11-05 (later still) — Recipe source: link and screenshots side by side
 
 **Done:** on PR #222 (branch `fix/recipe-card-one-list`). Matt's phone feedback: the screenshot button was too loud; a recipe's link could only be added through Edit. Mockup "Recipe Source Mockup" (5 screens) agreed after one round (app style, small text actions, quiet panel, short copy).
 - `src/pages/Vault/RecipeSource.jsx`, used on a Cookbook card (above the ingredient chips) and in Add a recipe (under the name): "Add link" and "Add screenshots" side by side as small text actions. A link is added or changed right on the card (no Edit): `useVault.setRecipeLink`; `https://` added if missing; empty = removed. Screenshots: "Amounts from your screenshots · Serves N · Replace". Right after a read, a quiet cream "Here's what I read" box with "Looks right". Status: "Amounts estimated · Serves N" / "No amounts saved yet." / "No ingredients yet."
