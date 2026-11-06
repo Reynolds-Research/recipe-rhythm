@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-11-04 against `main` (`08500d3`) + prod (read-only) — PRD-008 2b-2 shipped behind the switch, 2b-3 built. Previous: 2026-11-03 (2b-1).
+**Last verified:** 2026-11-06 against `main` (`de89a49`) + prod (read-only) — grocery list shop amounts + "Assumed you have" shipped (#225, #226; migration `20261105000002` on prod), never scaling recipes down. Previous: 2026-11-04 (2b-2).
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 > **📍 Roadmap:** Near-term sequencing of what to do *next* lives in [`docs/ROADMAP.md`](./ROADMAP.md) (created 2026-06-16, stability-first, ~3 sprints). This file (STATUS.md) remains the source of truth for what has *shipped*.
@@ -133,6 +133,7 @@ Nav simplification work that doesn't belong to any one PRD.
 ### Shipped
 
 - [x] **P0.1** (PR #72): `grocery_lists` + `grocery_list_items` schema with RLS.
+- [x] **Shop amounts + "Assumed you have"** (PRs #225 + #226, 2026-11-06; TASKS item, not a PRD row): `grocery_list_items.quantity` = what to buy in store units, new `recipe_quantity` + `assumed` (migration `20261105000002`); the Prep Table's grocery sheet shows "Recipes use …" where it differs and a collapsed "Assumed you have" group (Add / Always have → `household_preferences.pantry_staples`). The old Groceries tab shows the buy amounts; assumed items appear there as plain lines until the switch-over.
 - [x] **P0.3** (PR #72): `/api/grocery-list` Haiku 4.5 endpoint (+ Vercel mirror).
 - [x] **P0.4** (PR — see commit `af9479d`, "Bite C-1"): `GroceryList` page + nav entry + post-Serve CTA.
 - [x] **P0.5** (same Bite C-1): Generate / Regenerate action wired up.
@@ -214,6 +215,7 @@ Nav simplification work that doesn't belong to any one PRD.
 - [x] **Phase 3 — Path D1** (PR #78, commit `096778d`, P0.6): chip-grounded ingredient re-extraction with explicit `userChips` parameter on `/api/analyze-recipe`. Truth-hierarchy refinement (PR #80, commit `b5af1eb`): explicit ordering in the prompt — recipe URL/name = primary source for ingredients; user chips = authoritative for categorical attributes; never fabricate ingredients to fit a chip.
 
 - [x] **Phase 4 — Bite γ** (PR #86, commit `c688c6e`, P0.7): grocery-list endpoint accepts `householdSize` + per-recipe `servings`; prompt scales quantities by `(householdSize / servings)` per recipe-line and consolidates after scaling. Recipes with `servings IS NULL` fall back to 4. Original Bite γ also covered a re-parse-on-edit trigger; that half was descoped 2026-05-05 (see PRD-006 §6 "Scope changes after authoring") because the assumed `vault.ingredients text[]` column never existed.
+- [x] **P0.7 amended — never scale down** (PR #226, 2026-11-06): the grocery multiplier is `max(1, household ÷ servings)`, worked out in code (`scaleFactor`) and stated per recipe in the prompt; they cook recipes whole and eat leftovers (Matt).
 - [x] **Phase 5 — Bite δ** (PR #89, commit `31c8fe8`, P0.8): grocery-list page formats each ingredient string with the AI-extracted quantity inline (`"olive oil: 2 tbsp"`) when `vault.ingredients_structured` is populated, falling through to `ingredients_classified` names and then chip arrays. Prompt updated to use provided quantities as the scaling baseline. Also fixes a latent bug where `main_carb` (a single string) was spread into characters in the chip-fallback path. No API contract change.
 
 ### Pending
