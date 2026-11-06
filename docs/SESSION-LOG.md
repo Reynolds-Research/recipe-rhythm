@@ -6,6 +6,19 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-06 — Grocery list shipped; Vercel reconnected; Linux-only deploys
+
+**Done:** #226 merged. Matt reconnected Vercel to `Reynolds-Research/recipe-rhythm` (it was linked to `reynolds-household-world`) and set `VITE_NEW_PREP_TABLE=true` for Preview only. A push from the PC (`preview/grocery-test`, empty commit) built a preview automatically in ~15 s; shared it with a 23-hour share link. She went through the whole flow on her phone → **ticked "Grocery list: shop amounts + Assumed you have"**. This PR: TASKS, STATUS, this row, and `e2e/grocery-sheet-touch.spec.js`.
+- Her report "Assumed you have doesn't expand / poor touch" didn't reproduce: real touch events (CDP) at phone size open it with 0–10 px of finger movement once the sheet has finished sliding up (a tap mid-slide lands elsewhere). Matt then tried it on his phone: fine. Not the Vercel toolbar (inference; not tested).
+
+**Verified:** prod (read-only) Nov 1–7 list after her run: 37 items, all with a recipe amount, 0 decimals, 11 assumed, salmon 1½ lb, one onion line. Found: turkey / shrimp "1¼ lb" for 1 lb recipes → new XS item.
+
+**Open / owed (Matt):** merge this PR (its merge is the first test of production auto-deploy — check that Vercel deploys it); delete `preview/grocery-test`; optional: remove the key from the PC's `.env`.
+
+**Next:** PRD-008 2c, Switch-over (fresh session).
+
+---
+
 ## 2026-11-05 (late night) — Grocery list: real AI check; never scale down
 
 **Done:** PR (open), branch `fix/grocery-no-scale-down`. #224 and #225 merged; `20261105000002` is on prod (checked read-only).
