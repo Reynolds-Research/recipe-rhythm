@@ -1,7 +1,10 @@
+/* global process */
 import { test, expect } from '@playwright/test';
 import { mockHousehold } from './support/household.js';
 
 test.describe('Brainstorm E2E', () => {
+  // Drives the OLD Prep Table; hidden when the new one is on (PRD-008 2c).
+  test.skip(process.env.VITE_NEW_PREP_TABLE === 'true', 'old screens are hidden when VITE_NEW_PREP_TABLE=true')
   test.beforeEach(async ({ page }) => {
     await mockHousehold(page);
     await page.route('**/rest/v1/vault*', async route => {

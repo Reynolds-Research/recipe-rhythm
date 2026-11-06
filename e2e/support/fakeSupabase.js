@@ -13,6 +13,11 @@
  * an insert leaves it out (the column default), and seed rows without one are
  * put in HOUSEHOLD.
  *
+ * The new Prep Table's tables (PRD-008 2c) are here too: planned_meals,
+ * week_confirmations and week_days, with the database's "changed since
+ * confirmed" trigger (a meal added, moved or removed inside a confirmed week
+ * stamps that week's changed_at).
+ *
  * It only understands the query shapes this app sends (eq/neq/gt/gte/lt/lte,
  * is.null, not.is.null, in.(), order, limit, single/maybeSingle, insert,
  * upsert, update, delete). Anything else fails loudly (HTTP 500 + a log entry)
@@ -24,7 +29,7 @@ import { randomUUID } from 'node:crypto'
 const USER = { id: 'test-user', email: 'test@example.com' }
 export const HOUSEHOLD = 'test-household'
 const KITCHEN = ['vault', 'meals', 'meal_plans', 'meal_plan_items', 'household_preferences',
-  'plan_drafts', 'grocery_lists', 'vault_options']
+  'plan_drafts', 'grocery_lists', 'vault_options', 'planned_meals', 'week_confirmations', 'week_days']
 
 export function ymd(date) {
   const y = date.getFullYear()
@@ -142,6 +147,9 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
     grocery_lists: [],
     grocery_list_items: [],
     vault_options: [],
+    planned_meals: [],
+    week_confirmations: [],
+    week_days: [],
     ...structuredClone(seed),
     household_members: [{ household_id: HOUSEHOLD, user_id: USER.id }],
   }
@@ -161,6 +169,26 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
       source_url: null, cooked: false, cooked_at: null, is_shortlisted: false,
       created_at: now().toISOString(),
     }),
+    planned_meals: () => ({
+      id: randomUUID(), user_id: USER.id, planned_on: null, position: 0, vault_id: null,
+      is_wildcard: false, source_url: null, cooked: false, cooked_at: null,
+      assigned_to: null, assigned_at: null,
+      created_at: now().toISOString(), updated_at: now().toISOString(),
+    }),
+    week_confirmations: () => ({
+      id: randomUUID(), user_id: USER.id, confirmed_at: now().toISOString(), changed_at: null,
+      grocery_list_id: null, created_at: now().toISOString(), updated_at: now().toISOString(),
+    }),
+    grocery_lists: () => ({ id: randomUUID(), user_id: USER.id, share_token: null, created_at: now().toISOString() }),
+    grocery_list_items: () => ({ id: randomUUID(), is_bought: false, created_at: now().toISOString() }),
+  }
+
+  // The "changed since confirmed" trigger (rr_mark_week_changed): any meal
+  // write touching a date inside a confirmed week stamps that week.
+  function markWeekChanged(...dates) {
+    for (const w of tables.week_confirmations) {
+      if (dates.some((d) => d && d >= w.starts_on && d <= w.ends_on)) w.changed_at = now().toISOString()
+    }
   }
 
   function overlapViolation(candidate) {
@@ -263,6 +291,7 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
           }
           tables[name].push(row)
           written.push(row)
+          if (name === 'planned_meals') markWeekChanged(row.planned_on)
         }
         log.push({ at: ymd(now()), method, name, rows: written.length })
         return returnRows ? respond(copy(written), 201) : json(route, 201, undefined)
@@ -273,7 +302,11 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
         const targets = tables[name].filter(matches)
         for (const row of targets) {
           if (name === 'meal_plans' && overlapViolation({ ...row, ...patch })) return overlapError(route)
+          const before = row.planned_on
           Object.assign(row, patch)
+          if (name === 'planned_meals' && ('planned_on' in patch || 'name' in patch || 'vault_id' in patch)) {
+            markWeekChanged(before, row.planned_on)
+          }
         }
         log.push({ at: ymd(now()), method, name, rows: targets.length, patch: Object.keys(patch) })
         return returnRows ? respond(copy(targets)) : json(route, 204, undefined)
@@ -286,6 +319,11 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
           // ON DELETE CASCADE from meal_plan_items.meal_plan_id
           const ids = new Set(removed.map((r) => r.id))
           tables.meal_plan_items = tables.meal_plan_items.filter((i) => !ids.has(i.meal_plan_id))
+        }
+        if (name === 'planned_meals') markWeekChanged(...removed.map((r) => r.planned_on))
+        if (name === 'grocery_lists') {
+          const ids = new Set(removed.map((r) => r.id))
+          tables.grocery_list_items = tables.grocery_list_items.filter((i) => !ids.has(i.list_id))
         }
         log.push({ at: ymd(now()), method, name, rows: removed.length })
         return returnRows ? respond(copy(removed)) : json(route, 204, undefined)

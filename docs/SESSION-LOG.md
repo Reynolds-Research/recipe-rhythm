@@ -6,6 +6,23 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-06 (later) — PRD-008 2c, Switch-over: built, rehearsed, waiting on the prod run
+
+**Done:** #228 (ticked "Reconnect Vercel to GitHub": #227's merge built production from Git in 3 s, no manual step). This PR, branch `feat/prd-008-switch-over`, everything behind `VITE_NEW_PREP_TABLE`:
+- Calendar tab reads `planned_meals` + `week_confirmations`; one "Confirmed week" shade.
+- Preferences' rule check: uncooked meals from today on (not Maybes, not past); Remove deletes those `planned_meals`.
+- Grocery sheet: "Added by you" (add, ✕ remove); Update list copies her lines to the new list before linking it. Matt dropped sharing and tick-offs (she orders online from Whole Foods). Mockup "Grocery Share + Own Items Mockup".
+- Copy: `supabase/rehearsal/06a–06c`. Skips old plans overlapping a week confirmed on the new screens (prod: only Nov 1–5, 5 meals), dated meals only.
+- Lockout explorer on the new screens: `e2e/lockout-explorer-new.spec.js`, 4/4; the fake database gained the new tables + the "changed" trigger.
+
+**Verified:** see the PR (Vitest, eslint, lint:ds, build with the switch on, e2e both ways, preview rehearsal 9/9 + negative control, prod 06a read-only = 1 row).
+
+**Open / owed (Matt):** the hand-off in the PR, in order: 06a → 06b → 06c on prod; tick Production on `VITE_NEW_PREP_TABLE`; merge; run the copy again (zeros); she tries it on her phone.
+
+**Next:** tick 2c (and phase 2) after the prod run; then "Grocery list: don't round a clean pound up" (XS).
+
+---
+
 ## 2026-11-06 — Grocery list shipped; Vercel reconnected; Linux-only deploys
 
 **Done:** #226 merged. Matt reconnected Vercel to `Reynolds-Research/recipe-rhythm` (it was linked to `reynolds-household-world`) and set `VITE_NEW_PREP_TABLE=true` for Preview only. A push from the PC (`preview/grocery-test`, empty commit) built a preview automatically in ~15 s; shared it with a 23-hour share link. She went through the whole flow on her phone → **ticked "Grocery list: shop amounts + Assumed you have"**. This PR: TASKS, STATUS, this row, and `e2e/grocery-sheet-touch.spec.js`.
