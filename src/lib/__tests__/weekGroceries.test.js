@@ -48,6 +48,7 @@ function makeSupabase(responses = {}) {
         eq(c, v) { call.filters.push(['eq', c, v]); return chain },
         gte(c, v) { call.filters.push(['gte', c, v]); return chain },
         lte(c, v) { call.filters.push(['lte', c, v]); return chain },
+        is(c, v) { call.filters.push(['is', c, v]); return chain },
         order(c) { call.order.push(c); return chain },
         single() { call.end = 'single'; return result() },
         maybeSingle() { call.end = 'maybeSingle'; return result() },
@@ -197,7 +198,8 @@ describe('makeWeekGroceryList', () => {
     }])
     const link = sb.calls.find((c) => c.table === 'week_confirmations' && c.op === 'update')
     expect(link.payload).toEqual({ grocery_list_id: 'L2' })
-    expect(link.filters).toEqual([['eq', 'id', 'c1']])
+    // A first list links only while the confirmation still has none.
+    expect(link.filters).toEqual([['eq', 'id', 'c1'], ['is', 'grocery_list_id', null]])
   })
 
   it('remaking: new list linked first, then the stamp cleared (guarded), then the old list deleted', async () => {
@@ -214,6 +216,8 @@ describe('makeWeekGroceryList', () => {
       'grocery_list_items.select', // her own lines on the old list (none here)
       'week_confirmations.update', 'week_confirmations.update', 'grocery_lists.delete',
     ])
+    // Linked only while it still points at the list we copied from (L1).
+    expect(sb.calls[4].filters).toEqual([['eq', 'id', 'c1'], ['eq', 'grocery_list_id', 'L1']])
     const clear = sb.calls[5]
     expect(clear.payload).toEqual({ changed_at: null })
     expect(clear.filters).toEqual([['eq', 'id', 'c1'], ['eq', 'changed_at', seen]])
@@ -435,5 +439,21 @@ describe('her own items', () => {
     const deletes = sb.calls.filter((c) => c.op === 'delete')
     expect(deletes.map((c) => c.filters)).toEqual([[['eq', 'id', 'L2']]])
     expect(sb.calls.some((c) => c.table === 'week_confirmations')).toBe(false)
+  })
+})
+
+describe('her own items: two phones at once', () => {
+  it("her partner made a newer list meanwhile: ours isn't linked, theirs (with any line added to it) stands", async () => {
+    // We copied her own lines from L1, but the confirmation now points at L2.
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L3' }),
+      'grocery_list_items.select': ok([]),
+      'week_confirmations.update': ok([]), // 0 rows: grocery_list_id is no longer L1
+    })
+    await expect(makeWeekGroceryList(sb, USER, confirmation({ grocery_list_id: 'L1' }), { fetchApi: api() }))
+      .rejects.toThrow('has a newer list')
+    const deletes = sb.calls.filter((c) => c.op === 'delete')
+    expect(deletes.map((c) => c.filters)).toEqual([[['eq', 'id', 'L3']]]) // only our own half-made list
   })
 })

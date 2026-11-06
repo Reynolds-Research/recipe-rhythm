@@ -169,6 +169,14 @@ into the SQL Editor is the only place they appear.
   moved to a future day loses its tick; a plain move loses it; a swap with another cooked meal on today or
   a past day keeps both ticks; a meal never gains a tick by moving. INFERRED: reordering on the same day
   keeps it (same night).)
+  (Phase 2c build, 2026-11-06 — CONFIRMED by Matt: **no sharing and no tick-offs** on the new list —
+  she orders online from Whole Foods, so the list ends at the Prep Table's sheet; the old share page
+  stays for links already sent and goes in phase 4. The sheet gains **"Added by you"**: she adds her
+  own lines and removes them with ✕; Update list carries them to the new list. Preferences' check of
+  meals that break a new rule covers uncooked meals dated today or later (not Maybes, not past
+  meals). The prod copy (P0.3) **skips the old Nov 1–5 plan's dated meals**: she re-planned and
+  confirmed that week on the new screens, and copying both would double each night
+  (`supabase/rehearsal/06a–06c`). The Calendar tab reads `planned_meals` and shades confirmed weeks.)
   (Phase 2b-3 build, 2026-11-04 — CONFIRMED by Matt: the confirmed week's list shows in a sheet on the
   Prep Table, read-only (sharing and adding your own items stay on the Groceries tab, which moves to
   confirmed weeks at 2c); the "changed since you confirmed" prompt offers **Update list** and **Keep as
@@ -241,6 +249,7 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v0.9 (2026-11-06):** 2c build notes (switch-over) under P0.6.
 - **v0.8 (2026-11-04):** 2b-3 build notes (Confirm the week + groceries) under P0.4 / P0.6.
 - **v0.7 (2026-11-02):** 2b-1 build notes under P0.4 (switch = `VITE_NEW_PREP_TABLE`; how the days are
   stored; tray rule).

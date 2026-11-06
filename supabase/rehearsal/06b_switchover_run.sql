@@ -14,9 +14,12 @@
 --   meals added 21 (18 past dinners + 3 Maybes), confirmations added 9,
 --   everything else 0. Then run 06c.
 --
--- Safe to run again: the skip ignores rows it already wrote, and a second
--- copy only mirrors changes made on the old screens since (all zeros once
--- the old screens are gone).
+-- Run it ONCE, before the deploy. After the deploy, re-run only the plain
+--   SELECT public.rr_copy_legacy_plans();
+-- (step d in README.md): once she confirms more weeks on the new screens,
+-- 06b/06c's overlap rule would match more plans than the ones skipped today.
+-- Running 06b twice by mistake is harmless (the skip ignores rows it already
+-- wrote; the copy only mirrors changes made on the old screens since).
 INSERT INTO public.rr_legacy_copied (kind, legacy_id)
 SELECT 'plan', p.id
   FROM public.meal_plans p

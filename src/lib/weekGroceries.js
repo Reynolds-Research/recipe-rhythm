@@ -212,14 +212,21 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
         }))))
       }
     }
+    // Link only if the confirmation still points at the list we copied her
+    // own lines from. If her partner made a newer list meanwhile (and maybe
+    // added a line to it), 0 rows match: this list is thrown away and theirs
+    // stands — nothing of hers is lost (reviewer, 2026-11-06).
+    const link = supabase
+      .from('week_confirmations')
+      .update({ grocery_list_id: list.id })
+      .eq('id', confirmation.id)
     const linked = check(
-      await supabase
-        .from('week_confirmations')
-        .update({ grocery_list_id: list.id })
-        .eq('id', confirmation.id)
-        .select('id'),
+      await (confirmation.grocery_list_id
+        ? link.eq('grocery_list_id', confirmation.grocery_list_id)
+        : link.is('grocery_list_id', null)
+      ).select('id'),
     )
-    if (!linked?.length) throw new Error('makeWeekGroceryList: the confirmation is gone')
+    if (!linked?.length) throw new Error('makeWeekGroceryList: the confirmation is gone or has a newer list')
   } catch (err) {
     // Not linked yet: throw the half-made list away; the old one is untouched.
     await supabase.from('grocery_lists').delete().eq('id', list.id).then(() => {}, () => {})
