@@ -20,6 +20,11 @@
  *   loadGroceryItems(supabase, listId)            → items
  *   setAssumed(supabase, itemId, assumed)         → "Assumed you have" ⇄ on the list
  *   setAlwaysHave(supabase, userId, name, on)     → add / remove `name` in her pantry list
+ *   addOwnItem(supabase, listId, name)            → her own line ("paper towels"), the saved row
+ *   removeOwnItem(supabase, itemId)               → takes one of her own lines off
+ *
+ * Her own lines (`is_adhoc`) aren't from any recipe, so making the list
+ * again carries them over to the new list instead of dropping them (2c).
  *
  * Supabase client first, like plannedMeals.js, so tests pass a fake.
  */
@@ -31,7 +36,7 @@ import { GROCERY_VAULT_COLUMNS, groceryPrefs, recipesFromMeals } from './grocery
 import { weekBounds, weekStartFor } from './weekRange'
 
 /** A grocery line: what to buy (quantity), what the recipes use, and "Assumed you have". */
-export const GROCERY_ITEM_COLUMNS = 'id, name, quantity, recipe_quantity, section, assumed'
+export const GROCERY_ITEM_COLUMNS = 'id, name, quantity, recipe_quantity, section, assumed, is_adhoc'
 
 export const CONFIRMATION_COLUMNS =
   'id, household_id, starts_on, ends_on, user_id, confirmed_at, changed_at, grocery_list_id'
@@ -183,6 +188,30 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
         is_adhoc: false,
       }))))
     }
+    // Her own lines come along to the new list (they aren't from a recipe,
+    // so the AI never makes them again). Before linking: if this fails, the
+    // new list is thrown away and the old one, with her lines, is untouched.
+    if (confirmation.grocery_list_id) {
+      const own = check(
+        await supabase
+          .from('grocery_list_items')
+          .select('name, quantity, section')
+          .eq('list_id', confirmation.grocery_list_id)
+          .eq('is_adhoc', true)
+          .order('created_at', { ascending: true }),
+      ) ?? []
+      if (own.length > 0) {
+        check(await supabase.from('grocery_list_items').insert(own.map((item) => ({
+          list_id: list.id,
+          name: item.name,
+          quantity: item.quantity ?? null,
+          section: item.section ?? 'Other',
+          assumed: false,
+          is_bought: false,
+          is_adhoc: true,
+        }))))
+      }
+    }
     const linked = check(
       await supabase
         .from('week_confirmations')
@@ -254,4 +283,36 @@ export async function setAlwaysHave(supabase, userId, name, on) {
   const next = on ? [...without, item] : without
   const saved = await upsertPreferences(userId, { pantry_staples: next }, supabase)
   return saved?.pantry_staples ?? next
+}
+
+/**
+ * Add one of her own lines to the list ("paper towels"): not from a recipe,
+ * no amount, kept when the list is made again. Returns the saved row.
+ */
+export async function addOwnItem(supabase, listId, name) {
+  const clean = String(name ?? '').trim()
+  if (!clean) throw new Error('addOwnItem: no name')
+  if (!listId) throw new Error('addOwnItem: no list')
+  return check(
+    await supabase
+      .from('grocery_list_items')
+      .insert({
+        list_id: listId,
+        name: clean,
+        quantity: null,
+        section: 'Other',
+        assumed: false,
+        is_bought: false,
+        is_adhoc: true,
+      })
+      .select(GROCERY_ITEM_COLUMNS)
+      .single(),
+  )
+}
+
+/** Take one of her own lines off. Only her own: recipe lines can't be removed here. */
+export async function removeOwnItem(supabase, itemId) {
+  check(
+    await supabase.from('grocery_list_items').delete().eq('id', itemId).eq('is_adhoc', true),
+  )
 }

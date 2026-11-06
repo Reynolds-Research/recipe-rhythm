@@ -12,6 +12,8 @@ import {
   getActivePeriodItems,
   deleteMealPlanItems,
 } from '../../lib/mealPlanItems'
+import { loadUpcomingMeals, removeMeals } from '../../lib/plannedMeals'
+import { isNewPrepTableEnabled } from '../../lib/featureFlags'
 import { fillMissingIngredients, loadMissingIngredients } from '../../lib/recipeIngredients'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 import Logo from '../Logo'
@@ -126,7 +128,11 @@ export default function Preferences({ userId, onOpenAbout }) {
     // on repeated changes — a clean run with zero violators clears any
     // stale banner.
     try {
-      const items = await getActivePeriodItems(userId, supabase)
+      // PRD-008 2c: with the new Prep Table on, check uncooked meals dated
+      // today or later (not Maybes, not past meals); off, the old active period.
+      const items = isNewPrepTableEnabled()
+        ? await loadUpcomingMeals(supabase, userId)
+        : await getActivePeriodItems(userId, supabase)
       const violators = items.filter(it => !passesPreferences(it, updated))
       if (violators.length > 0) {
         setViolatorsBanner({
@@ -149,7 +155,8 @@ export default function Preferences({ userId, onOpenAbout }) {
     const ids = violatorsBanner.items.map(i => i.id)
     setRemovingViolators(true)
     try {
-      await deleteMealPlanItems(ids, supabase)
+      if (isNewPrepTableEnabled()) await removeMeals(supabase, ids)
+      else await deleteMealPlanItems(ids, supabase)
       setViolatorsBanner(null)
     } catch (err) {
       console.warn('Failed to delete violator meal_plan_items:', err)
@@ -309,6 +316,7 @@ export default function Preferences({ userId, onOpenAbout }) {
             onKeep={dismissViolators}
             onRemoveAll={removeAllViolators}
             removing={removingViolators}
+            planned={isNewPrepTableEnabled()}
           />
         )}
 
@@ -541,7 +549,7 @@ export default function Preferences({ userId, onOpenAbout }) {
   )
 }
 
-function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
+function ViolatorsBanner({ items, onKeep, onRemoveAll, removing, planned = false }) {
   const count = items.length
   const visible = items.slice(0, VIOLATOR_NAMES_VISIBLE)
   const overflow = count - visible.length
@@ -562,7 +570,7 @@ function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
         <button
           type="button"
           onClick={onKeep}
-          aria-label="Keep these meals in the active period"
+          aria-label={planned ? 'Keep these planned meals' : 'Keep these meals in the active period'}
           className="px-4 py-3 min-h-[44px] text-sm font-semibold bg-white text-amber-900 ring-1 ring-amber-200 rounded-full hover:bg-amber-100"
         >
           Keep
@@ -571,7 +579,7 @@ function ViolatorsBanner({ items, onKeep, onRemoveAll, removing }) {
           type="button"
           onClick={onRemoveAll}
           disabled={removing}
-          aria-label="Remove all violating meals from the active period"
+          aria-label={planned ? 'Remove these meals from the plan' : 'Remove all violating meals from the active period'}
           className="inline-flex items-center gap-1.5 px-4 py-3 min-h-[44px] text-sm font-semibold bg-amber-700 text-white rounded-full hover:bg-amber-800 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {removing

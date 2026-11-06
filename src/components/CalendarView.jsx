@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fetchScheduledItemsInRange } from '../lib/mealPlanReader'
+import { loadCalendarRange } from '../lib/plannedMeals'
+import { isNewPrepTableEnabled } from '../lib/featureFlags'
 import Logo from './Logo'
 
 // --- Date helpers (UTC-based, AUDIT U8 discipline) -------------------------
@@ -107,11 +109,38 @@ function buildPeriodRanges(rows) {
 function periodStateForDate(iso, periods) {
   for (const p of periods) {
     if (iso >= p.periodStart && iso <= p.periodEnd) {
+      if (p.confirmed) return 'confirmed'
       return p.finalized ? 'finalized' : 'active'
     }
   }
   return null
 }
+
+// PRD-008 2c: with the new Prep Table on, the calendar reads planned_meals
+// and shades the weeks she confirmed. Off, it reads the old plan tables
+// exactly as before. Both return { rows, periods } in the same shapes.
+async function fetchMonth(userId, from, to, planned) {
+  if (!planned) {
+    const rows = await fetchScheduledItemsInRange(supabase, userId, from, to)
+    return { rows, periods: buildPeriodRanges(rows) }
+  }
+  const { meals, confirmations } = await loadCalendarRange(supabase, userId, from, to)
+  return {
+    rows: meals.map((m) => ({
+      item_id: m.id,
+      scheduled_date: m.planned_on,
+      name: m.name,
+      cooked: !!m.cooked,
+    })),
+    periods: confirmations.map((c) => ({
+      periodStart: c.starts_on,
+      periodEnd: c.ends_on,
+      confirmed: true,
+    })),
+  }
+}
+
+const EMPTY = { rows: [], periods: [] }
 
 // --- Component -------------------------------------------------------------
 
@@ -120,9 +149,11 @@ function periodStateForDate(iso, periods) {
  * meals. ADR-001 Phase 6. No mutations; tapping a date with items opens a
  * dismissible popover with meal names + period info.
  *
- * @param {{ userId: string, initialMonth?: Date }} props
+ * @param {{ userId: string, initialMonth?: Date, newPrepTable?: boolean }} props
+ *   newPrepTable defaults to the VITE_NEW_PREP_TABLE switch.
  */
-export default function CalendarView({ userId, initialMonth }) {
+export default function CalendarView({ userId, initialMonth, newPrepTable }) {
+  const planned = newPrepTable ?? isNewPrepTableEnabled()
   const seed = initialMonth ?? new Date()
   const [year, setYear] = useState(seed.getFullYear())
   const [monthIdx, setMonthIdx] = useState(seed.getMonth())
@@ -131,7 +162,7 @@ export default function CalendarView({ userId, initialMonth }) {
   // when fetched — since each fetch spans prev/curr/next, we index by center).
   // Avoids re-fetch thrash when the user flips back and forth.
   const cacheRef = useRef(new Map())
-  const [rows, setRows] = useState([]) // rows for the *visible* month
+  const [data, setData] = useState(EMPTY) // { rows, periods } for the *visible* month
   const [loading, setLoading] = useState(true)
 
   // Popover state: null or { iso, items }
@@ -145,7 +176,7 @@ export default function CalendarView({ userId, initialMonth }) {
     const key = monthKey(year, monthIdx)
     const cached = cacheRef.current.get(key)
     if (cached) {
-      setRows(cached)
+      setData(cached)
       setLoading(false)
       return () => {
         cancelled = true
@@ -153,27 +184,27 @@ export default function CalendarView({ userId, initialMonth }) {
     }
     setLoading(true)
     const { from, to } = fetchRangeForMonth(year, monthIdx)
-    fetchScheduledItemsInRange(supabase, userId, from, to)
+    fetchMonth(userId, from, to, planned)
       .then((result) => {
         if (cancelled) return
         cacheRef.current.set(key, result)
-        setRows(result)
+        setData(result)
         setLoading(false)
       })
       .catch(() => {
         if (cancelled) return
         // Soft-fail the calendar — show empty grid rather than an error screen.
-        cacheRef.current.set(key, [])
-        setRows([])
+        cacheRef.current.set(key, EMPTY)
+        setData(EMPTY)
         setLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [userId, year, monthIdx])
+  }, [userId, year, monthIdx, planned])
 
-  const dateIndex = useMemo(() => buildDateIndex(rows), [rows])
-  const periods = useMemo(() => buildPeriodRanges(rows), [rows])
+  const dateIndex = useMemo(() => buildDateIndex(data.rows), [data])
+  const periods = data.periods
 
   const prevMonth = () => {
     setPopover(null)
@@ -197,7 +228,10 @@ export default function CalendarView({ userId, initialMonth }) {
   const handleCellClick = (iso) => {
     const items = dateIndex.get(iso)
     if (!items || items.length === 0) return
-    setPopover({ iso, items })
+    const confirmed = planned
+      ? periods.find((p) => iso >= p.periodStart && iso <= p.periodEnd) ?? null
+      : undefined
+    setPopover({ iso, items, confirmed })
   }
 
   return (
@@ -263,13 +297,14 @@ export default function CalendarView({ userId, initialMonth }) {
 
             // Color coding:
             //   finalized → warm cream (period is locked)
+            //   confirmed → warm cream (new Prep Table: a week she confirmed)
             //   active    → brand-100 tint (period is live / in-progress)
             //   no period → neutral white
             //   today     → ring-brand-700
             const base =
               'relative aspect-square rounded-lg border flex items-center justify-center transition-colors'
             let tint = 'bg-white border-cream-100'
-            if (periodState === 'finalized') {
+            if (periodState === 'finalized' || periodState === 'confirmed') {
               tint = 'bg-cream-200/60 border-cream-200'
             } else if (periodState === 'active') {
               tint = 'bg-brand-100/70 border-brand-200'
@@ -311,13 +346,14 @@ export default function CalendarView({ userId, initialMonth }) {
           })}
         </div>
 
-        <Legend />
+        <Legend planned={planned} />
       </div>
 
       {popover && (
         <DayPopover
           iso={popover.iso}
           items={popover.items}
+          confirmed={popover.confirmed}
           onClose={() => setPopover(null)}
         />
       )}
@@ -325,7 +361,7 @@ export default function CalendarView({ userId, initialMonth }) {
   )
 }
 
-function Legend() {
+function Legend({ planned = false }) {
   return (
     <div
       className="bg-white border border-cream-100 rounded-2xl px-4 py-3 shadow-sm"
@@ -333,12 +369,19 @@ function Legend() {
     >
       <p className="section-heading mb-2">Legend</p>
       <p className="helper-text mb-3">Tap any day for details.</p>
-      <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
-        <LegendSwatch cls="bg-brand-100/70 border-brand-200" label="Active period" />
-        <LegendSwatch cls="bg-cream-200/60 border-cream-200" label="Finalized" />
-        <LegendSwatch cls="bg-white border-cream-100" label="Gap day" />
-        <LegendSwatch cls="bg-white border-brand-700 ring-2 ring-brand-700" label="Today" />
-      </div>
+      {planned ? (
+        <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
+          <LegendSwatch cls="bg-cream-200/60 border-cream-200" label="Confirmed week" />
+          <LegendSwatch cls="bg-white border-brand-700 ring-2 ring-brand-700" label="Today" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
+          <LegendSwatch cls="bg-brand-100/70 border-brand-200" label="Active period" />
+          <LegendSwatch cls="bg-cream-200/60 border-cream-200" label="Finalized" />
+          <LegendSwatch cls="bg-white border-cream-100" label="Gap day" />
+          <LegendSwatch cls="bg-white border-brand-700 ring-2 ring-brand-700" label="Today" />
+        </div>
+      )}
     </div>
   )
 }
@@ -352,7 +395,9 @@ function LegendSwatch({ cls, label }) {
   )
 }
 
-function DayPopover({ iso, items, onClose }) {
+// `confirmed`: undefined = old screens (period from the first item, as
+// before); null or { periodStart, periodEnd } = new Prep Table.
+function DayPopover({ iso, items, confirmed, onClose }) {
   const first = items[0]
   const periodStart = first?.period_start
   const periodEnd = first?.period_end
@@ -374,7 +419,12 @@ function DayPopover({ iso, items, onClose }) {
             <p className="section-heading text-brand-700">
               {formatShortDate(iso)}
             </p>
-            {periodStart && periodEnd && (
+            {confirmed && (
+              <p className="text-sm text-gray-700 mt-1" data-testid="calendar-popover-confirmed">
+                Confirmed {formatShortDate(confirmed.periodStart)} – {formatShortDate(confirmed.periodEnd)}
+              </p>
+            )}
+            {confirmed === undefined && periodStart && periodEnd && (
               <p className="text-sm text-gray-700 mt-1">
                 Period: {formatShortDate(periodStart)} – {formatShortDate(periodEnd)}
                 {finalized && (

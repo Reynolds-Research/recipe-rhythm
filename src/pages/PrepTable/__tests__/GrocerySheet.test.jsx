@@ -137,3 +137,56 @@ describe('GrocerySheet — Assumed you have', () => {
     expect(screen.queryByRole('region', { name: 'Assumed you have' })).not.toBeInTheDocument()
   })
 })
+
+// PRD-008 2c: her own lines (mockup "Grocery Share + Own Items Mockup").
+describe('GrocerySheet — Added by you', () => {
+  const OWN = [
+    ...ITEMS,
+    { id: 'pt', name: 'Paper towels', quantity: null, recipe_quantity: null, section: 'Other', assumed: false, is_adhoc: true },
+  ]
+
+  it('shows her own lines in "Added by you", not in a store section', () => {
+    renderSheet({ items: OWN })
+    const own = screen.getByRole('region', { name: 'Added by you' })
+    expect(within(own).getByText('Paper towels')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Other' })).not.toBeInTheDocument()
+  })
+
+  it('adds a line from the box, then clears it', async () => {
+    const user = userEvent.setup()
+    const onAddOwn = vi.fn(async () => {})
+    renderSheet({ onAddOwn })
+    const box = screen.getByRole('textbox', { name: 'Add your own item' })
+    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+
+    await user.type(box, 'Bananas{Enter}')
+
+    expect(onAddOwn).toHaveBeenCalledWith('Bananas')
+    expect(box).toHaveValue('')
+  })
+
+  it('✕ removes one of her lines', async () => {
+    const user = userEvent.setup()
+    const onRemoveOwn = vi.fn(async () => {})
+    renderSheet({ items: OWN, onRemoveOwn })
+    await user.click(screen.getByRole('button', { name: 'Remove Paper towels' }))
+    expect(onRemoveOwn).toHaveBeenCalledWith(expect.objectContaining({ id: 'pt' }))
+  })
+
+  it("a failed save says so and keeps what she typed", async () => {
+    const user = userEvent.setup()
+    const onAddOwn = vi.fn(async () => { throw new Error('offline') })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderSheet({ onAddOwn })
+    const box = screen.getByRole('textbox', { name: 'Add your own item' })
+    await user.type(box, 'Bananas')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save that")
+    expect(box).toHaveValue('Bananas')
+  })
+
+  it('recipe lines have no remove button', () => {
+    renderSheet({ items: OWN })
+    expect(screen.queryByRole('button', { name: 'Remove Avocado' })).not.toBeInTheDocument()
+  })
+})

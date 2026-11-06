@@ -28,6 +28,8 @@ vi.mock('../../../lib/weekGroceries', async (importOriginal) => ({
   loadGroceryItems: vi.fn(),
   setAssumed: vi.fn(),
   setAlwaysHave: vi.fn(),
+  addOwnItem: vi.fn(),
+  removeOwnItem: vi.fn(),
 }))
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(async () => null) }))
 vi.mock('../../../lib/supabase', () => ({ supabase: { from: vi.fn() } }))
@@ -780,6 +782,26 @@ describe('Confirm the week', () => {
     await userEvent.click(within(sheet).getByRole('button', { name: 'Always have Cumin' }))
     expect(wg.setAlwaysHave).toHaveBeenCalledWith(supabase, 'u1', 'cumin', true)
     expect(await within(sheet).findByText('Not shown, in your pantry list: cumin.')).toBeInTheDocument()
+  })
+
+  it('Added by you (2c): adds her own line to the open list, and ✕ takes it off', async () => {
+    setWeek({ meals: FULL_WEEK })
+    wg.loadConfirmation.mockResolvedValue(CONF)
+    wg.loadGroceryItems.mockResolvedValue(ITEMS)
+    wg.addOwnItem.mockResolvedValue({ id: 'own1', name: 'Paper towels', quantity: null, section: 'Other', assumed: false, is_adhoc: true })
+    wg.removeOwnItem.mockResolvedValue(undefined)
+    renderPage()
+    await userEvent.click(await screen.findByRole('button', { name: /Grocery list/ }))
+    const sheet = await screen.findByTestId('grocery-sheet')
+
+    await userEvent.type(within(sheet).getByRole('textbox', { name: 'Add your own item' }), 'Paper towels{Enter}')
+    expect(wg.addOwnItem).toHaveBeenCalledWith(supabase, 'L1', 'Paper towels')
+    const own = await within(sheet).findByRole('region', { name: 'Added by you' })
+    expect(await within(own).findByText('Paper towels')).toBeInTheDocument()
+
+    await userEvent.click(within(own).getByRole('button', { name: 'Remove Paper towels' }))
+    expect(wg.removeOwnItem).toHaveBeenCalledWith(supabase, 'own1')
+    await waitFor(() => expect(within(own).queryByText('Paper towels')).not.toBeInTheDocument())
   })
 
   it('empty nights are told, never blocking: "Not yet" waits, "Confirm anyway" confirms', async () => {

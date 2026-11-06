@@ -13,6 +13,8 @@ import {
   loadConfirmation,
   loadGroceryItems,
   makeWeekGroceryList,
+  addOwnItem,
+  removeOwnItem,
   setAlwaysHave,
   setAssumed,
   WeekGroceryError,
@@ -209,12 +211,13 @@ describe('makeWeekGroceryList', () => {
 
     expect(ops(sb)).toEqual([
       'planned_meals.select', 'grocery_lists.insert', 'grocery_list_items.insert',
+      'grocery_list_items.select', // her own lines on the old list (none here)
       'week_confirmations.update', 'week_confirmations.update', 'grocery_lists.delete',
     ])
-    const clear = sb.calls[4]
+    const clear = sb.calls[5]
     expect(clear.payload).toEqual({ changed_at: null })
     expect(clear.filters).toEqual([['eq', 'id', 'c1'], ['eq', 'changed_at', seen]])
-    expect(sb.calls[5].filters).toEqual([['eq', 'id', 'L1']])
+    expect(sb.calls[6].filters).toEqual([['eq', 'id', 'L1']])
   })
 
   it('no cookbook recipes with ingredients: says so, calls no AI, writes nothing', async () => {
@@ -320,7 +323,7 @@ describe('shop amounts + Assumed you have', () => {
   it('loads the new columns', async () => {
     const sb = makeSupabase({ 'grocery_list_items.select': ok([]) })
     await loadGroceryItems(sb, 'L1')
-    expect(sb.calls[0].columns).toBe('id, name, quantity, recipe_quantity, section, assumed')
+    expect(sb.calls[0].columns).toBe('id, name, quantity, recipe_quantity, section, assumed, is_adhoc')
   })
 
   it('Add moves an assumed item onto the list (and Undo moves it back)', async () => {
@@ -355,5 +358,82 @@ describe('loadGroceryItems', () => {
     expect(await loadGroceryItems(sb, 'L1')).toEqual([{ id: 'i1', name: 'Limes' }])
     expect(sb.calls[0].filters).toEqual([['eq', 'list_id', 'L1']])
     expect(sb.calls[0].order).toEqual(['created_at'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PRD-008 2c: her own lines ("Added by you")
+// ---------------------------------------------------------------------------
+describe('her own items', () => {
+  it('adding one saves a line with no amount, in Other, marked as hers', async () => {
+    const row = { id: 'i9', name: 'Paper towels', quantity: null, recipe_quantity: null, section: 'Other', assumed: false, is_adhoc: true }
+    const sb = makeSupabase({ 'grocery_list_items.insert': ok(row) })
+    expect(await addOwnItem(sb, 'L1', '  Paper towels ')).toEqual(row)
+    expect(sb.calls[0].payload).toEqual({
+      list_id: 'L1', name: 'Paper towels', quantity: null, section: 'Other',
+      assumed: false, is_bought: false, is_adhoc: true,
+    })
+    expect(sb.calls[0].columns).toMatch(/is_adhoc/)
+  })
+
+  it('an empty name, or no list, saves nothing', async () => {
+    const sb = makeSupabase()
+    await expect(addOwnItem(sb, 'L1', '   ')).rejects.toThrow(/no name/)
+    await expect(addOwnItem(sb, null, 'Bananas')).rejects.toThrow(/no list/)
+    expect(sb.calls).toEqual([])
+  })
+
+  it('removing one only ever deletes her own lines, never a recipe line', async () => {
+    const sb = makeSupabase({ 'grocery_list_items.delete': ok(null) })
+    await removeOwnItem(sb, 'i9')
+    expect(sb.calls[0].filters).toEqual([['eq', 'id', 'i9'], ['eq', 'is_adhoc', true]])
+  })
+
+  it('Update list carries her own lines over to the new list, before it is linked', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'grocery_list_items.select': ok([
+        { name: 'Paper towels', quantity: null, section: 'Other' },
+        { name: 'Bananas', quantity: '6', section: 'Produce' },
+      ]),
+      'week_confirmations.update': [ok([{ id: 'c1' }]), ok([{ id: 'c1' }])],
+    })
+    await makeWeekGroceryList(sb, USER, confirmation({ grocery_list_id: 'L1', changed_at: 'x' }), { fetchApi: api() })
+
+    const read = sb.calls.find((c) => c.table === 'grocery_list_items' && c.op === 'select')
+    expect(read.filters).toEqual([['eq', 'list_id', 'L1'], ['eq', 'is_adhoc', true]])
+    const inserts = sb.calls.filter((c) => c.table === 'grocery_list_items' && c.op === 'insert')
+    expect(inserts).toHaveLength(2)
+    expect(inserts[1].payload).toEqual([
+      { list_id: 'L2', name: 'Paper towels', quantity: null, section: 'Other', assumed: false, is_bought: false, is_adhoc: true },
+      { list_id: 'L2', name: 'Bananas', quantity: '6', section: 'Produce', assumed: false, is_bought: false, is_adhoc: true },
+    ])
+    const order = ops(sb)
+    expect(order.lastIndexOf('grocery_list_items.insert')).toBeLessThan(order.indexOf('week_confirmations.update'))
+  })
+
+  it('a first list (no old one) reads no own lines', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([{ id: 'c1' }]),
+    })
+    await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi: api() })
+    expect(sb.calls.some((c) => c.table === 'grocery_list_items' && c.op === 'select')).toBe(false)
+  })
+
+  it('copying them fails: the new list is thrown away and the old one (with her lines) kept', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'grocery_list_items.select': fail('offline'),
+    })
+    await expect(
+      makeWeekGroceryList(sb, USER, confirmation({ grocery_list_id: 'L1' }), { fetchApi: api() }),
+    ).rejects.toMatchObject({ message: 'offline' })
+    const deletes = sb.calls.filter((c) => c.op === 'delete')
+    expect(deletes.map((c) => c.filters)).toEqual([[['eq', 'id', 'L2']]])
+    expect(sb.calls.some((c) => c.table === 'week_confirmations')).toBe(false)
   })
 })

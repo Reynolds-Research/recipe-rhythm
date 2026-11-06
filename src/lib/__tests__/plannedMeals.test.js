@@ -9,6 +9,9 @@ import {
   moveMeal,
   keepsCookedTick,
   pickDidntGetTo,
+  loadCalendarRange,
+  loadUpcomingMeals,
+  removeMeals,
   removeMeal,
   saveWeekDays,
   setCooked,
@@ -52,6 +55,7 @@ function makeSupabase(responses = {}) {
         gte(c, v) { call.filters.push(['gte', c, v]); return chain },
         lte(c, v) { call.filters.push(['lte', c, v]); return chain },
         is(c, v) { call.filters.push(['is', c, v]); return chain },
+        in(c, v) { call.filters.push(['in', c, v]); return chain },
         order(c, o) { call.order.push([c, o?.ascending !== false]); return chain },
         single() { call.end = 'single'; return result() },
         maybeSingle() { call.end = 'maybeSingle'; return result() },
@@ -361,5 +365,78 @@ describe('"Didn\'t get to these"', () => {
     it('empty in, empty out', () => {
       expect(pickDidntGetTo()).toEqual([])
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// PRD-008 2c: the Calendar tab and Preferences read planned_meals
+// ---------------------------------------------------------------------------
+describe('loadCalendarRange', () => {
+  it('reads dated meals in the window and every confirmed week that touches it', async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([{ id: 'm1', planned_on: '2026-11-03', position: 0, name: 'Shrimp Tacos', cooked: true }]),
+      'week_confirmations.select': ok([{ id: 'c1', starts_on: '2026-11-01', ends_on: '2026-11-07' }]),
+    })
+    const out = await loadCalendarRange(sb, USER, '2026-10-01', '2026-12-31')
+    expect(out.meals).toHaveLength(1)
+    expect(out.confirmations).toEqual([{ id: 'c1', starts_on: '2026-11-01', ends_on: '2026-11-07' }])
+
+    const meals = sb.calls.find((c) => c.table === 'planned_meals')
+    expect(meals.filters).toEqual([
+      ['eq', 'household_id', HH], ['gte', 'planned_on', '2026-10-01'], ['lte', 'planned_on', '2026-12-31'],
+    ])
+    expect(meals.order).toEqual([['planned_on', true], ['position', true]])
+    // Overlap, not containment: a week that starts before the window still counts.
+    const confs = sb.calls.find((c) => c.table === 'week_confirmations')
+    expect(confs.filters).toEqual([
+      ['eq', 'household_id', HH], ['lte', 'starts_on', '2026-12-31'], ['gte', 'ends_on', '2026-10-01'],
+    ])
+  })
+
+  it('a failed read is thrown (the calendar soft-fails it)', async () => {
+    const sb = makeSupabase({ 'planned_meals.select': fail('offline'), 'week_confirmations.select': ok([]) })
+    await expect(loadCalendarRange(sb, USER, '2026-10-01', '2026-12-31')).rejects.toMatchObject({ message: 'offline' })
+  })
+})
+
+describe('loadUpcomingMeals', () => {
+  it('asks for uncooked meals dated today or later — so no Maybes and no past meals', async () => {
+    const sb = makeSupabase({ 'planned_meals.select': ok([]) })
+    await loadUpcomingMeals(sb, USER, '2026-11-06')
+    const q = sb.calls[0]
+    expect(q.filters).toEqual([
+      ['eq', 'household_id', HH], ['eq', 'cooked', false], ['gte', 'planned_on', '2026-11-06'],
+    ])
+    // A Maybe has planned_on NULL, which `planned_on >= today` never matches.
+    expect(q.columns).toMatch(/vault:vault_id \(cuisine_type.*dietary_tags\)/)
+  })
+
+  it("flattens the recipe's tags onto each meal (object or one-item array)", async () => {
+    const sb = makeSupabase({
+      'planned_meals.select': ok([
+        { id: 'm1', planned_on: '2026-11-09', name: 'Pork chops', vault_id: 'v1', vault: { proteins: ['pork'], dietary_tags: [] } },
+        { id: 'm2', planned_on: '2026-11-10', name: 'Pizza out', vault_id: null, vault: null },
+        { id: 'm3', planned_on: '2026-11-11', name: 'Curry', vault_id: 'v3', vault: [{ cuisine_type: 'Indian' }] },
+      ]),
+    })
+    const out = await loadUpcomingMeals(sb, USER, '2026-11-06')
+    expect(out[0]).toMatchObject({ id: 'm1', name: 'Pork chops', proteins: ['pork'], cuisine_type: null })
+    expect(out[1]).toMatchObject({ id: 'm2', vault_id: null, proteins: null })
+    expect(out[2]).toMatchObject({ id: 'm3', cuisine_type: 'Indian' })
+  })
+})
+
+describe('removeMeals', () => {
+  it('deletes exactly those meals', async () => {
+    const sb = makeSupabase({ 'planned_meals.delete': ok(null) })
+    await removeMeals(sb, ['m1', 'm2'])
+    expect(sb.calls[0].op).toBe('delete')
+    expect(sb.calls[0].filters).toEqual([['in', 'id', ['m1', 'm2']]])
+  })
+
+  it('nothing to remove: no call', async () => {
+    const sb = makeSupabase()
+    await removeMeals(sb, [])
+    expect(sb.calls).toEqual([])
   })
 })

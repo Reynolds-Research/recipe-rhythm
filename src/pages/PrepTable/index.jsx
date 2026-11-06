@@ -250,6 +250,8 @@ export default function PrepTable({ userId, today }) {
         leftOff={pt.leftOff}
         onSetAssumed={pt.setItemAssumed}
         onSetAlwaysHave={pt.setAlwaysHave}
+        onAddOwn={pt.addOwnItem}
+        onRemoveOwn={pt.removeOwnItem}
         onClose={pt.closeGroceries}
       />
 
