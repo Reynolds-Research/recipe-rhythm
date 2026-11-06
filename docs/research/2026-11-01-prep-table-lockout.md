@@ -65,3 +65,24 @@ solve. Direction under discussion: Serve becomes a checkpoint ("Confirm the week
 locks, every meal is its own row from the first tap, and uncooked meals never silently move
 or vanish from history. Rerun this explorer after that work; findings 1–4 should no longer
 reproduce.
+
+## Rerun on the new Prep Table — 2026-11-06 (PRD-008 2c)
+
+`e2e/lockout-explorer-new.spec.js` walks the same situations through the new week screens
+(`VITE_NEW_PREP_TABLE=true`), on the same stateful fake database (now with `planned_meals`,
+`week_confirmations`, `week_days` and the "changed since confirmed" trigger), and **asserts** instead
+of recording. All four pass:
+
+1. **Plan next week while this one is open** — Wednesday, this week unconfirmed: Next week → "+ add"
+   on Sunday saves the meal; nothing had to be confirmed or locked first.
+2. **Planning ahead doesn't lock this week** — Wednesday: next week confirmed, then Thursday of this
+   week still takes a meal; next week's plan is untouched.
+3. **Suggestions reachable after week one** — week 3 Monday: "Suggest the empty days" is enabled and ✨
+   on a day proposes a recipe that ✓ saves; five weeks later (time away) the same, with no step first.
+4. **Nothing moves or vanishes** — a confirmed week with nothing ticked cooked: next Monday, week 2 is
+   empty (not a copy), all five meals are still on their own days in week 1, and "Didn't get to these"
+   shows 5.
+
+Run: `VITE_NEW_PREP_TABLE=true npx playwright test e2e/lockout-explorer-new.spec.js` (screenshots in
+`e2e-results/lockout-new/`). The original explorer is skipped when the switch is on (it drives the old
+screens).

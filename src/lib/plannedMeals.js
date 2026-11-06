@@ -20,9 +20,11 @@
  *   setCooked(supabase, mealId, cooked)
  *   loadMaybeList(supabase, userId)            → meals with no date
  *   loadDidntGetTo(supabase, userId, today)    → "Didn't get to these"
+ *   loadCalendarRange(supabase, userId, from, to) → Calendar tab (2c)
+ *   loadUpcomingMeals / removeMeals            → Preferences' rule check (2c)
  *
- * Nothing here writes to the old plan tables, and nothing reads these yet
- * outside tests: the screens arrive in 2b-2 behind VITE_NEW_PREP_TABLE.
+ * Nothing here writes to the old plan tables. The screens that use these are
+ * behind VITE_NEW_PREP_TABLE (src/lib/featureFlags.js).
  */
 
 import { getHouseholdId } from './household'
@@ -313,4 +315,88 @@ export async function loadDidntGetTo(supabase, userId, today = formatLocalDate()
       .gte('planned_on', today),
   ])
   return pickDidntGetTo(check(past) ?? [], check(upcoming) ?? [])
+}
+
+// ---------------------------------------------------------------------------
+// Other screens that move to planned_meals at the switch-over (PRD-008 2c)
+// ---------------------------------------------------------------------------
+
+/**
+ * Calendar tab: the dated meals and the confirmed weeks that touch
+ * [fromDate, toDate] (both 'YYYY-MM-DD', inclusive). Maybe meals (no date)
+ * never show on a calendar. A confirmation counts when any of its days fall
+ * in the window.
+ *
+ * @returns {Promise<{
+ *   meals: Array<{id: string, planned_on: string, position: number, name: string, cooked: boolean}>,
+ *   confirmations: Array<{id: string, starts_on: string, ends_on: string}>,
+ * }>}
+ */
+export async function loadCalendarRange(supabase, userId, fromDate, toDate) {
+  const householdId = await getHouseholdId(supabase, userId)
+  const [meals, confirmations] = await Promise.all([
+    supabase
+      .from('planned_meals')
+      .select('id, planned_on, position, name, cooked')
+      .eq('household_id', householdId)
+      .gte('planned_on', fromDate)
+      .lte('planned_on', toDate)
+      .order('planned_on', { ascending: true })
+      .order('position', { ascending: true }),
+    supabase
+      .from('week_confirmations')
+      .select('id, starts_on, ends_on')
+      .eq('household_id', householdId)
+      .lte('starts_on', toDate)
+      .gte('ends_on', fromDate)
+      .order('starts_on', { ascending: true }),
+  ])
+  return { meals: check(meals) ?? [], confirmations: check(confirmations) ?? [] }
+}
+
+/** The recipe tags passesPreferences reads (src/lib/preferenceFilter.js). */
+const RULE_COLUMNS =
+  'cuisine_type, prep_time_minutes, proteins, vegetables, fruits, dairy_components, main_carb, dietary_tags'
+
+/**
+ * Preferences: the meals a new rule could still change — uncooked meals dated
+ * today or later, each with its recipe's tags flattened on (same shape the old
+ * getActivePeriodItems returned, so passesPreferences reads it unchanged).
+ * Left out on purpose (Matt, 2026-11-06): Maybe meals (ideas, not plans —
+ * "Remove all" must not wipe them) and past meals (history).
+ */
+export async function loadUpcomingMeals(supabase, userId, today = formatLocalDate()) {
+  const householdId = await getHouseholdId(supabase, userId)
+  const rows = check(
+    await supabase
+      .from('planned_meals')
+      .select(`id, planned_on, name, vault_id, vault:vault_id (${RULE_COLUMNS})`)
+      .eq('household_id', householdId)
+      .eq('cooked', false)
+      .gte('planned_on', today)
+      .order('planned_on', { ascending: true }),
+  )
+  return (rows ?? []).map((row) => {
+    const v = Array.isArray(row.vault) ? row.vault[0] : row.vault
+    return {
+      id: row.id,
+      name: row.name,
+      vault_id: row.vault_id ?? null,
+      planned_on: row.planned_on,
+      cuisine_type: v?.cuisine_type ?? null,
+      prep_time_minutes: v?.prep_time_minutes ?? null,
+      proteins: v?.proteins ?? null,
+      vegetables: v?.vegetables ?? null,
+      fruits: v?.fruits ?? null,
+      dairy_components: v?.dairy_components ?? null,
+      main_carb: v?.main_carb ?? null,
+      dietary_tags: v?.dietary_tags ?? null,
+    }
+  })
+}
+
+/** Remove several meals at once (Preferences' "Remove all"). */
+export async function removeMeals(supabase, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return
+  check(await supabase.from('planned_meals').delete().in('id', ids))
 }

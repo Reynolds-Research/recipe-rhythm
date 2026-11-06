@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Sheet } from 'react-modal-sheet'
 import { ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import { GROCERY_SECTIONS } from '../../lib/constants'
@@ -152,25 +152,102 @@ function AssumedGroup({ items, staples, onSetAssumed, onSetAlwaysHave }) {
 }
 
 /**
+ * "Added by you": her own lines (paper towels, bananas), not from a recipe.
+ * Add with the box, remove with ✕. Making the list again keeps them
+ * (weekGroceries.makeWeekGroceryList). Mockup "Grocery Share + Own Items
+ * Mockup", 2026-11-06: no sharing or tick-offs (she orders online).
+ */
+function OwnItems({ items, onAdd, onRemove }) {
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(null)
+  const inputId = useId()
+
+  const run = async (save, after) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await save()
+      after?.()
+    } catch (err) {
+      console.error('[GrocerySheet] own item save failed', err)
+      setError("Couldn't save that. Try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const submit = (e) => {
+    e.preventDefault()
+    const name = draft.trim()
+    if (!name || busy) return
+    run(() => onAdd(name), () => setDraft(''))
+  }
+
+  return (
+    <section aria-label="Added by you">
+      <div className="flex items-center gap-2 mb-2">
+        <p className="section-heading">Added by you</p>
+        <div className="flex-1 h-px bg-cream-200" />
+      </div>
+      {items.length > 0 && (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id} className="min-h-[44px] flex items-center justify-between gap-3">
+              <span className="body-text text-gray-900">{label(item.name)}</span>
+              <button
+                type="button" disabled={busy} className="btn-icon"
+                aria-label={`Remove ${label(item.name)}`}
+                onClick={() => run(() => onRemove(item))}
+              >
+                <X size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={submit} className="flex items-center gap-3 pt-1">
+        <label htmlFor={inputId} className="sr-only">Add your own item</label>
+        <input
+          id={inputId}
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Add something…"
+          disabled={busy}
+          className="input-base flex-1 min-w-0"
+        />
+        <button type="submit" disabled={busy || !draft.trim()} className={ACTION}>Add</button>
+      </form>
+      {error && <p role="alert" className="text-sm text-red-800 py-2">{error}</p>}
+    </section>
+  )
+}
+
+/**
  * The confirmed week's grocery list, by store section (PRD-008 P0.6).
  * Each line shows what to buy, with what the recipes use under it when that
- * differs; cupboard items sit in "Assumed you have" until she adds one.
- * Sharing and adding your own items stay on the Groceries tab, which moves
- * to confirmed weeks at the switch-over (2c).
+ * differs; cupboard items sit in "Assumed you have" until she adds one; her
+ * own lines sit in "Added by you" at the bottom (2c).
  *
  * @param {{
  *   open: boolean, loading: boolean, failed?: boolean, items: object[],
  *   staples?: string[], subtitle?: string|null, leftOff: string[],
  *   onSetAssumed?: (item: object, assumed: boolean) => Promise<void>,
  *   onSetAlwaysHave?: (item: object, on: boolean) => Promise<void>,
+ *   onAddOwn?: (name: string) => Promise<void>,
+ *   onRemoveOwn?: (item: object) => Promise<void>,
  *   onClose: () => void,
  * }} props
  */
 export default function GrocerySheet({
   open, loading, failed = false, items = [], staples = [], subtitle = null, leftOff = [],
-  onSetAssumed = async () => {}, onSetAlwaysHave = async () => {}, onClose,
+  onSetAssumed = async () => {}, onSetAlwaysHave = async () => {},
+  onAddOwn = async () => {}, onRemoveOwn = async () => {}, onClose,
 }) {
-  const { onList } = splitList(items, staples)
+  const { onList: listed } = splitList(items, staples)
+  const onList = listed.filter((i) => !i.is_adhoc)
+  const own = items.filter((i) => i.is_adhoc)
   const ready = !loading && !failed
 
   return (
@@ -223,6 +300,10 @@ export default function GrocerySheet({
                 </section>
               )
             })}
+
+            {ready && open && (
+              <OwnItems items={own} onAdd={onAddOwn} onRemove={onRemoveOwn} />
+            )}
 
             {!loading && leftOff.length > 0 && (
               <p className="helper-text border-t border-cream-200 pt-3">

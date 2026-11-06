@@ -1,3 +1,4 @@
+/* global process */
 import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -219,6 +220,8 @@ function lockedInWeek(id, start, end, meals = ['Chicken Tacos', 'Veggie Curry'])
 // --- scenarios -------------------------------------------------------------
 
 test.describe('Lockout explorer', () => {
+  // These walk the OLD screens; with the switch on, see lockout-explorer-new.spec.js.
+  test.skip(process.env.VITE_NEW_PREP_TABLE === 'true', 'old screens are hidden when VITE_NEW_PREP_TABLE=true')
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }))
 
   // Updated after the #205 stopgap: an ended week opens straight into the

@@ -58,3 +58,24 @@ Starts from the end of the 2a table (calendar data applied). `fingerprint_public
 
 Dry run 2026-11-02 on a local Postgres 16 built from this kit (0a → 0b → phase 1 + 1b → 2a + copy →
 A → 1–5): every step as expected, fingerprint identical after rollback. The preview-project run is in the PR.
+
+## PRD-008 phase 2c — switch-over copy (2026-11-06)
+
+No migration. The prod copy skips any old plan whose dates overlap a week already confirmed on the
+new screens (she re-planned Nov 1–7 there; copying the old Nov 1–5 plan would double every night).
+Only the skipped plan's **dated** meals are skipped; a Maybe in it still copies. Files, in order:
+
+| Step | Run (prod: SQL Editor; preview: connector) | Expect on prod |
+|---|---|---|
+| a | `06a_switchover_look.sql` (read-only) | exactly 1 row: the Nov 1 – 5 plan, 5 meals, overlapping Nov 1 – 7 |
+| b | `06b_switchover_run.sql` (skip + copy, one script) | meals added 21, confirmations added 9, the rest 0 |
+| c | `06c_verify_switchover.sql` (read-only, one SELECT) | 9 checks, every `pass` = true; check 9 = 5 / 5 |
+| d | `SELECT public.rr_copy_legacy_plans();` after the deploy | all zeros |
+
+Rehearsed on preview 2026-11-06. The preview had been copied already, so the copy state was reset
+(copied rows + `rr_legacy_copied` cleared) and prod's situation simulated: a confirmed week Oct 25–31
+plus two new-screen meals in a household whose old plan is Oct 26–30 (2 dated meals + 1 Maybe).
+a: 1 row (that plan). b: meals added 4 (incl. the Maybe), confirmations added 3. c: 9/9 pass.
+Negative control (rolled back): the same copy without the skip fails checks 2, 7 and 8. d: all zeros.
+Then the simulation was removed and the preview restored to its earlier state (planned meals 6,
+confirmations 4, `rr_legacy_copied` 10).

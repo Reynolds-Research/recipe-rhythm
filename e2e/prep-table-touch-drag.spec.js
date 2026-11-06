@@ -1,3 +1,4 @@
+/* global process */
 import { test, expect } from '@playwright/test';
 import { mockHousehold } from './support/household.js';
 
@@ -5,6 +6,8 @@ import { mockHousehold } from './support/household.js';
 // presses, the browser cancelled them as a scroll, and press-and-hold-to-drag
 // never started on a real phone. This drives real touch events via CDP.
 test.describe('Prep Table touch drag', () => {
+  // Drives the OLD Prep Table (BrainstormMode); hidden when the new one is on (PRD-008 2c).
+  test.skip(process.env.VITE_NEW_PREP_TABLE === 'true', 'old screens are hidden when VITE_NEW_PREP_TABLE=true')
   test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true });
   test.beforeEach(async ({ page }) => {
     await mockHousehold(page);
