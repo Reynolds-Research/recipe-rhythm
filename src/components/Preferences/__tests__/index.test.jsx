@@ -10,12 +10,11 @@ vi.mock('../../../lib/preferences', () => ({
   upsertPreferences: vi.fn(),
 }))
 
-// PRD-002 P0.12: post-upsert violator check helpers. Default each to a
-// no-op success so the legacy P0.2 tests below still pass without an
-// active period in scope.
-vi.mock('../../../lib/mealPlanItems', () => ({
-  getActivePeriodItems: vi.fn(),
-  deleteMealPlanItems: vi.fn(),
+// PRD-002 P0.12: post-upsert check of upcoming planned meals (PRD-008).
+// Default each to a no-op success so the P0.2 tests below are unaffected.
+vi.mock('../../../lib/plannedMeals', () => ({
+  loadUpcomingMeals: vi.fn(),
+  removeMeals: vi.fn(),
 }))
 
 // Avoid pulling in the real supabase client (env-var-dependent) just to
@@ -33,10 +32,7 @@ import {
   getPreferences,
   upsertPreferences,
 } from '../../../lib/preferences'
-import {
-  getActivePeriodItems,
-  deleteMealPlanItems,
-} from '../../../lib/mealPlanItems'
+import { loadUpcomingMeals, removeMeals } from '../../../lib/plannedMeals'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
 
@@ -63,10 +59,10 @@ beforeEach(() => {
     ...EMPTY_PREFS,
     ...patch,
   }))
-  // P0.12: default no active-period items so the legacy P0.2 tests below
+  // P0.12: default no upcoming meals so the legacy P0.2 tests below
   // are unaffected by the new post-upsert check.
-  getActivePeriodItems.mockResolvedValue([])
-  deleteMealPlanItems.mockResolvedValue(0)
+  loadUpcomingMeals.mockResolvedValue([])
+  removeMeals.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -378,23 +374,23 @@ const TOFU_BOWL = {
 
 describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
   it('does not run the violator check on initial mount', async () => {
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS])
 
     await renderAndLoad()
 
-    expect(getActivePeriodItems).not.toHaveBeenCalled()
+    expect(loadUpcomingMeals).not.toHaveBeenCalled()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('after a chip toggle, calls getActivePeriodItems and runs passesPreferences against the new prefs', async () => {
+  it('after a chip toggle, calls loadUpcomingMeals and runs passesPreferences against the new prefs', async () => {
     const user = userEvent.setup()
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS, TOFU_BOWL])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS, TOFU_BOWL])
     await renderAndLoad()
 
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
 
     await waitFor(() =>
-      expect(getActivePeriodItems).toHaveBeenCalledWith(USER_ID, expect.anything()),
+      expect(loadUpcomingMeals).toHaveBeenCalledWith(expect.anything(), USER_ID),
     )
     // Chicken violates vegetarian → banner shows it; tofu doesn't.
     expect(await screen.findByRole('alert')).toBeInTheDocument()
@@ -404,7 +400,7 @@ describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
 
   it('renders the banner with the violator count and names when at least one item violates', async () => {
     const user = userEvent.setup()
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS])
     await renderAndLoad()
 
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
@@ -417,44 +413,44 @@ describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
   it('does NOT render the banner when no active-period items violate, and clears any previous banner', async () => {
     const user = userEvent.setup()
     // First upsert produces a violator and shows the banner…
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS])
     await renderAndLoad()
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
     await screen.findByRole('alert')
 
     // …second upsert returns only a vegetarian-safe item → banner clears.
-    getActivePeriodItems.mockResolvedValueOnce([TOFU_BOWL])
+    loadUpcomingMeals.mockResolvedValueOnce([TOFU_BOWL])
     await user.click(screen.getByRole('button', { name: /^Mexican$/ }))
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
-  it('"Keep" dismisses the banner without calling deleteMealPlanItems', async () => {
+  it('"Keep" dismisses the banner without calling removeMeals', async () => {
     const user = userEvent.setup()
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS])
     await renderAndLoad()
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
     await screen.findByRole('alert')
 
-    await user.click(screen.getByRole('button', { name: /keep these meals/i }))
+    await user.click(screen.getByRole('button', { name: /keep these planned meals/i }))
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(deleteMealPlanItems).not.toHaveBeenCalled()
+    expect(removeMeals).not.toHaveBeenCalled()
   })
 
-  it('"Remove all" calls deleteMealPlanItems with the violator id list and clears the banner', async () => {
+  it('"Remove all" calls removeMeals with the violator id list and clears the banner', async () => {
     const user = userEvent.setup()
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS, TOFU_BOWL])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS, TOFU_BOWL])
     await renderAndLoad()
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
     await screen.findByRole('alert')
 
-    await user.click(screen.getByRole('button', { name: /remove all/i }))
+    await user.click(screen.getByRole('button', { name: /remove these meals from the plan/i }))
 
     await waitFor(() =>
-      expect(deleteMealPlanItems).toHaveBeenCalledWith(
-        ['mpi-chicken'],
+      expect(removeMeals).toHaveBeenCalledWith(
         expect.anything(),
+        ['mpi-chicken'],
       ),
     )
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
@@ -464,7 +460,7 @@ describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
     const user = userEvent.setup()
 
     // First upsert: vegetarian → CHICKEN_TACOS violates.
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS, TOFU_BOWL])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS, TOFU_BOWL])
     await renderAndLoad()
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
     let banner = await screen.findByRole('alert')
@@ -474,7 +470,7 @@ describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
     // Second upsert: also exclude Japanese cuisine → TOFU_BOWL now violates,
     // CHICKEN_TACOS still violates the vegetarian rule. We assert the banner
     // reflects ONLY the second-call result, not a stacked union.
-    getActivePeriodItems.mockResolvedValueOnce([TOFU_BOWL])
+    loadUpcomingMeals.mockResolvedValueOnce([TOFU_BOWL])
     await user.click(screen.getByRole('button', { name: /^Japanese$/ }))
 
     await waitFor(() => {
@@ -484,18 +480,18 @@ describe('Preferences page — violators banner (PRD-002 P0.12)', () => {
     })
   })
 
-  it('on getActivePeriodItems error, the existing banner state is preserved and the upsert flow still completes', async () => {
+  it('on loadUpcomingMeals error, the existing banner state is preserved and the upsert flow still completes', async () => {
     const user = userEvent.setup()
 
     // Establish an initial banner via a successful first upsert.
-    getActivePeriodItems.mockResolvedValueOnce([CHICKEN_TACOS])
+    loadUpcomingMeals.mockResolvedValueOnce([CHICKEN_TACOS])
     await renderAndLoad()
     await user.click(screen.getByRole('button', { name: 'Vegetarian' }))
     await screen.findByRole('alert')
 
-    // Second upsert: getActivePeriodItems throws — banner should remain;
+    // Second upsert: loadUpcomingMeals throws — banner should remain;
     // the chip toggle should still register and the "Saved" flash appear.
-    getActivePeriodItems.mockRejectedValueOnce(new Error('network down'))
+    loadUpcomingMeals.mockRejectedValueOnce(new Error('network down'))
     await user.click(screen.getByRole('button', { name: /^Mexican$/ }))
 
     expect(await screen.findByText('Saved')).toBeInTheDocument()
@@ -514,8 +510,8 @@ describe('Preferences — haptic feedback', () => {
       ...EMPTY_PREFS,
       ...patch,
     }))
-    getActivePeriodItems.mockResolvedValue([])
-    deleteMealPlanItems.mockResolvedValue(0)
+    loadUpcomingMeals.mockResolvedValue([])
+    removeMeals.mockResolvedValue(undefined)
   })
 
   it('fires the haptic trigger when a dietary chip is toggled', async () => {

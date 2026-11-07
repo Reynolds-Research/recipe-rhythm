@@ -13,8 +13,8 @@ import GrocerySheet from './GrocerySheet'
 import { dayUnderPointer, dragAnnouncements, resolveDrop, usePrepTableSensors } from './dragDrop'
 
 /**
- * The new Prep Table (PRD-008 P0.4, phase 2b-2), shown when VITE_NEW_PREP_TABLE
- * is "true". Meals sit on dates; nothing locks. "Confirm the week" stamps the
+ * The Prep Table (PRD-008 P0.4, phase 2b-2; the only one since the period
+ * screens were retired in phase 4). Meals sit on dates; nothing locks. "Confirm the week" stamps the
  * week and makes its grocery list (2b-3). Phase 3: a day can be handed to the
  * other person ("Matt's night"); on their phone it reads "Your night · Pick
  * something", with one suggestion ready.

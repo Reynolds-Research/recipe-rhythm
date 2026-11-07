@@ -1,11 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-// PRD-008 2c: with the new Prep Table on (VITE_NEW_PREP_TABLE=true), the
-// "meals that break a new rule" check reads planned_meals, not the old plan.
+// PRD-008 2c: the "meals that break a new rule" check reads planned_meals
+// (uncooked, from today on); Maybes and past meals are never named.
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(), upsertPreferences: vi.fn() }))
-vi.mock('../../../lib/mealPlanItems', () => ({ getActivePeriodItems: vi.fn(), deleteMealPlanItems: vi.fn() }))
 vi.mock('../../../lib/plannedMeals', () => ({ loadUpcomingMeals: vi.fn(), removeMeals: vi.fn() }))
 vi.mock('../../../lib/recipeIngredients', () => ({
   loadMissingIngredients: vi.fn(async () => []),
@@ -18,7 +17,6 @@ vi.mock('../../../hooks/useHaptics', () => ({ useHaptics: () => ({ trigger: vi.f
 
 import Preferences from '../index'
 import { getPreferences, upsertPreferences } from '../../../lib/preferences'
-import { getActivePeriodItems, deleteMealPlanItems } from '../../../lib/mealPlanItems'
 import { loadUpcomingMeals, removeMeals } from '../../../lib/plannedMeals'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
@@ -32,13 +30,11 @@ const SQUASH = { id: 'pm-squash', name: 'Butternut Squash Mac n Cheese', vault_i
 
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.stubEnv('VITE_NEW_PREP_TABLE', 'true')
   getPreferences.mockResolvedValue({ ...PREFS })
   upsertPreferences.mockImplementation(async (_u, patch) => ({ ...PREFS, ...patch }))
   loadUpcomingMeals.mockResolvedValue([])
   removeMeals.mockResolvedValue(undefined)
 })
-afterEach(() => vi.unstubAllEnvs())
 
 async function renderAndToggleVegetarian() {
   const user = userEvent.setup()
@@ -48,19 +44,18 @@ async function renderAndToggleVegetarian() {
   return user
 }
 
-describe('Preferences with the new Prep Table on', () => {
-  it('checks upcoming planned meals, never the old plan', async () => {
+describe('Preferences: meals that break a new rule', () => {
+  it('checks upcoming planned meals', async () => {
     loadUpcomingMeals.mockResolvedValueOnce([PORK, SQUASH])
     await renderAndToggleVegetarian()
 
     await waitFor(() => expect(loadUpcomingMeals).toHaveBeenCalledWith(expect.anything(), USER_ID))
-    expect(getActivePeriodItems).not.toHaveBeenCalled()
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent(/Scallion Meatballs/)
     expect(banner).not.toHaveTextContent(/Butternut/)
   })
 
-  it('"Remove" deletes those planned meals and nothing in the old tables', async () => {
+  it('"Remove" deletes those planned meals', async () => {
     loadUpcomingMeals.mockResolvedValueOnce([PORK, SQUASH])
     const user = await renderAndToggleVegetarian()
     await screen.findByRole('alert')
@@ -68,7 +63,6 @@ describe('Preferences with the new Prep Table on', () => {
     await user.click(screen.getByRole('button', { name: /remove these meals from the plan/i }))
 
     await waitFor(() => expect(removeMeals).toHaveBeenCalledWith(expect.anything(), ['pm-pork']))
-    expect(deleteMealPlanItems).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
@@ -81,13 +75,5 @@ describe('Preferences with the new Prep Table on', () => {
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(removeMeals).not.toHaveBeenCalled()
-  })
-
-  it('switch off: the old active-period check runs, as before', async () => {
-    vi.stubEnv('VITE_NEW_PREP_TABLE', '')
-    getActivePeriodItems.mockResolvedValue([])
-    await renderAndToggleVegetarian()
-    await waitFor(() => expect(getActivePeriodItems).toHaveBeenCalled())
-    expect(loadUpcomingMeals).not.toHaveBeenCalled()
   })
 })

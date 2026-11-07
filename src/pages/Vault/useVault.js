@@ -323,7 +323,7 @@ export function useVault(userId) {
   /**
    * PRD-001 P0.5 — Soft-delete a vault recipe. Sets `deleted_at = now()`
    * rather than issuing a DELETE so historical references from
-   * meals.vault_id and meal_plan_items.vault_id still resolve.
+   * meals.vault_id and planned_meals.vault_id still resolve.
    */
   const deleteRecipe = async (id) => {
     const { error } = await supabase.from('vault')

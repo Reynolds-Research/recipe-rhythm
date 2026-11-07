@@ -1,10 +1,9 @@
 /**
  * groceryRecipes.js — turn planned meals into the `recipes` the grocery-list
- * AI reads (POST /api/grocery-list). Shared by the old Groceries tab
- * (GroceryListBody, meal_plan_items) and the new Prep Table's "Confirm the
- * week" (weekGroceries.js, planned_meals), so both build the list the same way.
+ * AI reads (POST /api/grocery-list), for the Prep Table's "Confirm the week"
+ * (weekGroceries.js, planned_meals).
  *
- * Moved here unchanged from GroceryListBody (PRD-008 2b-3).
+ * Moved here from the old Groceries tab (PRD-008 2b-3), which was retired in phase 4.
  */
 
 /** Cookbook columns the grocery list needs, for a `vault(...)` join. */

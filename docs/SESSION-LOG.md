@@ -14,6 +14,8 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 **Then:** the missing cache table — migration `20260506000003` was never applied to prod; added rollback + one-SELECT verify, rehearsed on preview (8/8, 9/9, fingerprint equal), PR stacked on this one. For Matt: apply when back.
 
+**Then Phase 4 planning + 4a:** Matt decided: archive the old tables (not delete); remove the old share page. 4a on `chore/prd-008-retire-old-flow` (stacked on the caches PR): old screens, the share page and the `VITE_NEW_PREP_TABLE` switch removed; Calendar/Settings old branches gone; CLAUDE.md updated. Vitest 975/975, Playwright 12/12 with no switch. 4b (archive migration) after the trip.
+
 **Next (Matt away ~2 weeks):** Phase 4 (retire the old flow) code; Vite advisory; email out of the public repo. 3c's two-phone week when Matt is back.
 
 ---

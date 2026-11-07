@@ -20,9 +20,8 @@ vi.mock('../pages/LogMode', () => ({
   ),
 }))
 // vi.mock is hoisted, so each stub is listed literally.
-vi.mock('../pages/BrainstormMode', () => ({ default: () => null }))
+vi.mock('../pages/PrepTable', () => ({ default: () => null }))
 vi.mock('../pages/Vault', () => ({ default: () => null }))
-vi.mock('../pages/GroceryList', () => ({ default: () => null }))
 vi.mock('../components/CalendarView', () => ({ default: () => null }))
 vi.mock('../components/Preferences', () => ({ default: () => null }))
 vi.mock('../components/AppMenuSheet', () => ({ default: () => null }))
