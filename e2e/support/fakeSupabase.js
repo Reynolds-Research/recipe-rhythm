@@ -18,6 +18,11 @@
  * confirmed" trigger (a meal added, moved or removed inside a confirmed week
  * stamps that week's changed_at). Phase 3: cook_nights (whose night a date is).
  *
+ * Two accounts (phase 3c): pass the first install's result as `db` and a
+ * different `user` (e.g. MATT) to a second page, and both pages share one
+ * database, each signed in as its own person — like two phones on one
+ * household. `members` seeds household_members (default: just the user).
+ *
  * It only understands the query shapes this app sends (eq/neq/gt/gte/lt/lte,
  * is.null, not.is.null, in.(), order, limit, single/maybeSingle, insert,
  * upsert, update, delete). Anything else fails loudly (HTTP 500 + a log entry)
@@ -27,6 +32,9 @@
 import { randomUUID } from 'node:crypto'
 
 const USER = { id: 'test-user', email: 'test@example.com' }
+/** A second account in the same household (two-phone tests). */
+export const MATT = { id: 'matt-user', email: 'matt@example.com' }
+export const HER = USER
 export const HOUSEHOLD = 'test-household'
 const KITCHEN = ['vault', 'meals', 'meal_plans', 'meal_plan_items', 'household_preferences',
   'plan_drafts', 'grocery_lists', 'vault_options', 'planned_meals', 'week_confirmations', 'week_days',
@@ -137,7 +145,9 @@ function applyOrder(rows, order) {
 
 // --- The fake --------------------------------------------------------------
 
-export async function installFakeSupabase(page, { now, seed = {} } = {}) {
+export async function installFakeSupabase(page, { now, seed = {}, db = null, user = USER, members = null } = {}) {
+  // A second page joins the first one's database (same tables, same log).
+  if (db) return attach(page, { ...db, user })
   const tables = {
     vault: [],
     meals: [],
@@ -153,35 +163,40 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
     week_days: [],
     cook_nights: [],
     ...structuredClone(seed),
-    household_members: [{ household_id: HOUSEHOLD, user_id: USER.id }],
+    household_members: (members ?? [{ user_id: user.id }]).map((m) => ({ household_id: HOUSEHOLD, display_name: null, ...m })),
   }
   for (const t of KITCHEN) {
     for (const row of tables[t]) row.household_id ??= HOUSEHOLD
   }
   const log = [] // every write and every fake error, for debugging a run
+  return attach(page, { tables, log, now, user })
+}
+
+/** Serve one page from a database (`tables` + `log`), signed in as `user`. */
+async function attach(page, { tables, log, now, user }) {
 
   const defaults = {
     meal_plans: () => ({
-      id: randomUUID(), user_id: USER.id, served_at: now().toISOString(),
+      id: randomUUID(), user_id: user.id, served_at: now().toISOString(),
       finalized_at: null, served_feedback: null, days: null, items: null, week_label: null,
       created_at: now().toISOString(),
     }),
     meal_plan_items: () => ({
-      id: randomUUID(), user_id: USER.id, position: 0, vault_id: null, is_wildcard: false,
+      id: randomUUID(), user_id: user.id, position: 0, vault_id: null, is_wildcard: false,
       source_url: null, cooked: false, cooked_at: null, is_shortlisted: false,
       created_at: now().toISOString(),
     }),
     planned_meals: () => ({
-      id: randomUUID(), user_id: USER.id, planned_on: null, position: 0, vault_id: null,
+      id: randomUUID(), user_id: user.id, planned_on: null, position: 0, vault_id: null,
       is_wildcard: false, source_url: null, cooked: false, cooked_at: null,
       assigned_to: null, assigned_at: null,
       created_at: now().toISOString(), updated_at: now().toISOString(),
     }),
     week_confirmations: () => ({
-      id: randomUUID(), user_id: USER.id, confirmed_at: now().toISOString(), changed_at: null,
+      id: randomUUID(), user_id: user.id, confirmed_at: now().toISOString(), changed_at: null,
       grocery_list_id: null, created_at: now().toISOString(), updated_at: now().toISOString(),
     }),
-    grocery_lists: () => ({ id: randomUUID(), user_id: USER.id, share_token: null, created_at: now().toISOString() }),
+    grocery_lists: () => ({ id: randomUUID(), user_id: user.id, share_token: null, created_at: now().toISOString() }),
     grocery_list_items: () => ({ id: randomUUID(), is_bought: false, created_at: now().toISOString() }),
   }
 
@@ -220,6 +235,21 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
         source_period_end: p.period_end,
         source_finalized_at: p.finalized_at,
       }))
+  }
+
+  // One level of embedding, the shape the grocery list reads:
+  // planned_meals?select=name,vault_id,vault(cols) → each row gets `vault`
+  // (the row its vault_id points at, or null), like PostgREST's join.
+  function embed(rows, select) {
+    for (const [, table] of (select ?? '').matchAll(/(?:^|,)\s*(\w+)\(/g)) {
+      if (!tables[table]) throw new Error(`unknown embedded table "${table}"`)
+      for (const row of rows) {
+        const id = row[`${table}_id`]
+        row[table] = id ? { ...(tables[table].find((r) => r.id === id) ?? null) } : null
+        if (row[table] && !Object.keys(row[table]).length) row[table] = null
+      }
+    }
+    return rows
   }
 
   const json = (route, status, body) =>
@@ -268,7 +298,7 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
       if (method === 'GET' || method === 'HEAD') {
         let rows = applyOrder(source.filter(matches), order)
         if (limit !== null) rows = rows.slice(0, limit)
-        return respond(copy(rows))
+        return respond(embed(copy(rows), url.searchParams.get('select')))
       }
 
       if (method === 'POST') {
@@ -343,13 +373,13 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ names: [] }) }),
   )
 
-  await page.route('**/auth/v1/user*', (route) => route.fulfill({ json: USER }))
+  await page.route('**/auth/v1/user*', (route) => route.fulfill({ json: user }))
 
-  return { tables, log, user: USER }
+  return { tables, log, now, user }
 }
 
 /** Put a fake signed-in session in localStorage (same as new-period-flow.spec.js). */
-export async function signIn(page) {
+export async function signIn(page, user = USER) {
   await page.evaluate((user) => {
     localStorage.setItem('sb-localhost-auth-token', JSON.stringify({
       access_token: 'mock-token',
@@ -359,7 +389,7 @@ export async function signIn(page) {
       token_type: 'bearer',
       user,
     }))
-  }, USER)
+  }, user)
 }
 
 export const SEED_VAULT = [
