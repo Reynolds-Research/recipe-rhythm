@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-07 (late) — Phase 3 (Matt's nights): decisions, mockup, 3a data
+
+**Done:** plan + Matt's decisions (new nights table; his nights left out of "Suggest the empty days"; a "Your name" field in Settings; mockup first). Mockup "Matt's Nights Mockup" (her week with a night handed over, his "pick something", Confirm with his night empty, Settings name). 3a on `feat/prd-008-cook-nights-data` (stacked on #235): migration `20261108000001` (`cook_nights`, `household_members.display_name`, `rr_set_my_display_name()`), verify, rollback, `rehearsal/07_cook_nights_checks.sql`. Closed by Matt: "don't round a clean pound up" (already fixed) and the brand-orange contrast item (orange stays).
+
+**Verified (preview):** fingerprint before = after rollback (`2dac69d2…` / 1054 / `2fec0393…`), verify 13/13, write checks 19/19, re-applied.
+
+**Open / owed (Matt):** merge #235 then this PR; apply `20261108000001` on prod + run its verify; react to the mockup (with Sara).
+
+**Next:** 3b screens once the mockup is agreed.
+
+---
+
 ## 2026-11-07 (evening) — Two ship-first fixes: meal-log errors, recipe Remove confirm + Undo
 
 **Done:** #234 merged (grocery amounts added up). This PR, `fix/ship-first-meal-log-and-delete`: a failed meal-log save now says so and keeps her text (Meal-log save fails silently, P0-1); Remove on a Cookbook card asks first, then offers Undo for 8 seconds (Recipe delete has no confirm and no undo, P0-2). "Label the May ingredient lists as guesses" re-scoped: no migration (the app already treats unlabelled lists as guesses); what's left is Sara's screenshots.
