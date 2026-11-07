@@ -103,6 +103,14 @@ function swapTargetName({ active, over }, date, meals) {
  * from today on. Nothing when there's nobody to give it to.
  */
 function NightButton({ label, giveLabel, isPast, busy, weekday, onToggle }) {
+  // A past night is history: shown, not changed.
+  if (label && isPast) {
+    return (
+      <span className="min-h-[44px] px-3 rounded-full bg-cream-100 text-gray-700 text-sm font-semibold inline-flex items-center gap-1.5">
+        <User size={14} strokeWidth={2.5} aria-hidden="true" /> {label}
+      </span>
+    )
+  }
   if (label) {
     return (
       <button type="button" onClick={onToggle} disabled={busy}

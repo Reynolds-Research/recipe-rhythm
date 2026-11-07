@@ -28,7 +28,9 @@ export default function YourName({ userId }) {
   }, [userId])
 
   const trimmed = draft.trim()
-  const unchanged = saved !== null && trimmed === saved
+  // Until the saved name has loaded, Save stays off: saving a blank box then
+  // would wipe a name that's really there.
+  const unchanged = saved === null || trimmed === saved
 
   const save = async (e) => {
     e.preventDefault()

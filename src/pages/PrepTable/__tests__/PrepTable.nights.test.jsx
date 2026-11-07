@@ -105,6 +105,22 @@ describe('her phone: handing a night to Matt', () => {
     expect(cn.loadNights).toHaveBeenLastCalledWith(supabase, HER, '2026-11-01', '2026-11-07') // reloaded
   })
 
+  it('a failed hand-over says so', async () => {
+    cn.giveNight.mockRejectedValue(new Error('offline'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderAs(HER)
+    await userEvent.click(await screen.findByRole('button', { name: 'Give to Matt: Tue' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't hand that night over. Try again.")
+  })
+
+  it('a past night of his is shown but can\'t be taken back (history)', async () => {
+    setWeek({ nights: [{ cooks_on: '2026-11-01', cook_id: MATT }] })
+    renderAs(HER)
+    const sun = await screen.findByRole('region', { name: 'Sun Nov 1' })
+    expect(within(sun).getByText("Matt's night")).toBeInTheDocument()
+    expect(within(sun).queryByRole('button', { name: /take it back/ })).not.toBeInTheDocument()
+  })
+
   it('no "Give to" on a past day', async () => {
     renderAs(HER)
     await screen.findByRole('button', { name: 'Give to Matt: Tue' })
@@ -202,10 +218,29 @@ describe('his phone: "Your night · Pick something"', () => {
   it('✓ saves his pick on his night; the banner goes once it\'s filled', async () => {
     renderAs(MATT)
     const tue = await screen.findByRole('region', { name: 'Tue Nov 3' })
+    // After the save, the reload shows his meal on Tuesday.
+    pm.addMeal.mockImplementation(async () => {
+      setWeek({
+        meals: [meal({ planned_on: '2026-11-02' }),
+          meal({ id: 'm2', planned_on: '2026-11-03', name: 'Turkey tacos', vault_id: 'v3', user_id: MATT })],
+        nights: [{ cooks_on: '2026-11-03', cook_id: MATT }],
+      })
+      return {}
+    })
     await userEvent.click(await within(tue).findByRole('button', { name: 'Keep Turkey tacos' }))
     expect(pm.addMeal).toHaveBeenCalledWith(supabase, MATT, expect.objectContaining({
       plannedOn: '2026-11-03', name: 'Turkey tacos', vaultId: 'v3',
     }))
+    await screen.findByRole('button', { name: /Move Turkey tacos/ })
+    expect(screen.queryByRole('region', { name: 'Your nights to pick' })).not.toBeInTheDocument()
+  })
+
+  it('Confirm on his own phone says "your night" and keeps "Not yet"', async () => {
+    renderAs(MATT)
+    await userEvent.click(await screen.findByRole('button', { name: /Confirm the week/ }))
+    const section = screen.getByRole('region', { name: 'Confirm the week' })
+    expect(section).toHaveTextContent('Tue Nov 3 is your night. Nothing picked yet.')
+    expect(within(section).getByRole('button', { name: 'Not yet' })).toBeInTheDocument()
   })
 
   it('✕ on the ready suggestion sticks (no new one pops back)', async () => {

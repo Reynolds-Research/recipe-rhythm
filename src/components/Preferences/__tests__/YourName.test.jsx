@@ -44,6 +44,16 @@ describe('Settings — Your name', () => {
     expect(input).toHaveValue('Matt')
   })
 
+  it('if the saved name can\'t load, Save stays off (a blank save would wipe it)', async () => {
+    cn.loadMembers.mockRejectedValue(new Error('offline'))
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(<YourName userId="u-her" />)
+    const input = await screen.findByLabelText(/Your household sees it/)
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(cn.setMyName).not.toHaveBeenCalled()
+    expect(input).toHaveValue('')
+  })
+
   it('names are capped at 30 characters (the database rule)', async () => {
     render(<YourName userId="u-matt" />)
     expect(await screen.findByLabelText(/Your household sees it/)).toHaveAttribute('maxLength', '30')
