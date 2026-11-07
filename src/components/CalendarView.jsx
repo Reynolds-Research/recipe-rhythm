@@ -238,7 +238,7 @@ export default function CalendarView({ userId, initialMonth, newPrepTable }) {
     <div className="mobile-screen pb-28">
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
           Calendar
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -300,7 +300,7 @@ export default function CalendarView({ userId, initialMonth, newPrepTable }) {
             //   confirmed → warm cream (new Prep Table: a week she confirmed)
             //   active    → brand-100 tint (period is live / in-progress)
             //   no period → neutral white
-            //   today     → ring-brand-700
+            //   today     → ring-brand-500
             const base =
               'relative aspect-square rounded-lg border flex items-center justify-center transition-colors'
             let tint = 'bg-white border-cream-100'
@@ -309,7 +309,7 @@ export default function CalendarView({ userId, initialMonth, newPrepTable }) {
             } else if (periodState === 'active') {
               tint = 'bg-brand-100/70 border-brand-200'
             }
-            const ring = isToday ? 'ring-2 ring-brand-700' : ''
+            const ring = isToday ? 'ring-2 ring-brand-500' : ''
             const muted = !cell.inMonth ? 'opacity-40' : ''
             const clickable = hasItems ? 'cursor-pointer hover:brightness-95' : 'cursor-default'
 
@@ -328,14 +328,14 @@ export default function CalendarView({ userId, initialMonth, newPrepTable }) {
                 <span className="flex flex-col items-center gap-0.5">
                   <span
                     className={`text-sm font-semibold flex items-center justify-center ${
-                      isToday ? 'w-7 h-7 bg-brand-700 text-white rounded-full' : 'text-gray-900'
+                      isToday ? 'w-7 h-7 bg-brand-500 text-white rounded-full' : 'text-gray-900'
                     }`}
                   >
                     {cell.dayNum}
                   </span>
                   {hasItems && (
                     <span
-                      className="block w-1.5 h-1.5 rounded-full bg-brand-700"
+                      className="block w-1.5 h-1.5 rounded-full bg-brand-500"
                       data-testid={`calendar-dot-${cell.iso}`}
                       aria-hidden="true"
                     />
@@ -372,14 +372,14 @@ function Legend({ planned = false }) {
       {planned ? (
         <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
           <LegendSwatch cls="bg-cream-200/60 border-cream-200" label="Confirmed week" />
-          <LegendSwatch cls="bg-white border-brand-700 ring-2 ring-brand-700" label="Today" />
+          <LegendSwatch cls="bg-white border-brand-500 ring-2 ring-brand-500" label="Today" />
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-y-2 text-sm text-gray-700">
           <LegendSwatch cls="bg-brand-100/70 border-brand-200" label="Active period" />
           <LegendSwatch cls="bg-cream-200/60 border-cream-200" label="Finalized" />
           <LegendSwatch cls="bg-white border-cream-100" label="Gap day" />
-          <LegendSwatch cls="bg-white border-brand-700 ring-2 ring-brand-700" label="Today" />
+          <LegendSwatch cls="bg-white border-brand-500 ring-2 ring-brand-500" label="Today" />
         </div>
       )}
     </div>
@@ -416,7 +416,7 @@ function DayPopover({ iso, items, confirmed, onClose }) {
       >
         <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="section-heading text-brand-700">
+            <p className="section-heading text-brand-600">
               {formatShortDate(iso)}
             </p>
             {confirmed && (
@@ -428,7 +428,7 @@ function DayPopover({ iso, items, confirmed, onClose }) {
               <p className="text-sm text-gray-700 mt-1">
                 Period: {formatShortDate(periodStart)} – {formatShortDate(periodEnd)}
                 {finalized && (
-                  <span className="ml-2 text-brand-700 font-semibold">
+                  <span className="ml-2 text-brand-600 font-semibold">
                     · Finalized
                   </span>
                 )}

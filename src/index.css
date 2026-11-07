@@ -23,10 +23,10 @@
     @apply w-full py-3.5 rounded-2xl bg-brand-500 text-white font-semibold text-base shadow-sm active:scale-95 transition-all hover:bg-brand-600 disabled:bg-gray-200 disabled:text-gray-600 disabled:shadow-none disabled:cursor-not-allowed disabled:pointer-events-none;
   }
 
-  /* Secondary button — white bg, brand-700 outline + text. Pair with .btn-primary
+  /* Secondary button — white bg, brand-500 outline + brand-600 text. Pair with .btn-primary
      for cancel/secondary actions. */
   .btn-secondary {
-    @apply w-full py-3.5 rounded-2xl bg-white text-brand-700 font-semibold text-base border-2 border-brand-700 active:scale-95 transition-all hover:bg-brand-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed;
+    @apply w-full py-3.5 rounded-2xl bg-white text-brand-600 font-semibold text-base border-2 border-brand-500 active:scale-95 transition-all hover:bg-brand-50 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed;
   }
 
   /* Icon-only button — 44x44 round, neutral or brand variants. Use for top-bar
@@ -39,10 +39,10 @@
     @apply w-11 h-11 rounded-full flex items-center justify-center bg-brand-600 text-white shadow-md active:scale-95 transition-all hover:bg-brand-700;
   }
 
-  /* Inline text-action button — for "+ ADD ANOTHER MEAL" and similar. Uses brand-700
-     for AA contrast; min-height 44px to meet the touch target rule. */
+  /* Inline text-action button — for "+ ADD ANOTHER MEAL" and similar. Uses brand-600
+     (the original orange); min-height 44px to meet the touch target rule. */
   .btn-text {
-    @apply inline-flex items-center gap-1.5 text-brand-700 font-semibold text-sm tracking-wide uppercase py-3 active:opacity-70 transition-opacity;
+    @apply inline-flex items-center gap-1.5 text-brand-600 font-semibold text-sm tracking-wide uppercase py-3 active:opacity-70 transition-opacity;
   }
 
   /* Text input — standard form field. */

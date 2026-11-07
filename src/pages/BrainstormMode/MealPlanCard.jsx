@@ -19,7 +19,7 @@ function DayCell({ date, items, isServed, onOpenPicker, onToggleCooked, onMoveTo
     return (
       <div className="py-3">
         <div className="flex items-start gap-3">
-          <span className="text-sm font-bold text-brand-700 w-8 shrink-0 tracking-tighter uppercase pt-3">
+          <span className="text-sm font-bold text-brand-600 w-8 shrink-0 tracking-tighter uppercase pt-3">
             {dow}
           </span>
           <button
@@ -27,7 +27,7 @@ function DayCell({ date, items, isServed, onOpenPicker, onToggleCooked, onMoveTo
             role="button"
             aria-label={`Schedule a meal for ${dateLabel}`}
             onClick={() => onOpenPicker(date)}
-            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border border-dashed border-cream-200 text-gray-700 hover:text-brand-700 hover:border-brand-200 hover:bg-brand-50/30 transition-colors min-h-[44px]"
+            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl border border-dashed border-cream-200 text-gray-700 hover:text-brand-600 hover:border-brand-200 hover:bg-brand-50/30 transition-colors min-h-[44px]"
           >
             <Plus size={16} strokeWidth={2.5} />
             <span className="text-sm italic">Tap to add a meal</span>
@@ -40,7 +40,7 @@ function DayCell({ date, items, isServed, onOpenPicker, onToggleCooked, onMoveTo
   return (
     <div className="py-2">
       <div className="flex items-start gap-3">
-        <span className="text-sm font-bold text-brand-700 w-8 shrink-0 tracking-tighter uppercase pt-4">
+        <span className="text-sm font-bold text-brand-600 w-8 shrink-0 tracking-tighter uppercase pt-4">
           {dow}
         </span>
         <div className="flex-1 min-w-0">

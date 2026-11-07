@@ -5,8 +5,8 @@ const FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 /**
  * The Su–Sa row at the top of the week (PRD-008 D8, option B). Tap a day to
- * show or hide it for this week. A day with a meal on it is locked on: it has
- * a dashed outline, and tapping it explains why instead of hiding it.
+ * show or hide it for this week. A day with a meal on it is locked on: it shows
+ * in a deeper orange, and tapping it explains why instead of hiding it.
  *
  * @param {{ dayArgs: object, onToggle: (day: number) => void, disabled?: boolean }} props
  */
@@ -33,10 +33,12 @@ export default function DayButtons({ dayArgs, onToggle, disabled = false }) {
                 onToggle(day)
               }}
               className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold border-2 transition-colors ${
-                on
-                  ? 'bg-brand-700 border-brand-700 text-white'
-                  : 'bg-white border-cream-200 text-gray-700 hover:border-brand-400'
-              } ${locked ? 'outline-2 outline-dashed outline-white -outline-offset-4' : ''}`}
+                locked
+                  ? 'bg-brand-600 border-brand-600 text-white'
+                  : on
+                    ? 'bg-brand-500 border-brand-500 text-white'
+                    : 'bg-white border-cream-200 text-gray-700 hover:border-brand-400'
+              }`}
             >
               {label}
             </button>

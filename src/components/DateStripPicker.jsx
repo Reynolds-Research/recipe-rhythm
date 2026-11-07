@@ -107,11 +107,11 @@ export default function DateStripPicker({
     if (isDisabled) {
       cls += ' bg-gray-50 border-gray-100 text-gray-500 cursor-not-allowed opacity-60'
     } else if (isSelected) {
-      cls += ' bg-brand-700 border-brand-700 text-white shadow-sm'
+      cls += ' bg-brand-500 border-brand-500 text-white shadow-sm'
     } else {
       cls += ' bg-white border-cream-200 text-gray-700 hover:border-brand-300'
     }
-    if (isToday) cls += ' ring-2 ring-brand-700'
+    if (isToday) cls += ' ring-2 ring-brand-500'
 
     return (
       <button
@@ -196,7 +196,7 @@ export default function DateStripPicker({
             type="button"
             onClick={() => setExpanded(false)}
             aria-expanded={expanded}
-            className="text-sm font-semibold text-gray-700 hover:text-brand-700 transition-colors px-3 py-3 min-h-[44px] shrink-0"
+            className="text-sm font-semibold text-gray-700 hover:text-brand-600 transition-colors px-3 py-3 min-h-[44px] shrink-0"
             data-testid="date-strip-collapse"
           >
             Hide second week
@@ -206,7 +206,7 @@ export default function DateStripPicker({
             type="button"
             onClick={() => setExpanded(true)}
             aria-expanded={expanded}
-            className="text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-4 py-3 min-h-[44px] hover:bg-brand-100 transition-colors shrink-0"
+            className="text-sm font-bold text-brand-600 bg-brand-50 border border-brand-200 rounded-full px-4 py-3 min-h-[44px] hover:bg-brand-100 transition-colors shrink-0"
             data-testid="date-strip-expand"
           >
             Show another 7 days

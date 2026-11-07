@@ -103,7 +103,7 @@ export default function PeriodReview({
 
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">
           Review Period
         </h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">
@@ -152,7 +152,7 @@ export default function PeriodReview({
                       >
                         {item.name}
                       </div>
-                      <div className="text-sm font-bold text-brand-700 tracking-tighter uppercase mt-1">
+                      <div className="text-sm font-bold text-brand-600 tracking-tighter uppercase mt-1">
                         {dow}
                       </div>
                     </label>
