@@ -58,6 +58,8 @@ describe('addUpAmount — adds what the AI left as "+"', () => {
     '1 (14 oz) can + 1 (14 oz) can',
     '2 slices bacon + 1 slice bacon',
     '1 onion + 1 red onion', // a different variety
+    '1 tbsp each + 1 tbsp', // a multiplier
+    '8 oz per person + 8 oz',
   ])('leaves "%s" as written', (text) => {
     expect(addUpAmount(text)).toBe(text)
   })

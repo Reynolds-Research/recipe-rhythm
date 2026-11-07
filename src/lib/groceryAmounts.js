@@ -161,8 +161,9 @@ function leadingNumber(text) {
 }
 
 // Words that mean a part isn't a plain amount: a range ("1 to 2 tsp", "2 tsp
-// or to taste"), or a size/strength we can't add ("heaping", "scant").
-const NOT_PLAIN = new Set(['to', 'or', 'and', 'heaping', 'heaped', 'scant', 'rounded', 'level', 'fl', 'pinch', 'dash', 'slice', 'can'])
+// or to taste"), a multiplier ("1 tbsp each", "8 oz per person"), or a
+// size/strength we can't add ("heaping", "scant").
+const NOT_PLAIN = new Set(['to', 'or', 'and', 'each', 'per', 'heaping', 'heaped', 'scant', 'rounded', 'level', 'fl', 'pinch', 'dash', 'slice', 'can'])
 
 /** A word that names a unit (in either list), allowing plurals ("cloves", "bunches"). */
 function isUnitWord(w) {
