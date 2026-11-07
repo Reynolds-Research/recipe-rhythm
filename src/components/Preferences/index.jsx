@@ -541,7 +541,7 @@ export default function Preferences({ userId, onOpenAbout }) {
                   type="button"
                   onClick={runReadLinks}
                   disabled={linkState.running}
-                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-700 text-white rounded-full hover:bg-brand-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-500 text-white rounded-full hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {linkState.running ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   {linkState.running
