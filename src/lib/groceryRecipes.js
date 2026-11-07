@@ -120,17 +120,16 @@ export function groceryPrefs(prefs) {
 }
 
 /**
- * Where a recipe's amounts are REAL: copied from the recipe itself. Today that
- * is only her screenshots; "From the recipe page" joins when links are read.
+ * Where a recipe's amounts are REAL: copied from the recipe itself — her
+ * screenshots, or the recipe page read from its link (2026-11-06).
  * Anything else is the AI's guess from the recipe's name and tags: lists marked
  * 'estimated', the May 2026 backfill's lists (no source; the script sent the
  * name only), and recipes with no list at all. Matches the Cookbook card's
  * "Amounts estimated" (src/pages/Vault/RecipeSource.jsx) for every recipe with
  * a list; one edge differs: a 'screenshot' recipe with no list is not named
  * here (it adds nothing to the list; the card says "No amounts saved yet").
- * When links are read ("From the recipe page"), add that source here.
  */
-export const EXACT_SOURCES = ['screenshot']
+export const EXACT_SOURCES = ['screenshot', 'page']
 
 export function amountsAreGuess(recipe) {
   return !EXACT_SOURCES.includes(recipe?.ingredients_source)

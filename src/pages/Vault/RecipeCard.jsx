@@ -195,6 +195,7 @@ export default function RecipeCard({
   onReadScreenshots,
   onDismissScreenshots,
   onSaveLink,
+  onReadLink,
   screenshotStatus = null,
   ingredientSaveNotice,
   source,
@@ -380,6 +381,8 @@ export default function RecipeCard({
                   hasList={Array.isArray(recipe.ingredients_structured) && recipe.ingredients_structured.length > 0}
                   hasNames={Array.isArray(recipe.ingredients_classified) && recipe.ingredients_classified.length > 0}
                   reading={screenshotStatus?.kind === 'reading'}
+                  readingWhat={screenshotStatus?.what ?? 'screenshots'}
+                  onReadLink={onReadLink ? () => onReadLink(recipe.id) : undefined}
                   error={screenshotStatus?.kind === 'error' ? screenshotStatus.message : null}
                   justRead={screenshotStatus?.kind === 'done' ? screenshotStatus.list : null}
                   onDismissRead={() => onDismissScreenshots?.()}

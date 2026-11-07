@@ -5,8 +5,9 @@ import { amountsAreGuess, guessedRecipeNames } from '../groceryRecipes'
 // recipe says 1 tbsp. The recipe's list was the AI's guess. These decide
 // which recipes the grocery sheet names as "estimates".
 describe('amountsAreGuess', () => {
-  it('only her screenshots count as the real amounts', () => {
+  it('her screenshots and the recipe page count as the real amounts', () => {
     expect(amountsAreGuess({ ingredients_source: 'screenshot' })).toBe(false)
+    expect(amountsAreGuess({ ingredients_source: 'page' })).toBe(false)
   })
 
   it("'estimated', the May backfill's unlabelled lists and no list at all are guesses", () => {

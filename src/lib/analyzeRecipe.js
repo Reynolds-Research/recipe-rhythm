@@ -18,6 +18,9 @@ export async function analyzeRecipe(arg) {
   // Screenshots of the recipe ([{ data, mediaType }], up to 3): the AI copies
   // the ingredients from them instead of estimating.
   let images
+  // Read the real recipe from `url` on the server (2026-11-06). The result's
+  // `page` says what happened: { read: true, kind } or { read: false, reason }.
+  let readPage = false
 
   if (typeof arg === 'string') {
     name = arg
@@ -28,11 +31,13 @@ export async function analyzeRecipe(arg) {
     mediaType = arg.mediaType || null
     userChips = arg.userChips
     images = arg.images
+    readPage = arg.readPage === true
   }
 
   const body = { name, url, imageBase64, mediaType }
   if (userChips !== undefined) body.userChips = userChips
   if (Array.isArray(images) && images.length) body.images = images
+  if (readPage && url) body.read_page = true
 
   let res
   try {
@@ -52,5 +57,6 @@ export async function analyzeRecipe(arg) {
   }
 
   const data = await res.json()
-  return data.components ?? null
+  if (!data.components) return null
+  return data.page ? { ...data.components, page: data.page } : data.components
 }

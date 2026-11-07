@@ -7,10 +7,13 @@
  *
  *   'screenshot'  she adds screenshots of the real recipe (NYT Cooking is
  *                 paywalled, so this is her way in). The AI copies the list.
+ *   'page'        read from the recipe's link: the server opens the page and
+ *                 the AI copies the list from it (2026-11-06). Some sites
+ *                 refuse automated visits; then it falls back to:
  *   'estimated'   the AI's best guess from the recipe's name and her tags.
- *                 (It sees a link only as text; it can't open the page.)
  *
- * A screenshot list is never overwritten by an estimate.
+ * Screenshots and the recipe page are the real recipe: an estimate never
+ * overwrites either. Screenshots replace anything.
  *
  *   readIngredients({ name, url, images, chips })      → result | null
  *   ingredientFields(result)                           → columns to save
@@ -18,6 +21,7 @@
  *   fillRecipeIngredients(supabase, userId, recipe, { images })
  *   loadMissingIngredients(supabase, userId)           → recipes with no list
  *   fillMissingIngredients(supabase, userId, { onProgress })
+ *   loadLinkedGuesses / readLinkedRecipes(supabase, userId, { onProgress })
  *
  * `analyze` is injectable (tests); it defaults to the real /api/analyze-recipe call.
  */
@@ -55,22 +59,35 @@ export function hasIngredientList(recipe) {
  * `servings` is kept only when the AI actually found it (servings_inferred);
  * the API's fallback of 4 is not a fact about the recipe, so it isn't saved.
  */
-export async function readIngredients({ name = '', url = '', images = [], chips, analyze = analyzeRecipe } = {}) {
+export async function readIngredients({
+  name = '', url = '', images = [], chips, analyze = analyzeRecipe, readPage = false,
+} = {}) {
   if (images.length > MAX_SCREENSHOTS) throw new Error(`At most ${MAX_SCREENSHOTS} screenshots`)
   const arg = { name, url }
   if (images.length) arg.images = images
   if (chips) arg.userChips = chips
+  if (readPage && url && !images.length) arg.readPage = true
   const components = await analyze(arg)
   if (!components || !hasIngredientList(components)) return null
   return {
+    page: components.page ?? null,
     components,
     structured: components.ingredients_structured,
     classified: Array.isArray(components.ingredients_classified) ? components.ingredients_classified : null,
     servings: components.servings_inferred && Number.isInteger(components.servings) && components.servings > 0
       ? components.servings : null,
-    source: images.length ? 'screenshot' : 'estimated',
+    source: sourceOf(components, images),
   }
 }
+
+/** Where a fresh analyze-recipe result's list came from. */
+function sourceOf(components, images = []) {
+  if (images.length) return 'screenshot'
+  return components?.page?.read ? 'page' : 'estimated'
+}
+
+/** Lists that are the real recipe: an estimate never replaces these. */
+export const REAL_SOURCES = ['screenshot', 'page']
 
 /** The vault columns to save for a readIngredients result. */
 export function ingredientFields(result, existingClassified = null) {
@@ -98,36 +115,95 @@ export function estimateFields(components) {
     classified: Array.isArray(components.ingredients_classified) ? components.ingredients_classified : null,
     servings: components.servings_inferred && Number.isInteger(components.servings) && components.servings > 0
       ? components.servings : null,
-    source: 'estimated',
+    // Asked with readPage and the page was read: it's the real recipe.
+    source: sourceOf(components),
   })
 }
 
 /**
- * Fill in (or replace) one saved recipe's ingredients. With screenshots, the
- * list is replaced by the real one. Without, it only fills a recipe that has
- * no screenshot list — an estimate never overwrites the real recipe.
- * Returns the saved fields, or null if nothing was read.
+ * Fill in (or replace) one saved recipe's ingredients.
+ *   - With screenshots: replaced by the real list, whatever it had.
+ *   - Without: the recipe page is read when it has a link. A page list
+ *     replaces a guess (or an older page list with `newLink`); when the page
+ *     can't be read, an estimate fills a recipe with no real list.
+ *   - `pageOnly`: write only a list read from the page (re-reading links
+ *     shouldn't swap one guess for another).
+ * `onPage(page)` hears what reading the link did ({ read, kind | reason }).
+ * Returns the saved fields, or null if nothing was written.
  */
-export async function fillRecipeIngredients(supabase, userId, recipe, { images = [], analyze } = {}) {
-  if (!images.length && recipe.ingredients_source === 'screenshot') return null
+export async function fillRecipeIngredients(supabase, userId, recipe, {
+  images = [], analyze, pageOnly = false, newLink = false, onPage,
+} = {}) {
+  const current = recipe.ingredients_source
+  if (!images.length && current === 'screenshot') return null
+  if (!images.length && current === 'page' && !newLink) return null
+  const url = recipe.recipe_url || ''
+  if (pageOnly && !url) return null
   const result = await readIngredients({
     name: recipe.name,
-    url: recipe.recipe_url || '',
+    url,
     images,
     chips: chipsOf(recipe),
     analyze,
+    readPage: !images.length && Boolean(url),
   })
+  if (result?.page) onPage?.(result.page)
   if (!result) return null
+  if (pageOnly && result.source !== 'page') return null
   const fields = ingredientFields(result, recipe.ingredients_classified)
   const householdId = await getHouseholdId(supabase, userId)
   let query = supabase.from('vault').update(fields).eq('id', recipe.id).eq('household_id', householdId)
-  // An estimate is checked against the database, not only the copy we were
-  // handed: screenshots added meanwhile (e.g. while Settings works through its
-  // list) win, and the estimate writes nothing.
-  if (!images.length) query = query.or('ingredients_source.is.null,ingredients_source.eq.estimated')
+  // Checked against the database, not only the copy we were handed:
+  // screenshots added meanwhile (e.g. while Settings works through its list)
+  // win. An estimate never overwrites the page or screenshots; a page list
+  // never overwrites screenshots.
+  if (result.source === 'estimated') query = query.or('ingredients_source.is.null,ingredients_source.eq.estimated')
+  if (result.source === 'page') query = query.or('ingredients_source.is.null,ingredients_source.eq.estimated,ingredients_source.eq.page')
   const { data, error } = await query.select('id')
   if (error) throw error
   return data?.length ? fields : null
+}
+
+/** Recipes with a saved link whose list isn't the real recipe yet. */
+export async function loadLinkedGuesses(supabase, userId) {
+  const householdId = await getHouseholdId(supabase, userId)
+  const { data, error } = await supabase
+    .from('vault')
+    .select(MISSING_COLUMNS)
+    .eq('household_id', householdId)
+    .is('deleted_at', null)
+    .not('recipe_url', 'is', null)
+    .order('name', { ascending: true })
+  if (error) throw error
+  return (data ?? []).filter((r) => r.recipe_url?.trim() && !REAL_SOURCES.includes(r.ingredients_source))
+}
+
+/**
+ * Settings: read every linked recipe's real list from its page, one at a time.
+ * Writes only what the pages give (pageOnly). Returns
+ *   { read: [names], needScreenshots: [{ name, reason }], failed: [names] }
+ * — needScreenshots: the site refused, or no ingredient list was found there.
+ */
+export async function readLinkedRecipes(supabase, userId, { onProgress = () => {}, analyze } = {}) {
+  const recipes = await loadLinkedGuesses(supabase, userId)
+  const out = { read: [], needScreenshots: [], failed: [] }
+  for (let i = 0; i < recipes.length; i++) {
+    const recipe = recipes[i]
+    onProgress({ current: i + 1, total: recipes.length, name: recipe.name })
+    let page = null
+    try {
+      const fields = await fillRecipeIngredients(supabase, userId, recipe, {
+        analyze, pageOnly: true, onPage: (p) => { page = p },
+      })
+      if (fields) out.read.push(recipe.name)
+      else if (page && !page.read) out.needScreenshots.push({ name: recipe.name, reason: page.reason })
+      else out.failed.push(recipe.name)
+    } catch (err) {
+      console.warn('[recipeIngredients] link read failed', recipe.name, err)
+      out.failed.push(recipe.name)
+    }
+  }
+  return out
 }
 
 const MISSING_COLUMNS =
