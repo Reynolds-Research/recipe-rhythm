@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-07 (later) — Recipes read from their links on prod; grocery amounts added up
+
+**Done:** "Read the real recipe from a link" ticked (#233 live; migration `20261107000001` on prod). This PR, `fix/grocery-add-up-amounts`: the grocery list adds amounts the AI left as "+" (`addUpAmount`, used when saving and when showing), and the prompt asks for one total.
+
+**Verified (prod read-only):** Matt ran Settings → Read from links (a first run stopped after 8 recipes, likely the page being left; the second finished all 17). Her 22 linked recipes: 15 from the page, 1 screenshot, 7 named for screenshots (sites that refuse). The skillet: chili powder 1 tablespoon, cumin 1½ teaspoons. After Update list, three lines still said "+" (chili powder, cumin, onion) — fixed here. Both accounts are in one household, so either can run the Settings action. Vitest 1163/1163; build green.
+
+**Open / owed:** Sara adds screenshots for the 7 named recipes when she likes. Pre-existing: `ingredient_classifications_cache` table missing on prod (ADR-004 cache falls back, logs an error per call).
+
+**Next:** "Label the May ingredient lists as guesses" (20 of her 37 lists are still guesses), or "Grocery list: don't round a clean pound up" (XS).
+
+---
+
 ## 2026-11-07 — Read the real recipe from its link
 
 **Done:** branch `feat/recipe-from-link` (PR pending; stacked on #231, which is on #230). Vercel fetch test first (temporary preview function, branch deleted): 16 of her 23 links readable from Vercel, 7 refused, same as from the PC. Built: the server opens a recipe's link and the AI copies the list from the page (Recipe block, else the page text around the ingredient lines); saved as `'page'` (migration `20261107000001`: the allowed-values rule only). Cookbook card: a new or changed link is read at once; "Read amounts from the link" on a guessed list. Settings: "Read N recipes from their links".

@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { Sheet } from 'react-modal-sheet'
 import { ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import { GROCERY_SECTIONS } from '../../lib/constants'
-import { showRecipeLine, splitList } from '../../lib/groceryAmounts'
+import { addUpAmount, showRecipeLine, splitList } from '../../lib/groceryAmounts'
 import { guessNote } from './labels'
 
 const ACTION = 'inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700 disabled:opacity-50'
@@ -20,7 +20,7 @@ function ListRow({ item }) {
       <span className="flex flex-col">
         <span className="body-text text-gray-900">{label(item.name)}</span>
         {showRecipeLine(item) && (
-          <span className="helper-text">Recipes use {item.recipe_quantity}</span>
+          <span className="helper-text">Recipes use {addUpAmount(item.recipe_quantity)}</span>
         )}
       </span>
       {item.quantity && <span className="font-semibold text-gray-900 shrink-0">{item.quantity}</span>}
@@ -105,7 +105,7 @@ function AssumedGroup({ items, staples, onSetAssumed, onSetAlwaysHave }) {
                     <span className="helper-text">
                       {mark === 'added' && `On the list${item.quantity ? ` · ${item.quantity}` : ''}`}
                       {mark === 'always' && 'Won’t show again · in your pantry list'}
-                      {!mark && (item.recipe_quantity ?? '')}
+                      {!mark && (addUpAmount(item.recipe_quantity) ?? '')}
                     </span>
                   </span>
                   {mark ? (
