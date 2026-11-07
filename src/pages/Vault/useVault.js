@@ -8,7 +8,7 @@ import {
   migrateLocalStorageExtras,
 } from '../../lib/vaultOptions'
 import { mergeWithUserOverrides, applyOverride } from '../../lib/classificationOverrides'
-import { estimateFields, fillRecipeIngredients, prepareScreenshot, MAX_SCREENSHOTS } from '../../lib/recipeIngredients'
+import { estimateFields, fillRecipeIngredients, prepareScreenshot, MAX_SCREENSHOTS, REAL_SOURCES } from '../../lib/recipeIngredients'
 
 // Cookbook rows for a user, each with its last-cooked date; null if the vault
 // query failed. A plain query (no React state), so the mount effect can apply
@@ -276,16 +276,21 @@ export function useVault(userId) {
     if (error) return { ok: false, reason: 'insert-failed', error }
 
     await fetchRecipes()
-    if (!ingredients?.ingredients_structured) {
-      // Saved instantly; the ingredient list is estimated in the background
-      // (decided 2026-11-05: logging stays fast). If it fails, the recipe just
-      // shows "no ingredients yet" and the grocery list names it.
+    const noList = !ingredients?.ingredients_structured
+    const guessWithLink = ingredients?.ingredients_source === 'estimated' && Boolean(recipeUrl?.trim())
+    if (noList || guessWithLink) {
+      // Saved instantly; the ingredient list is filled in the background
+      // (decided 2026-11-05: logging stays fast) — from the recipe page when
+      // it has a link (2026-11-06), else estimated. A guess from the form is
+      // only replaced by the page, never by another guess. If it fails, the
+      // recipe just shows what it has and the grocery list names it.
       fillRecipeIngredients(supabase, userId, {
         id, name: finalName, recipe_url: recipeUrl?.trim() || '',
         proteins, cooking_method: cookingMethod, main_carb: mainCarb, dietary_tags: dietaryTags,
         dairy_components: dairyComponents, vegetables, fruits, prep_time_minutes: prepTimeMinutes,
-        ingredients_classified: ingredientsClassified ?? null, ingredients_source: null,
-      })
+        ingredients_classified: ingredientsClassified ?? null,
+        ingredients_source: ingredients?.ingredients_source ?? null,
+      }, { pageOnly: !noList })
         .then((fields) => (fields ? fetchRecipes() : null))
         .catch((err) => console.warn('[Vault] background ingredient fill failed:', err?.message || err))
     }
@@ -388,9 +393,9 @@ export function useVault(userId) {
   const reExtractIngredients = async (recipeId, chips) => {
     const recipe = recipes.find(r => r.id === recipeId)
     if (!recipe) throw new Error(`recipe ${recipeId} not found in local cache`)
-    // Her screenshots are the real recipe: a tag change never replaces them
-    // with an estimate. Returns null so the caller shows nothing.
-    if (recipe.ingredients_source === 'screenshot') return null
+    // Her screenshots and the recipe page are the real recipe: a tag change
+    // never replaces them with an estimate. Returns null so the caller shows nothing.
+    if (REAL_SOURCES.includes(recipe.ingredients_source)) return null
 
     const components = await analyzeRecipe({
       name: recipe.name,
@@ -459,6 +464,34 @@ export function useVault(userId) {
       return { ok: false }
     }
     return { ok: true }
+  }
+
+  /**
+   * Read a saved recipe's real ingredient list from its link (2026-11-06).
+   * `newLink`: the link was just added or changed, so a list from the old
+   * page may be replaced. Writes only what the page gives.
+   * Returns { ok: true, count, list } or { ok: false, reason } — reason is the
+   * page's ('blocked', 'no_recipe', 'unreachable', 'unsafe') or 'screenshot'
+   * (her screenshots win), 'no-link', 'failed'.
+   */
+  const readRecipeLink = async (recipeId, { newLink = false, url } = {}) => {
+    const cached = recipes.find(r => r.id === recipeId)
+    if (!cached) return { ok: false, reason: 'not-found' }
+    const recipe = url !== undefined ? { ...cached, recipe_url: url } : cached
+    if (!recipe.recipe_url) return { ok: false, reason: 'no-link' }
+    if (recipe.ingredients_source === 'screenshot') return { ok: false, reason: 'screenshot' }
+    let page = null
+    try {
+      const fields = await fillRecipeIngredients(supabase, userId, recipe, {
+        pageOnly: true, newLink, onPage: (p) => { page = p },
+      })
+      if (!fields) return { ok: false, reason: page && !page.read ? page.reason : 'failed' }
+      setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...fields } : r))
+      return { ok: true, count: fields.ingredients_structured.length, list: fields.ingredients_structured }
+    } catch (err) {
+      console.error('[Vault] readRecipeLink failed:', err?.message || err)
+      return { ok: false, reason: 'failed' }
+    }
   }
 
   /**
@@ -561,6 +594,7 @@ export function useVault(userId) {
     setIngredientEssentiality,
     reExtractIngredients,
     readRecipeScreenshots,
+    readRecipeLink,
     setRecipeLink,
   }
 }

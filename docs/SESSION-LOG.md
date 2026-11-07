@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-07 — Read the real recipe from its link
+
+**Done:** branch `feat/recipe-from-link` (PR pending; stacked on #231, which is on #230). Vercel fetch test first (temporary preview function, branch deleted): 16 of her 23 links readable from Vercel, 7 refused, same as from the PC. Built: the server opens a recipe's link and the AI copies the list from the page (Recipe block, else the page text around the ingredient lines); saved as `'page'` (migration `20261107000001`: the allowed-values rule only). Cookbook card: a new or changed link is read at once; "Read amounts from the link" on a guessed list. Settings: "Read N recipes from their links".
+
+**Verified:** see the PR (Vitest, preview rehearsal: verify, write checks, rollback fingerprint identical, re-applied; a real AI run on the skillet's page).
+
+**Open / owed (Matt):** apply `20261107000001` on prod (before the deploy; previews use the prod database too), then merge #230 → #231 → this PR; Settings → Read from links on prod; she checks the skillet's list (chili powder 1 tbsp).
+
+**Next:** tick "Read the real recipe from a link" after the prod run; "Label the May ingredient lists as guesses" shrinks to what the links couldn't fix.
+
+---
+
 ## 2026-11-06 (evening) — Her first real week on the new Prep Table; guessed amounts
 
 **Done:** #229 merged and live (production `77ce6f1`, switch on; checked in the live app's code). Prod copy run by Matt: 06a 1 row, 06b 21 + 9, 06c 9/9 (re-checked read-only), second copy zeros. #230 (TASKS: guessed amounts; links never opened). This PR, `feat/grocery-guessed-amounts`: the grocery sheet names recipes whose amounts are guesses and always offers "Update list".

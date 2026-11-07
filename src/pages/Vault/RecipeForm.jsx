@@ -104,9 +104,12 @@ export default function RecipeForm({
 
     // For AI suggestion, we'd need to convert file to base64 or URL
     // This assumes backend handles URLs or we implement base64 conversion
+    // With a link, the server reads the recipe page so the amounts are the
+    // real ones (2026-11-06); a site that refuses falls back to an estimate.
     const s = await analyzeRecipe({
       name: name.trim(),
-      url: recipeUrl.trim()
+      url: recipeUrl.trim(),
+      readPage: Boolean(recipeUrl.trim()),
     })
 
     if (s) {

@@ -16,6 +16,7 @@ import { parseJsonLoose } from './anthropic.js'
 import { buildAnalyzeRecipePromptBlock } from '../../src/lib/constants.js'
 import { ClassifyIngredientsError } from '../../src/lib/classifyIngredients.js'
 import { classifyIngredientsCached } from './classifyIngredientsCached.js'
+import { readRecipePage as readRecipePageDefault } from './recipePage.js'
 
 // When the AI can't infer servings and the caller didn't supply a default,
 // fall back to 4 (a reasonable single-household serving count).
@@ -32,6 +33,15 @@ export const SCREENSHOT_RULE =
   'The attached image(s) show the actual recipe. Take every ingredient and its amount exactly as written ' +
   'in the image(s): do not add, drop or re-estimate ingredients, and keep the amounts and units as written. ' +
   'If the image(s) state how many servings the recipe makes, use that number for servings; otherwise servings is null.'
+
+// Said when the recipe page was read (read_page): the ingredient lines below
+// come from the page itself, so the model copies them, like screenshots.
+export const PAGE_RULE =
+  'The recipe page text above is the actual recipe. Take every ingredient and its amount exactly as written ' +
+  'there: do not add, drop or re-estimate ingredients, and keep the amounts and units as written ' +
+  '(e.g. "1 tablespoon chili powder" stays 1 tablespoon). Ignore anything that is not part of the ingredient ' +
+  'list. If the page states how many people the recipe serves, use that number for servings (a yield of pieces, ' +
+  'like "20 meatballs", is not servings); otherwise servings is null.'
 
 /**
  * The images to send: `images` ([{ data, mediaType }], up to MAX_IMAGES), or
@@ -93,7 +103,9 @@ function buildUserChipsBlock(userChips) {
   )
 }
 
-export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = 'analyze-recipe' } = {}) {
+export function createAnalyzeRecipeHandler({
+  anthropic, supabase = null, tag = 'analyze-recipe', readRecipePage = readRecipePageDefault,
+} = {}) {
   return async function analyzeRecipeHandler(req, res) {
     if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
@@ -102,6 +114,7 @@ export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = '
       url = '',
       default_servings,
       userChips = null,
+      read_page: readPage = false,
     } = req.body || {}
 
     // Validate default_servings: must be a positive integer if supplied.
@@ -127,12 +140,29 @@ export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = '
     // empty string and the rest of the prompt is byte-for-byte unchanged.
     const userChipsBlock = buildUserChipsBlock(userChips)
 
+    // Read the real recipe from its link (2026-11-06). Only when asked, with a
+    // link and no screenshots (screenshots win). `page` goes back to the
+    // caller either way so it can say what happened; when the page can't be
+    // read, the call carries on as the usual estimate.
+    let page = null
+    if (readPage === true && url && images.length === 0) {
+      try {
+        const found = await readRecipePage(String(url))
+        page = found.kind ? { read: true, kind: found.kind, servings: found.servings ?? null, text: found.text }
+          : { read: false, reason: found.reason }
+      } catch (err) {
+        console.error(`[api] ${tag} page read failed:`, err?.message || err)
+        page = { read: false, reason: 'unreachable' }
+      }
+    }
+
     let textPrompt = userChipsBlock + `Analyze this meal/recipe and return a JSON object with its components. Return ONLY valid JSON with no markdown or explanation.\n`
     if (name) textPrompt += `\nRecipe Name: "${name}"`
     if (url) textPrompt += `\nRecipe URL: "${url}"`
     if (images.length === 1) textPrompt += `\n(See attached image)`
     if (images.length > 1) textPrompt += `\n(See the ${images.length} attached images)`
     if (images.length > 0) textPrompt += `\n${SCREENSHOT_RULE}`
+    if (page?.read) textPrompt += `\n\nRecipe page text:\n"""\n${page.text}\n"""\n${PAGE_RULE}`
     textPrompt += '\n\n' + buildAnalyzeRecipePromptBlock()
     // Belt-and-suspenders reminder to never drop ingredients. The JSON shape
     // block already states this but repeating it outside the shape block gives
@@ -213,6 +243,8 @@ export function createAnalyzeRecipeHandler({ anthropic, supabase = null, tag = '
           ingredients_structured,
           ingredients_classified,
         },
+        // Present only when read_page was asked for: what reading the link did.
+        ...(page ? { page: page.read ? { read: true, kind: page.kind } : { read: false, reason: page.reason } } : {}),
       })
     } catch (err) {
       console.error(`[api] ${tag} upstream error:`, err?.status || '', err?.message || err)

@@ -26,7 +26,7 @@ const QUIET = 'min-h-[44px] text-sm font-semibold text-gray-700 hover:text-gray-
  *   name: string,                       recipe name (for labels)
  *   link: string|null,
  *   onSaveLink: (url: string|null) => void,
- *   source: 'screenshot'|'estimated'|null,
+ *   source: 'screenshot'|'page'|'estimated'|null,
  *   servings: number|null,
  *   hasList: boolean,                   ingredient amounts saved
  *   hasNames: boolean,                  ingredient names (chips) exist
@@ -34,6 +34,8 @@ const QUIET = 'min-h-[44px] text-sm font-semibold text-gray-700 hover:text-gray-
  *   justRead?: object[]|null,           the list just read: shown until "Looks right"
  *   onDismissRead?: () => void,
  *   onScreenshots: (files: FileList) => void,
+ *   onReadLink?: () => void,            "Read amounts from the link" (a saved link, list not real yet)
+ *   readingWhat?: 'screenshots'|'page', what `reading` is reading
  *   showStatus?: boolean,               false in Add a recipe (nothing saved yet to describe)
  *   readSummary?: string,               form only: e.g. "✓ 11 ingredients read from 2 screenshots"
  * }} props
@@ -41,6 +43,7 @@ const QUIET = 'min-h-[44px] text-sm font-semibold text-gray-700 hover:text-gray-
 export default function RecipeSource({
   name, link, onSaveLink, source, servings, hasList, hasNames,
   reading = false, error = null, justRead = null, onDismissRead, onScreenshots, readSummary = null, showStatus = true,
+  onReadLink, readingWhat = 'screenshots',
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -49,10 +52,14 @@ export default function RecipeSource({
   const saveLink = () => { onSaveLink(cleanLink(draft)); setEditing(false) }
 
   const fromShots = source === 'screenshot' && hasList
+  const fromPage = source === 'page' && hasList
   const serves = servings ? ` · Serves ${servings}` : ''
   const status = fromShots ? null
-    : hasList ? `Amounts estimated${serves}`
-      : hasNames ? 'No amounts saved yet.' : 'No ingredients yet.'
+    : fromPage ? `Amounts from the recipe page${serves}`
+      : hasList ? `Amounts estimated${serves}`
+        : hasNames ? 'No amounts saved yet.' : 'No ingredients yet.'
+  // A saved link whose amounts aren't the real recipe yet: offer to read it.
+  const canReadLink = Boolean(onReadLink && link && !fromShots && !fromPage && !reading && !editing)
 
   const screenshotInput = (
     <input
@@ -78,7 +85,8 @@ export default function RecipeSource({
 
   const screenshotAction = reading ? (
     <span role="status" className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-gray-700">
-      <Loader2 size={14} className="animate-spin" aria-hidden="true" /> Reading screenshots…
+      <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+      {readingWhat === 'page' ? 'Reading the recipe page…' : 'Reading screenshots…'}
     </span>
   ) : fromShots && justRead ? null : fromShots ? (
     <div className="flex items-center gap-2 min-h-[44px]">
@@ -123,6 +131,12 @@ export default function RecipeSource({
           <button type="button" onClick={startLink} className={QUIET}>Change</button>
         </div>
       ) : null}
+
+      {canReadLink && (
+        <button type="button" onClick={onReadLink} className={ACTION}>
+          <LinkIcon size={14} aria-hidden="true" /> Read amounts from the link
+        </button>
+      )}
 
       {!link && !editing && !fromShots && !reading
         ? <div className="flex flex-wrap gap-x-5">{addLinkButton}{screenshotAction}</div>

@@ -10,6 +10,8 @@ vi.mock('../../../lib/plannedMeals', () => ({ loadUpcomingMeals: vi.fn(), remove
 vi.mock('../../../lib/recipeIngredients', () => ({
   loadMissingIngredients: vi.fn(async () => []),
   fillMissingIngredients: vi.fn(),
+  loadLinkedGuesses: vi.fn(async () => []),
+  readLinkedRecipes: vi.fn(),
 }))
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }))
 vi.mock('../../../hooks/useHaptics', () => ({ useHaptics: () => ({ trigger: vi.fn() }) }))

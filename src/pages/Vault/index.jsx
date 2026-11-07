@@ -4,7 +4,7 @@ import Logo from '../../components/Logo'
 import { useHaptics } from '../../hooks/useHaptics'
 import RecipeForm from './RecipeForm'
 import RecipeCard from './RecipeCard'
-import { screenshotMessage } from './recipeSourceHelpers'
+import { linkMessage, screenshotMessage } from './recipeSourceHelpers'
 import { useVault } from './useVault'
 import { chipsRequireReExtraction } from '../../lib/chipDiff'
 import SkeletonRecipeCard from '../../components/SkeletonRecipeCard'
@@ -54,6 +54,7 @@ export default function Vault({ userId }) {
     setIngredientEssentiality,
     reExtractIngredients,
     readRecipeScreenshots,
+    readRecipeLink,
     setRecipeLink,
   } = useVault(userId)
 
@@ -97,6 +98,22 @@ export default function Vault({ userId }) {
     setScreenshotStatus({ recipeId, kind: 'reading' })
     const result = await readRecipeScreenshots(recipeId, files)
     setScreenshotStatus({ recipeId, ...screenshotMessage(result) })
+  }
+
+  // 2026-11-06: read the real recipe from its link — on demand, and right
+  // after a link is added or changed. Same status area as screenshots.
+  const handleReadLink = async (recipeId, opts) => {
+    if (screenshotStatus?.kind === 'reading') return
+    setScreenshotStatus({ recipeId, kind: 'reading', what: 'page' })
+    const result = await readRecipeLink(recipeId, opts)
+    const message = linkMessage(result)
+    setScreenshotStatus(message ? { recipeId, ...message } : null)
+  }
+
+  const handleSaveLink = async (recipeId, url) => {
+    const saved = await setRecipeLink(recipeId, url)
+    if (saved?.ok && url) await handleReadLink(recipeId, { newLink: true, url })
+    return saved
   }
 
   const handleDelete = async (id) => {
@@ -353,7 +370,8 @@ export default function Vault({ userId }) {
             ingredientSaveNotice={ingredientSaveNotice?.recipeId === recipe.id ? ingredientSaveNotice.kind : null}
             onReadScreenshots={handleReadScreenshots}
             onDismissScreenshots={() => setScreenshotStatus(null)}
-            onSaveLink={setRecipeLink}
+            onSaveLink={handleSaveLink}
+            onReadLink={handleReadLink}
             screenshotStatus={screenshotStatus?.recipeId === recipe.id ? screenshotStatus : null}
           />
         ))}

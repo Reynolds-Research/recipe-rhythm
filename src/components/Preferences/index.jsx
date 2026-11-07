@@ -14,7 +14,9 @@ import {
 } from '../../lib/mealPlanItems'
 import { loadUpcomingMeals, removeMeals } from '../../lib/plannedMeals'
 import { isNewPrepTableEnabled } from '../../lib/featureFlags'
-import { fillMissingIngredients, loadMissingIngredients } from '../../lib/recipeIngredients'
+import {
+  fillMissingIngredients, loadMissingIngredients, loadLinkedGuesses, readLinkedRecipes,
+} from '../../lib/recipeIngredients'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 import Logo from '../Logo'
 import { useHaptics } from '../../hooks/useHaptics'
@@ -65,12 +67,20 @@ export default function Preferences({ userId, onOpenAbout }) {
   // recipe" button (PRD-006 D1), which also rewrote recipes that were fine.
   const [missing, setMissing] = useState(null)        // recipes with no list, once loaded
   const [fillState, setFillState] = useState({ running: false, current: 0, total: 0, result: null })
+  // Recipes with a saved link whose amounts are still a guess, and the one-tap
+  // read of their recipe pages (2026-11-06: the links were saved but never opened).
+  const [linked, setLinked] = useState(null)
+  const [linkState, setLinkState] = useState({ running: false, current: 0, total: 0, result: null })
 
   useEffect(() => {
     let cancelled = false
     loadMissingIngredients(supabase, userId)
       .then((rows) => { if (!cancelled) setMissing(rows) })
       .catch((err) => console.warn('[Preferences] missing ingredients: load failed', err?.message || err))
+    Promise.resolve()
+      .then(() => loadLinkedGuesses(supabase, userId))
+      .then((rows) => { if (!cancelled) setLinked(rows) })
+      .catch((err) => console.warn('[Preferences] linked recipes: load failed', err?.message || err))
     return () => { cancelled = true }
   }, [userId])
 
@@ -297,6 +307,24 @@ export default function Preferences({ userId, onOpenAbout }) {
   }
 
 
+  // Read the real amounts from every linked recipe's page. Only lists read
+  // from a page are written; sites that refuse are named for screenshots.
+  const runReadLinks = async () => {
+    if (linkState.running) return
+    setLinkState({ running: true, current: 0, total: linked?.length ?? 0, result: null })
+    let result = null
+    try {
+      result = await readLinkedRecipes(supabase, userId, {
+        onProgress: ({ current, total }) => setLinkState((s) => ({ ...s, current, total })),
+      })
+    } catch (err) {
+      console.error('[Preferences] read linked recipes failed', err)
+    }
+    const left = await loadLinkedGuesses(supabase, userId).catch(() => null)
+    if (left) setLinked(left)
+    setLinkState({ running: false, current: 0, total: 0, result: result ?? { read: [], needScreenshots: [], failed: ['all'] } })
+  }
+
   // TODO: Convert to /settings/preferences route when PRD-003 P0.11 ships react-router.
   return (
     <div className="min-h-screen bg-cream-50 pb-32">
@@ -499,6 +527,49 @@ export default function Preferences({ userId, onOpenAbout }) {
             </label>
           </div>
         </Section>
+
+        {(linked?.length > 0 || linkState.result) && (
+          <section aria-labelledby="pref-links-label">
+            <h2 id="pref-links-label" className="section-heading mb-2">Recipes to read from their links</h2>
+            {linked?.length > 0 && (
+              <>
+                <p className="helper-text mb-3">
+                  These have a link, but their amounts are estimates: {linked.map((r) => r.name).join(', ')}.
+                  Read the real amounts from each recipe page.
+                </p>
+                <button
+                  type="button"
+                  onClick={runReadLinks}
+                  disabled={linkState.running}
+                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-700 text-white rounded-full hover:bg-brand-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {linkState.running ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  {linkState.running
+                    ? `Reading ${linkState.current} of ${linkState.total}…`
+                    : `Read ${linked.length} recipe${linked.length === 1 ? '' : 's'} from their links`}
+                </button>
+              </>
+            )}
+            {linkState.result && !linkState.running && (
+              <div role="status" className="text-sm mt-3 space-y-1 text-gray-900">
+                <p>
+                  {linkState.result.read.length > 0
+                    ? `✓ Read the real amounts for ${linkState.result.read.length} recipe${linkState.result.read.length === 1 ? '' : 's'}.`
+                    : 'No recipe pages could be read.'}
+                </p>
+                {linkState.result.needScreenshots.length > 0 && (
+                  <p className="text-amber-800">
+                    These sites don’t let apps read them, so add screenshots in the Cookbook:{' '}
+                    {linkState.result.needScreenshots.map((r) => r.name).join(', ')}.
+                  </p>
+                )}
+                {linkState.result.failed.length > 0 && (
+                  <p className="text-amber-800">Some couldn’t be read; try again later.</p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         {(missing?.length > 0 || fillState.result) && (
           <section aria-labelledby="pref-missing-label">
