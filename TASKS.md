@@ -104,6 +104,11 @@ _Found (prod, read-only, 2026-11-05): all three shapes already exist in her plan
 
 **Open question (for her):** How often is the side dish something she'd want saved as a recipe? _Rarely:_ one recipe link plus add-on text is enough. _Often:_ add an optional second link for a side (a second optional column or a small link table, still not a component system). Revisit after **Watch her add a recipe + add-on meal once**, or once there are ~30 more planned meals to count from.
 
+## AI cost
+
+- [ ] **Apply the AI response caches on prod** — XS. Found 2026-11-07: migration `20260506000003_ai_response_caches` (ADR-004) was written in May but **never applied to prod** (preview, rebuilt from prod's shape, didn't have it either). Without `ingredient_classifications_cache` every recipe read re-asks the AI to sort its ingredients (and logs "Could not find the table" each time); without `meal_name_normalizations_cache` every meal-name spelling check does too. The app works either way — the caches just save AI calls. Added a rollback and rewrote the verify as one SELECT; rehearsed on preview: verify 8/8, write checks 9/9 (anyone can read; signed-in and logged-out users can't write, change or delete an answer; the server can write, first answer wins; a bad answer is refused), fingerprint before = after rollback (`103b7436…` / 1100 / `aa3f2c1f…`), re-applied. Branch `fix/apply-ai-response-caches`.
+  - **Done when:** Matt applies `20260506000003_ai_response_caches.sql` on prod and `verify_20260506000003_ai_response_caches.sql` shows 8/8; after the next recipe read, the classify cache has rows and the "Could not find the table" error is gone from the Vercel logs.
+
 ## Security
 
 - [ ] **Fix high-severity Vite vulnerability** (reported 2026-04-18 by `npm audit`)

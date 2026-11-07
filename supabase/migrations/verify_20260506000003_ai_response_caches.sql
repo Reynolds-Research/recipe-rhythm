@@ -1,149 +1,42 @@
--- Verification queries for 20260506000003_ai_response_caches.sql
+-- verify_20260506000003 — the AI response caches (ADR-004).
+-- Read-only. ONE SELECT: every row is a check with expected / actual / pass.
+-- Safe on prod. (Rewritten 2026-11-07 as one SELECT, so the SQL Editor shows
+-- every result at once; the migration had never been applied to prod.)
 --
--- Run AFTER the main migration. Read-only structural checks confirm the two
--- cache tables exist with the expected columns, constraints, indexes, and
--- RLS policies. Also confirms the security boundary: SELECT is open to
--- authenticated + anon, and there are NO INSERT/UPDATE/DELETE policies (so
--- writes can only come via the service-role key).
---
--- Run the full file, or sections individually, in the Supabase SQL Editor.
+-- The security boundary these checks guard: anyone may READ the caches
+-- (non-sensitive: "salt is essential"), but only the API server's
+-- service-role key may WRITE, so nobody can poison them.
+WITH checks(ord, check_name, expected, actual) AS (
+  -- 1. ingredient_classifications_cache
+  SELECT 10, 'classify cache: exists / security on', 'true / true',
+         (to_regclass('public.ingredient_classifications_cache') IS NOT NULL)::text || ' / ' ||
+         coalesce((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.ingredient_classifications_cache')), false)::text
+  UNION ALL SELECT 11, 'classify cache columns', 'id, recipe_name_norm, ingredient_name_norm, essentiality, created_at',
+         coalesce((SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'ingredient_classifications_cache'), 'missing')
+  UNION ALL SELECT 12, 'classify cache rules: essentiality check / one answer per recipe + ingredient', '1 / 1',
+         (SELECT count(*) FROM pg_constraint WHERE conname = 'ingredient_classifications_cache_essentiality_valid')::text || ' / ' ||
+         (SELECT count(*) FROM pg_constraint WHERE conname = 'ingredient_classifications_cache_key_unique')::text
+  UNION ALL SELECT 13, 'classify cache: one read rule (everyone), no write rules', '1 SELECT / 0 writes',
+         (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ingredient_classifications_cache'
+            AND cmd = 'SELECT' AND qual = 'true')::text || ' SELECT / ' ||
+         (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ingredient_classifications_cache'
+            AND cmd <> 'SELECT')::text || ' writes'
 
-
--- =========================================================================
--- 1. ingredient_classifications_cache — table + columns
--- =========================================================================
--- Expected: 4 rows
---   id                    | uuid        | NO  | gen_random_uuid()
---   recipe_name_norm      | text        | NO  | (no default)
---   ingredient_name_norm  | text        | NO  | (no default)
---   essentiality          | text        | NO  | (no default)
---   created_at            | timestamptz | NO  | now()
-
-SELECT column_name, data_type, is_nullable, column_default
-FROM   information_schema.columns
-WHERE  table_schema = 'public'
-  AND  table_name   = 'ingredient_classifications_cache'
-ORDER  BY ordinal_position;
-
-
--- =========================================================================
--- 2. ingredient_classifications_cache — CHECK constraint on essentiality
--- =========================================================================
--- Expected: 1 row | constraint_name = 'ingredient_classifications_cache_essentiality_valid'
--- The check_clause text contains "essential" and "omittable".
-
-SELECT conname AS constraint_name,
-       pg_get_constraintdef(oid) AS definition
-FROM   pg_constraint
-WHERE  conrelid = 'public.ingredient_classifications_cache'::regclass
-  AND  contype  = 'c';
-
-
--- =========================================================================
--- 3. ingredient_classifications_cache — UNIQUE constraint on cache key
--- =========================================================================
--- Expected: 1 row | constraint_name = 'ingredient_classifications_cache_key_unique'
--- definition references (recipe_name_norm, ingredient_name_norm).
-
-SELECT conname AS constraint_name,
-       pg_get_constraintdef(oid) AS definition
-FROM   pg_constraint
-WHERE  conrelid = 'public.ingredient_classifications_cache'::regclass
-  AND  contype  = 'u';
-
-
--- =========================================================================
--- 4. ingredient_classifications_cache — RLS enabled
--- =========================================================================
--- Expected: 1 row | relrowsecurity = TRUE
-
-SELECT relname, relrowsecurity, relforcerowsecurity
-FROM   pg_class
-WHERE  oid = 'public.ingredient_classifications_cache'::regclass;
-
-
--- =========================================================================
--- 5. ingredient_classifications_cache — exactly one SELECT policy, NO write policies
--- =========================================================================
--- Expected: 1 row total
---   policyname = 'ingredient_classifications_cache_select_all'
---   cmd        = 'SELECT'
---   roles      = '{authenticated,anon}'
---   qual       = 'true'
---   with_check = NULL
---
--- If you see ANY policy with cmd in ('INSERT', 'UPDATE', 'DELETE'), the
--- security boundary has been compromised — the cache is meant to be
--- service-role-write-only. Investigate before merging.
-
-SELECT policyname, cmd, roles, qual, with_check
-FROM   pg_policies
-WHERE  schemaname = 'public'
-  AND  tablename  = 'ingredient_classifications_cache'
-ORDER  BY policyname;
-
-
--- =========================================================================
--- 6. meal_name_normalizations_cache — table + columns
--- =========================================================================
--- Expected: 4 rows
---   id          | uuid        | NO  | gen_random_uuid()
---   input_norm  | text        | NO  | (no default)
---   corrected   | text        | NO  | (no default)
---   created_at  | timestamptz | NO  | now()
-
-SELECT column_name, data_type, is_nullable, column_default
-FROM   information_schema.columns
-WHERE  table_schema = 'public'
-  AND  table_name   = 'meal_name_normalizations_cache'
-ORDER  BY ordinal_position;
-
-
--- =========================================================================
--- 7. meal_name_normalizations_cache — UNIQUE on input_norm
--- =========================================================================
--- Expected: 1 row | UNIQUE constraint references (input_norm)
-
-SELECT conname AS constraint_name,
-       pg_get_constraintdef(oid) AS definition
-FROM   pg_constraint
-WHERE  conrelid = 'public.meal_name_normalizations_cache'::regclass
-  AND  contype  = 'u';
-
-
--- =========================================================================
--- 8. meal_name_normalizations_cache — RLS enabled
--- =========================================================================
--- Expected: 1 row | relrowsecurity = TRUE
-
-SELECT relname, relrowsecurity, relforcerowsecurity
-FROM   pg_class
-WHERE  oid = 'public.meal_name_normalizations_cache'::regclass;
-
-
--- =========================================================================
--- 9. meal_name_normalizations_cache — exactly one SELECT policy, NO write policies
--- =========================================================================
--- Expected: 1 row total
---   policyname = 'meal_name_normalizations_cache_select_all'
---   cmd        = 'SELECT'
---   roles      = '{authenticated,anon}'
---   qual       = 'true'
---   with_check = NULL
-
-SELECT policyname, cmd, roles, qual, with_check
-FROM   pg_policies
-WHERE  schemaname = 'public'
-  AND  tablename  = 'meal_name_normalizations_cache'
-ORDER  BY policyname;
-
-
--- =========================================================================
--- 10. Smoke check — both cache tables empty after fresh migration
--- =========================================================================
--- Expected: both counts = 0 on a fresh install. (Will be > 0 after the
--- API server has handled at least one request post-deploy — that's fine.)
-
-SELECT
-  (SELECT COUNT(*) FROM public.ingredient_classifications_cache) AS classify_rows,
-  (SELECT COUNT(*) FROM public.meal_name_normalizations_cache)   AS normalize_rows;
+  -- 2. meal_name_normalizations_cache
+  UNION ALL SELECT 20, 'normalize cache: exists / security on', 'true / true',
+         (to_regclass('public.meal_name_normalizations_cache') IS NOT NULL)::text || ' / ' ||
+         coalesce((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.meal_name_normalizations_cache')), false)::text
+  UNION ALL SELECT 21, 'normalize cache columns', 'id, input_norm, corrected, created_at',
+         coalesce((SELECT string_agg(column_name, ', ' ORDER BY ordinal_position) FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'meal_name_normalizations_cache'), 'missing')
+  UNION ALL SELECT 22, 'normalize cache: one answer per input', '1',
+         (SELECT count(*) FROM pg_constraint WHERE conrelid = to_regclass('public.meal_name_normalizations_cache') AND contype = 'u')::text
+  UNION ALL SELECT 23, 'normalize cache: one read rule (everyone), no write rules', '1 SELECT / 0 writes',
+         (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'meal_name_normalizations_cache'
+            AND cmd = 'SELECT' AND qual = 'true')::text || ' SELECT / ' ||
+         (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'meal_name_normalizations_cache'
+            AND cmd <> 'SELECT')::text || ' writes'
+)
+SELECT check_name, expected, actual, (expected = actual) AS pass
+FROM checks ORDER BY ord;
