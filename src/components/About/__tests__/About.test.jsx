@@ -8,9 +8,9 @@ vi.mock('../../../lib/preferences', () => ({
   getPreferences: vi.fn(),
   upsertPreferences: vi.fn(),
 }))
-vi.mock('../../../lib/mealPlanItems', () => ({
-  getActivePeriodItems: vi.fn(),
-  deleteMealPlanItems: vi.fn(),
+vi.mock('../../../lib/plannedMeals', () => ({
+  loadUpcomingMeals: vi.fn(),
+  removeMeals: vi.fn(),
 }))
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }))
 vi.mock('../../../hooks/useHaptics', () => ({
@@ -19,7 +19,7 @@ vi.mock('../../../hooks/useHaptics', () => ({
 
 import Preferences from '../../Preferences/index'
 import { getPreferences } from '../../../lib/preferences'
-import { getActivePeriodItems } from '../../../lib/mealPlanItems'
+import { loadUpcomingMeals } from '../../../lib/plannedMeals'
 
 const USER_ID = '00000000-0000-4000-8000-000000000001'
 const EMPTY_PREFS = {
@@ -36,7 +36,7 @@ const EMPTY_PREFS = {
 beforeEach(() => {
   vi.resetAllMocks()
   getPreferences.mockResolvedValue({ ...EMPTY_PREFS })
-  getActivePeriodItems.mockResolvedValue([])
+  loadUpcomingMeals.mockResolvedValue([])
 })
 
 // ── About screen ────────────────────────────────────────────────────────────

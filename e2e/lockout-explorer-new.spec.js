@@ -1,4 +1,3 @@
-/* global process */
 import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -8,20 +7,19 @@ import {
 
 /**
  * Lockout explorer, NEW Prep Table (PRD-008 2c). The 2026-11-01 explorer
- * (lockout-explorer.spec.js) found four ways the old period-based screens
+ * (lockout-explorer.spec.js, retired with the old screens in phase 4) found four ways the old period-based screens
  * locked her out of planning (docs/research/2026-11-01-prep-table-lockout.md).
  * This walks the same situations through the new week screens, across
  * simulated days, against the same stateful fake database — and ASSERTS that
  * none of the four comes back. A screenshot per step goes to
  * e2e-results/lockout-new/<scenario>/.
  *
- * Run it with the switch on:
- *   VITE_NEW_PREP_TABLE=true npx playwright test e2e/lockout-explorer-new.spec.js
+ * Run it:
+ *   npx playwright test e2e/lockout-explorer-new.spec.js
  *
  * Simulated calendar: Sunday 2026-11-01 is "week 1".
  */
 
-test.skip(process.env.VITE_NEW_PREP_TABLE !== 'true', 'needs VITE_NEW_PREP_TABLE=true')
 
 const OUT = path.join('e2e-results', 'lockout-new')
 const SUN = '2026-11-01'

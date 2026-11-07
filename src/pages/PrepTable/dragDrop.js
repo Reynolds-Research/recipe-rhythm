@@ -13,7 +13,7 @@
  *     not on a card                     → join that day at the end
  *     (no single meal to swap with; drop on a card to swap)
  *
- * Sensors copied from the old Prep Table (useBrainstorm.js) so it feels the
+ * Sensors copied from the old Prep Table (retired in phase 4) so it feels the
  * same: mouse after 8px of movement (a click is still a click), touch after a
  * ~¼-second press-and-hold (a swipe still scrolls). Keyboard too: focus a meal,
  * Space to pick it up, arrow keys, Space to drop (the "Move" button is the
