@@ -6,6 +6,16 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-07 (night) — 3c handoff test; Phase 2 ticked
+
+**Done:** #237 merged (3b). This PR, `test/prd-008-handoff-e2e`: `e2e/handoff-two-accounts.spec.js` — two browser contexts on one fake database, signed in as her and Matt: she hands Tuesday over → he sees "Your night · Pick something" and keeps the ready suggestion → she sees "Matt picked this" and confirms → the grocery request holds her Monday and his Tuesday, the list is saved. Plus: Confirm before he picks ("Wait for Matt"), and taking a night back. The fake (`e2e/support/fakeSupabase.js`) now serves two accounts and the planned_meals → vault join. Ticked: Phase 2 (2a, 2b, 2b-3, 2c), 3b. STATUS updated.
+
+**Verified:** handoff spec 3/3, lockout explorer + grocery touch with the switch on (11/11 together); full Playwright run without the switch 9 passed / 13 skipped (need the switch); Vitest unchanged.
+
+**Next (Matt away ~2 weeks):** the missing `ingredient_classifications_cache` table on prod; Phase 4 (retire the old flow) code; Vite advisory; email out of the public repo. 3c's two-phone week when Matt is back.
+
+---
+
 ## 2026-11-07 (late) — Phase 3 (Matt's nights): decisions, mockup, 3a data
 
 **Done:** plan + Matt's decisions (new nights table; his nights left out of "Suggest the empty days"; a "Your name" field in Settings; mockup first). Mockup "Matt's Nights Mockup" (her week with a night handed over, his "pick something", Confirm with his night empty, Settings name). 3a on `feat/prd-008-cook-nights-data` (stacked on #235): migration `20261108000001` (`cook_nights`, `household_members.display_name`, `rr_set_my_display_name()`), verify, rollback, `rehearsal/07_cook_nights_checks.sql`. Closed by Matt: "don't round a clean pound up" (already fixed) and the brand-orange contrast item (orange stays).
