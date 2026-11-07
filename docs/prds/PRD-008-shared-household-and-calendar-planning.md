@@ -1,6 +1,6 @@
 # PRD-008: Shared Household & Calendar Planning
 
-**Status:** Draft v0.8
+**Status:** Draft v1.0
 **Author:** Matt (with Cowork)
 **Date:** 2026-11-01
 **North Star criteria moved:** "The plan doesn't stall on Matt" and "She plans in the app"
@@ -189,6 +189,15 @@ into the SQL Editor is the only place they appear.
   changed the week again meanwhile.)
 - **P0.5 Matt's nights.** Assign a day; "pick something" state; suggestions that exclude
   the week's meals and penalize same-cuisine / same-protein picks.
+  (Phase 3 plan, 2026-11-07 — CONFIRMED by Matt: a night is stored in its own table, `cook_nights`
+  (one row per household + date: cook, who handed it over, when), not as a placeholder meal — she
+  usually hands a night over before there is any meal. "Suggest the empty days" leaves his nights for
+  him (OQ2). Each person's name comes from a "Your name" field in Settings
+  (`household_members.display_name`, changed only through `rr_set_my_display_name()`); until it's
+  set, the other person's nights read "Partner's night". Mockup "Matt's Nights Mockup" before the
+  screens. INFERRED: taking a night back deletes its row; handing it to someone else restarts
+  `assigned_at`, which with the first meal on that date measures "filled within 2 days"; meals keep
+  `assigned_to` unused for now.)
 - **P0.6 Grocery list per confirmed week**, with "changed since confirmed → update".
 - **P0.7 Retire the old flow:** periods, the gap-day screen, lock-in, period review, the
   leftovers picker, plan drafts, the overlap constraint. Remove their code and tests.
@@ -212,8 +221,8 @@ into the SQL Editor is the only place they appear.
 
 ## 8. Open questions
 - ~~**OQ1 — Her week shape.**~~ Answered 2026-11-01: Sun–Thu, Fri/Sat when needed (D8).
-- **OQ2 — Should ✨ suggest fill Matt's nights too, or leave them for him?** (Non-blocking;
-  proposed: leave them.)
+- ~~**OQ2 — Should ✨ suggest fill Matt's nights too, or leave them for him?**~~ Answered
+  2026-11-07: leave them (Matt).
 - **OQ3 — Should meals she logs in the meal log mark the planned meal "cooked"
   automatically?** (Non-blocking; proposed: yes, matched by date and name. Note the log
   has barely been used — 1 entry — so this is low priority.)
@@ -249,6 +258,7 @@ Each phase is one or more sessions; the whole spec is several weeks of work.
 - **Manual:** two phones, two accounts, one real week.
 
 ## Revision history
+- **v1.0 (2026-11-07):** phase 3 plan under P0.5 (nights table, names, OQ2 answered).
 - **v0.9 (2026-11-06):** 2c build notes (switch-over) under P0.6.
 - **v0.8 (2026-11-04):** 2b-3 build notes (Confirm the week + groceries) under P0.4 / P0.6.
 - **v0.7 (2026-11-02):** 2b-1 build notes under P0.4 (switch = `VITE_NEW_PREP_TABLE`; how the days are

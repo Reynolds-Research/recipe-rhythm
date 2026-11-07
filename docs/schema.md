@@ -62,7 +62,11 @@ The household owns the kitchen; `user_id` on a kitchen row means "who added it" 
   `00000000-0000-4000-8000-000000000000` = "Unowned legacy rows" (no members; holds rows with no or a
   deleted owner — 34 vault rows (18 with no owner, 16 whose account was deleted) + 27 meals on prod, 2026-11-01).
 - **`public.household_members`** — `(household_id, user_id)` PK, **`UNIQUE (user_id)`: one household per
-  account**, `joined_at`. Members can read their household and its member list; no client writes.
+  account**, `joined_at`, **`display_name text`** (added 2026-11-08, phase 3a: the name the other member sees,
+  e.g. "Matt's night"; 1–30 characters, trimmed, or NULL; CHECK `household_members_display_name_valid`).
+  Members can read their household and its member list; no client writes — a name is changed only through
+  `rr_set_my_display_name(text)` (SECURITY DEFINER, `search_path = ''`, authenticated only), which updates the
+  caller's own row; blank clears it.
 - **`household_id uuid NOT NULL DEFAULT public.current_household_id()`** + FK + index on all eight
   kitchen tables. The default means inserts that leave it out land in the caller's household.
 - Per-household uniqueness: `household_preferences` PK `(household_id)`; `vault_options` PK
@@ -365,6 +369,18 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 
 **Function (2b-1):** `rr_valid_week_days(smallint[], integer)` — IMMUTABLE, `search_path = ''`. True when the list is one-dimensional, has between `p_min` and 7 entries, each 0–6, no nulls, no repeats. Used by both CHECKs.
 
+### `public.cook_nights` (PRD-008 phase 3a)
+**Added 2026-11-08** via [migration](../supabase/migrations/20261108000001_cook_nights.sql). Whose night a date is ("Matt's night", P0.5). Separate from the meals on that date: a night is usually handed over before there is a meal. No row = an ordinary night; taking a night back deletes the row. Kitchen table: household-owned, the four membership rules (insert also checks `user_id = auth.uid()`), no anon access.
+
+| Column | Type | Notes |
+|---|---|---|
+| `household_id` | `uuid` NOT NULL | Default `current_household_id()`. FK `households` `ON DELETE CASCADE`. PK part 1. |
+| `cooks_on` | `date` NOT NULL | The night. PK part 2: one cook per date. |
+| `cook_id` | `uuid` NOT NULL | Whose night. FK `auth.users` `ON DELETE CASCADE`. Must be a member of the household: trigger `cook_nights_cook_is_member` → `rr_cook_is_member()` (also stops admin inserts). |
+| `user_id` | `uuid` nullable | Who handed it over. Default `auth.uid()`, FK `auth.users` `ON DELETE SET NULL`. |
+| `assigned_at` | `timestamptz` NOT NULL | When it was handed over (default `now()`). Restarted by `cook_nights_reassigned` → `rr_cook_nights_reassigned()` when `cook_id` changes. With the first meal's `created_at` on that date it measures "nights filled within 2 days" (P1.1). |
+| `created_at`, `updated_at` | `timestamptz` NOT NULL | `updated_at` maintained by `cook_nights_set_updated_at` (`rr_set_updated_at()`). |
+
 ## Views
 
 ### `public.current_leftovers`
@@ -450,6 +466,7 @@ The repo's source-of-truth for schema changes is [`supabase/migrations/`](../sup
 | [`20261105000001_vault_ingredients_source.sql`](../supabase/migrations/20261105000001_vault_ingredients_source.sql) | 2026-11-05 (rehearsed on preview; prod pending) | Recipe ingredients: adds `vault.ingredients_source` (`text` nullable, `'screenshot'` / `'estimated'`, CHECK `vault_ingredients_source_valid`). Additive; no existing row changes; vault RLS covers it. Verify: `verify_20261105000001.sql`. Undo: `rollback_20261105000001.sql`. |
 | [`20261105000002_grocery_items_shop_amounts.sql`](../supabase/migrations/20261105000002_grocery_items_shop_amounts.sql) | 2026-11-05 (rehearsed on preview; prod pending) | Grocery list shop amounts: adds `grocery_list_items.recipe_quantity` (`text` nullable) and `assumed` (`boolean` NOT NULL default `false`). Additive; existing rows show as before; item RLS covers both. Verify: `verify_20261105000002.sql`. Undo: `rollback_20261105000002.sql`. |
 | [`20261107000001_vault_ingredients_source_page.sql`](../supabase/migrations/20261107000001_vault_ingredients_source_page.sql) | 2026-11-07 (rehearsed on preview; prod pending) | Recipes read from their link: `vault_ingredients_source_valid` also allows `'page'`. Constraint only; no row changes. Apply before deploying the app that writes `'page'`. Verify: `verify_20261107000001.sql`. Undo: `rollback_20261107000001.sql` (sets `'page'` labels to `NULL`, lists kept). |
+| [`20261108000001_cook_nights.sql`](../supabase/migrations/20261108000001_cook_nights.sql) | 2026-11-08 (rehearsed on preview 2026-11-07; prod pending) | PRD-008 P0.5 data (phase 3a, Matt's nights): `cook_nights` + membership rules + 3 triggers; `household_members.display_name` + `rr_set_my_display_name()`. Additive; nothing reads it until 3b. Verify: [`verify_20261108000001.sql`](../supabase/migrations/verify_20261108000001.sql) (13 checks). Write checks: [`rehearsal/07_cook_nights_checks.sql`](../supabase/rehearsal/07_cook_nights_checks.sql) (19 scenarios, preview only). Undo: [`rollback_20261108000001.sql`](../supabase/migrations/rollback_20261108000001.sql). |
 | [`supabase/rehearsal/04_calendar_checks.sql`](../supabase/rehearsal/04_calendar_checks.sql), [`fingerprint_public.sql`](../supabase/rehearsal/fingerprint_public.sql) | 2026-11-02 | Preview-only: 27 scenarios (who can write, "changed since confirmed", re-running the copy) all undone; whole-`public` schema + data fingerprint for before/after-rollback comparison. |
 
 ## Related audit items + ADRs
