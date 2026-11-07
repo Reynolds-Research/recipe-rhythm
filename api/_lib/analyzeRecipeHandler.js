@@ -148,7 +148,8 @@ export function createAnalyzeRecipeHandler({
     if (readPage === true && url && images.length === 0) {
       try {
         const found = await readRecipePage(String(url))
-        page = found.kind ? { read: true, kind: found.kind, servings: found.servings ?? null, text: found.text }
+        // The page's text is data: it can't close the quotes it sits in.
+        page = found.kind ? { read: true, kind: found.kind, text: String(found.text).replace(/"{3,}/g, '"') }
           : { read: false, reason: found.reason }
       } catch (err) {
         console.error(`[api] ${tag} page read failed:`, err?.message || err)

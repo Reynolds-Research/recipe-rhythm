@@ -31,6 +31,8 @@ vi.mock('../../../lib/supabase', () => {
     c.then = (res) => Promise.resolve({ data: [], error: null }).then(res)
     c.insert = insert
     c.update = (p) => { update(table, p); return c }
+    c.or = (f) => { update(table, { or: f }); return c }
+    c.maybeSingle = () => Promise.resolve({ data: rows.reExtractSaved === false ? null : { id: 'r1' }, error: null })
     return c
   }
   return { supabase: { from: vi.fn(chain) } }
@@ -40,7 +42,7 @@ import * as ri from '../../../lib/recipeIngredients'
 import { analyzeRecipe } from '../../../lib/analyzeRecipe'
 import RecipeForm from '../RecipeForm'
 import RecipeSource from '../RecipeSource'
-import { screenshotMessage, cleanLink, linkMessage } from '../recipeSourceHelpers'
+import { screenshotMessage, cleanLink, linkMessage, saveLinkThenRead } from '../recipeSourceHelpers'
 import { useVault } from '../useVault'
 
 const LIST = [
@@ -275,6 +277,30 @@ describe('Changing tags never replaces a screenshot list; screenshots replace an
     expect(analyzeRecipe).not.toHaveBeenCalled()
   })
 
+  it('re-extract skips a list read from the recipe page too (no AI call)', async () => {
+    rows.vault = [{ ...SHOT_RECIPE, ingredients_source: 'page' }]
+    const { result } = renderHook(() => useVault('u1'))
+    await waitFor(() => expect(result.current.recipes).toHaveLength(1))
+    let out
+    await act(async () => { out = await result.current.reExtractIngredients('r1', { main_carb: 'Rice' }) })
+    expect(out).toBeNull()
+    expect(analyzeRecipe).not.toHaveBeenCalled()
+  })
+
+  it('re-extract is guarded in the database: a page or screenshot list saved meanwhile wins', async () => {
+    rows.vault = [{ ...SHOT_RECIPE, ingredients_source: 'estimated' }]
+    rows.reExtractSaved = false // the row became 'page' since we read it
+    analyzeRecipe.mockResolvedValueOnce({ ingredients_structured: LIST, ingredients_classified: [] })
+    const { result } = renderHook(() => useVault('u1'))
+    await waitFor(() => expect(result.current.recipes).toHaveLength(1))
+    let out
+    await act(async () => { out = await result.current.reExtractIngredients('r1', { main_carb: 'Rice' }) })
+    expect(update).toHaveBeenCalledWith('vault', { or: 'ingredients_source.is.null,ingredients_source.eq.estimated' })
+    expect(out).toBeNull()
+    expect(result.current.recipes[0].ingredients_source).toBe('estimated') // screen not overwritten
+    delete rows.reExtractSaved
+  })
+
   it('readRecipeScreenshots reads the files and updates the recipe on screen', async () => {
     rows.vault = [{ ...SHOT_RECIPE, ingredients_source: 'estimated' }]
     const saved = { ingredients_structured: LIST, ingredients_classified: null, servings: 2, ingredients_source: 'screenshot' }
@@ -424,5 +450,19 @@ describe('useVault.readRecipeLink', () => {
     const [, , recipe, opts] = ri.fillRecipeIngredients.mock.calls[0]
     expect(recipe).toMatchObject({ recipe_url: 'https://broccyourbody.com/x/', ingredients_source: 'estimated' })
     expect(opts).toEqual({ pageOnly: true })
+  })
+})
+
+describe('saving a link on a card, then reading it', () => {
+  it('reads the new link once the save worked; removing a link reads nothing; a failed save reads nothing', async () => {
+    const read = vi.fn(async () => {})
+    const save = vi.fn(async () => ({ ok: true }))
+    expect(await saveLinkThenRead('r1', 'https://x.example/r', { save, read })).toEqual({ ok: true })
+    expect(read).toHaveBeenCalledWith('r1', { newLink: true, url: 'https://x.example/r' })
+    read.mockClear()
+    await saveLinkThenRead('r1', null, { save, read })
+    expect(read).not.toHaveBeenCalled()
+    await saveLinkThenRead('r1', 'https://x.example/r', { save: async () => ({ ok: false }), read })
+    expect(read).not.toHaveBeenCalled()
   })
 })

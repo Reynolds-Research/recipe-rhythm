@@ -4,7 +4,7 @@ import Logo from '../../components/Logo'
 import { useHaptics } from '../../hooks/useHaptics'
 import RecipeForm from './RecipeForm'
 import RecipeCard from './RecipeCard'
-import { linkMessage, screenshotMessage } from './recipeSourceHelpers'
+import { linkMessage, saveLinkThenRead, screenshotMessage } from './recipeSourceHelpers'
 import { useVault } from './useVault'
 import { chipsRequireReExtraction } from '../../lib/chipDiff'
 import SkeletonRecipeCard from '../../components/SkeletonRecipeCard'
@@ -110,11 +110,8 @@ export default function Vault({ userId }) {
     setScreenshotStatus(message ? { recipeId, ...message } : null)
   }
 
-  const handleSaveLink = async (recipeId, url) => {
-    const saved = await setRecipeLink(recipeId, url)
-    if (saved?.ok && url) await handleReadLink(recipeId, { newLink: true, url })
-    return saved
-  }
+  const handleSaveLink = (recipeId, url) =>
+    saveLinkThenRead(recipeId, url, { save: setRecipeLink, read: handleReadLink })
 
   const handleDelete = async (id) => {
     trigger('medium')

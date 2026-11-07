@@ -433,15 +433,20 @@ export function useVault(userId) {
       update.ingredients_classified = merged.length > 0 ? merged : null
     }
 
+    // Guarded in the database too: a page or screenshot list saved since we
+    // read the recipe (e.g. the background page read after a save) wins, and
+    // this estimate writes nothing.
     const { data, error } = await supabase
       .from('vault')
       .update(update)
       .eq('id', recipeId)
       .eq('household_id', await getHouseholdId(supabase, userId))
+      .or('ingredients_source.is.null,ingredients_source.eq.estimated')
       .select()
-      .single()
+      .maybeSingle()
 
     if (error) throw new Error(`re-extract DB write failed: ${error.message}`)
+    if (!data) return null
 
     setRecipes(prev => prev.map(r => r.id === recipeId ? { ...r, ...update } : r))
     return data

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  checkPublicUrl, fetchPage, isPrivateAddress, readRecipePage, recipeFromBlock, recipeFromText,
+  checkPublicUrl, fetchPage, isPrivateAddress, makeCheckedLookup, readRecipePage, recipeFromBlock, recipeFromText,
   servingsFromYield, MAX_TEXT_CHARS,
 } from '../../../api/_lib/recipePage.js'
 
@@ -33,6 +33,25 @@ describe('which addresses may be opened', () => {
     for (const ip of ['127.0.0.1', '10.0.0.5', '172.20.1.1', '192.168.1.10', '169.254.169.254', '100.64.0.1', '0.0.0.0',
       '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1']) expect(isPrivateAddress(ip), ip).toBe(true)
     for (const ip of ['93.184.216.34', '8.8.8.8', '2606:4700::1']) expect(isPrivateAddress(ip), ip).toBe(false)
+  })
+
+  it('judged on the numbers, not the spelling (reviewer, 2026-11-07): hex-mapped, compat, NAT64, 6to4, Teredo', async () => {
+    for (const ip of ['::ffff:7f00:1', '::ffff:a9fe:a9fe', '::7f00:1', '::127.0.0.1', '64:ff9b::7f00:1',
+      '2002:7f00:1::', '2001::1', '2001:db8::1', 'ff02::1']) expect(isPrivateAddress(ip), ip).toBe(true)
+    expect(isPrivateAddress('::ffff:5db8:d822')).toBe(false) // 93.184.216.34, mapped
+    for (const u of ['http://[::ffff:127.0.0.1]/', 'http://[::ffff:169.254.169.254]/', 'http://[::127.0.0.1]/',
+      'http://[64:ff9b::7f00:1]/', 'http://[2002:7f00:1::]/']) {
+      expect(await checkPublicUrl(u, { lookup: publicLookup }), u).toBeNull()
+    }
+  })
+
+  it('the connection itself refuses a private answer (a DNS answer that changes after the check)', async () => {
+    const answers = { 'rebind.example': [{ address: '127.0.0.1', family: 4 }], 'ok.example': [{ address: '93.184.216.34', family: 4 }] }
+    const lookup = makeCheckedLookup((host, _opts, cb) => cb(null, answers[host]))
+    const call = (host, opts) => new Promise((resolve) => lookup(host, opts, (err, a, f) => resolve({ err, a, f })))
+    expect((await call('rebind.example', {})).err.code).toBe('EPRIVATE')
+    expect(await call('ok.example', {})).toEqual({ err: null, a: '93.184.216.34', f: 4 })
+    expect((await call('ok.example', { all: true })).a).toEqual(answers['ok.example'])
   })
 
   it('only public http(s) web addresses on normal ports', async () => {
@@ -82,6 +101,7 @@ describe('finding the recipe in a page', () => {
     expect(r.servings).toBe(4)
     expect(r.text).toContain('Recipe: Chicken Piccata')
     expect(r.text).toContain('- 3 tablespoons capers & brine')
+    expect(r.text).toContain('Yield: 4 / 4 servings') // the AI reads servings from this line
   })
 
   it('plain text: keeps the ingredient list, not the story, the scripts or the comments', () => {
@@ -92,6 +112,11 @@ describe('finding the recipe in a page', () => {
     expect(r.text).not.toContain('Paragraph 3:')
     expect(r.text).not.toContain('1 cup sugar')
     expect(r.text.length).toBeLessThanOrEqual(MAX_TEXT_CHARS)
+  })
+
+  it('an absurd character code in a page is left as is (no crash)', () => {
+    const page = BLOCK_PAGE.replace('2 large chicken breasts', '2 large chicken breasts &#99999999;')
+    expect(recipeFromBlock(page).text).toContain('&#99999999;')
   })
 
   it('a page with no ingredient list finds nothing', () => {
