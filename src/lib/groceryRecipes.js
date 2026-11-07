@@ -124,8 +124,11 @@ export function groceryPrefs(prefs) {
  * is only her screenshots; "From the recipe page" joins when links are read.
  * Anything else is the AI's guess from the recipe's name and tags: lists marked
  * 'estimated', the May 2026 backfill's lists (no source; the script sent the
- * name only), and recipes with no list at all. Same rule as the Cookbook card's
- * "Amounts estimated" (src/pages/Vault/RecipeSource.jsx).
+ * name only), and recipes with no list at all. Matches the Cookbook card's
+ * "Amounts estimated" (src/pages/Vault/RecipeSource.jsx) for every recipe with
+ * a list; one edge differs: a 'screenshot' recipe with no list is not named
+ * here (it adds nothing to the list; the card says "No amounts saved yet").
+ * When links are read ("From the recipe page"), add that source here.
  */
 export const EXACT_SOURCES = ['screenshot']
 
