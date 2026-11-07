@@ -62,6 +62,18 @@ describe('GrocerySheet — shop amounts', () => {
 })
 
 describe('GrocerySheet — Assumed you have', () => {
+  it('shows one added-up amount when a saved list still says "+" (Nov 8 list)', async () => {
+    const user = userEvent.setup()
+    renderSheet({ items: [
+      { id: 'cp', name: 'chili powder', quantity: '1 container', recipe_quantity: '1 tbsp + 1 tsp', section: 'Pantry', assumed: true },
+      { id: 'on', name: 'onion', quantity: '2', recipe_quantity: '1 yellow onion + ½ small onion', section: 'Produce', assumed: false },
+    ] })
+    expect(screen.getByText('Recipes use 1½')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Assumed you have/ }))
+    expect(screen.getByText('4 tsp')).toBeInTheDocument()
+    expect(screen.queryByText(/\+/)).not.toBeInTheDocument()
+  })
+
   it('is one collapsed line naming a few items', () => {
     renderSheet()
     const group = screen.getByRole('region', { name: 'Assumed you have' })

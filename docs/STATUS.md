@@ -4,7 +4,7 @@
 >
 > Planning happens in Claude Cowork (Claude Desktop). Execution happens in Claude Code. This file is the bridge between the two surfaces.
 
-**Last verified:** 2026-11-06 against `main` (`3bfa868`) + prod (read-only) — grocery list shop amounts + "Assumed you have" shipped (#225, #226; migration `20261105000002` on prod), never scaling recipes down. Previous: 2026-11-04 (2b-2).
+**Last verified:** 2026-11-07 against `main` (`5b5e138`) + prod (read-only) — recipes read from their links (#233; migration `20261107000001` on prod; 15 of her 22 linked recipes now from the page, 7 sites refuse), and the grocery list adds amounts instead of showing "+" (this PR). Previous: 2026-11-06 (shop amounts + "Assumed you have", #225, #226).
 **Maintained by:** whoever ships a PRD phase (Claude Code) — see "How this file is maintained" at the bottom.
 
 > **📍 Roadmap:** Near-term sequencing of what to do *next* lives in [`docs/ROADMAP.md`](./ROADMAP.md) (created 2026-06-16, stability-first, ~3 sprints). This file (STATUS.md) remains the source of truth for what has *shipped*.

@@ -20,7 +20,7 @@
  * writing the result to the grocery_lists / grocery_list_items tables.
  */
 import { GROCERY_SECTIONS } from './constants.js'
-import { friendlyAmount } from './groceryAmounts.js'
+import { addUpAmount, friendlyAmount } from './groceryAmounts.js'
 
 const MODEL = 'claude-haiku-4-5-20251001'
 
@@ -75,7 +75,7 @@ Instructions:
 1. When an ingredient is given with a quantity (e.g. "olive oil: 2 tbsp"), use that quantity as the baseline for scaling — do NOT re-estimate. When an ingredient is given without a quantity (e.g. just "olive oil"), estimate a reasonable amount for the recipe's yield first. Then multiply by that recipe's number. Use exactly the number given; never compute your own.
 2. Consolidate identical or near-identical ingredients across recipes into a single line item AFTER scaling. If olive oil appears in three recipes, it must appear ONCE in the output, with quantities summed. Words for size, freshness or prep (small, large, medium, fresh, chopped, diced, uncooked) never make a different item: "small onion" and "yellow onion" are ONE line ("onion", amounts summed), as are "fresh ginger" and "ginger". Only a different variety stays apart (red onion vs. yellow onion; paprika vs. smoked paprika).
 3. Give TWO amounts per item, as free-text strings. Write fractions as ½ ¼ ¾ ⅓ ⅔ ⅛ — never decimals like 1.125.
-   - "recipe_quantity": the scaled, consolidated total the recipes use (e.g. "1 lb", "2 cups", "1½ tsp"). Counts are plain numbers ("2", "1½") — never the word "whole". Amounts under ¼ cup go in tbsp or tsp ("3 tbsp", not "3/16 cup"); never sixteenths.
+   - "recipe_quantity": the scaled, consolidated total the recipes use (e.g. "1 lb", "2 cups", "1½ tsp"). Counts are plain numbers ("2", "1½") — never the word "whole". Amounts under ¼ cup go in tbsp or tsp ("3 tbsp", not "3/16 cup"); never sixteenths. Always do the addition and give ONE total: "2 tsp", never "1½ tsp + ½ tsp"; "4 tsp", never "1 tbsp + 1 tsp".
    - "quantity": what to BUY at a US grocery store, rounded UP to how the item is sold: whole produce as a count ("2", not "1½ avocados"), herbs and green onions by the bunch, cabbage or lettuce by the head, leafy greens by the bag with a typical size ("1 bag (5 oz)"), meat and fish by weight to the next ¼ lb ("1¼ lb") — when a recipe counts pieces (4 salmon fillets, 2 chicken breasts), count about 6 oz per piece (4 fillets → "1½ lb"), tortillas and bread by the pack or loaf, sauces and spices by the container ("1 bottle", "1 jar").
    If you cannot reasonably estimate an amount, use null for it.
 4. Set "assumed" to true ONLY for long-lasting cupboard items most kitchens already keep and that last for months: salt, pepper, dried spices and dried herbs, cooking oils, vinegars, soy sauce and similar bottled sauces or cooking wines (mirin, sake), sugar, honey, flour, baking soda and powder, sesame seeds. Everything else is false — fresh produce and herbs, meat, fish, dairy, eggs, bread, tortillas, pasta, canned goods and anything perishable.
@@ -91,7 +91,8 @@ function amountOrNull(value) {
   if (typeof value !== 'string') return null
   const v = value.trim()
   if (!v || v.toLowerCase() === 'null') return null
-  return friendlyAmount(v)
+  // The AI sometimes writes "1½ tsp + ½ tsp" instead of a total; add it up.
+  return addUpAmount(friendlyAmount(v))
 }
 
 /**
