@@ -12,7 +12,9 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 **Verified:** handoff spec 3/3, lockout explorer + grocery touch with the switch on (11/11 together); full Playwright run without the switch 9 passed / 13 skipped (need the switch); Vitest unchanged.
 
-**Next (Matt away ~2 weeks):** the missing `ingredient_classifications_cache` table on prod; Phase 4 (retire the old flow) code; Vite advisory; email out of the public repo. 3c's two-phone week when Matt is back.
+**Then:** the missing cache table — migration `20260506000003` was never applied to prod; added rollback + one-SELECT verify, rehearsed on preview (8/8, 9/9, fingerprint equal), PR stacked on this one. For Matt: apply when back.
+
+**Next (Matt away ~2 weeks):** Phase 4 (retire the old flow) code; Vite advisory; email out of the public repo. 3c's two-phone week when Matt is back.
 
 ---
 
