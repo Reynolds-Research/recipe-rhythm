@@ -23,7 +23,7 @@ export default function DayChoiceSheet({ meal, dates = [], today, allowMaybe = f
           <div className="px-6 py-2 pb-safe space-y-3" data-testid="day-choice-sheet">
             <div className="flex items-center justify-between">
               <div>
-                <p className="section-heading text-brand-700">Which day?</p>
+                <p className="section-heading text-brand-600">Which day?</p>
                 <p className="text-lg font-semibold text-gray-900">{meal?.name}</p>
               </div>
               <button type="button" onClick={onClose} aria-label="Close" className="btn-icon"><X size={18} /></button>

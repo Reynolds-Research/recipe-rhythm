@@ -42,14 +42,14 @@ export default function MaybeShortlist({
                   className="flex items-center gap-3 py-4"
                   data-testid={`shortlist-item-${item.item_id}`}
                 >
-                  <Bookmark size={16} strokeWidth={2} className="text-brand-700 shrink-0" />
+                  <Bookmark size={16} strokeWidth={2} className="text-brand-600 shrink-0" />
                   <span className="text-base text-gray-900 flex-1 min-w-0 truncate font-medium">
                     {item.name}
                   </span>
                   <button
                     onClick={() => onOpenSheet(item)}
                     aria-label={`Schedule ${item.name}`}
-                    className="shrink-0 text-xs font-bold text-brand-700 bg-brand-50 border border-brand-100 rounded-full px-4 py-3 min-h-[44px] uppercase tracking-wide hover:bg-brand-100 transition-colors"
+                    className="shrink-0 text-xs font-bold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-4 py-3 min-h-[44px] uppercase tracking-wide hover:bg-brand-100 transition-colors"
                   >
                     Schedule
                   </button>
@@ -72,7 +72,7 @@ export default function MaybeShortlist({
           <Sheet.Header />
           <Sheet.Content>
             <div className="px-6 py-2 pb-safe">
-              <p className="section-heading text-brand-700 mb-1">
+              <p className="section-heading text-brand-600 mb-1">
                 Schedule from Maybe
               </p>
               <p className="text-base font-serif italic text-gray-700 mb-6">
@@ -107,7 +107,7 @@ export default function MaybeShortlist({
                       key={d}
                       role="listitem"
                       onClick={() => onSchedule(scheduleSheetItem, d)}
-                      className="w-full text-left py-3 min-h-[44px] text-base text-gray-900 hover:text-brand-700 transition-colors"
+                      className="w-full text-left py-3 min-h-[44px] text-base text-gray-900 hover:text-brand-600 transition-colors"
                     >
                       {shortDateLabel(d)}
                     </button>

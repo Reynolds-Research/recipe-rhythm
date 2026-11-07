@@ -5,7 +5,7 @@ import { GROCERY_SECTIONS } from '../../lib/constants'
 import { showRecipeLine, splitList } from '../../lib/groceryAmounts'
 import { guessNote } from './labels'
 
-const ACTION = 'inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-700 hover:text-brand-800 disabled:opacity-50'
+const ACTION = 'inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700 disabled:opacity-50'
 const QUIET_ACTION = 'inline-flex items-center min-h-[44px] text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50'
 
 /** "avocado" → "Avocado" (display only; the saved name is untouched). */
@@ -275,7 +275,7 @@ export default function GrocerySheet({
 
             {loading && (
               <div className="flex justify-center py-8" role="status" aria-label="Loading the grocery list">
-                <Loader2 className="animate-spin text-brand-700" />
+                <Loader2 className="animate-spin text-brand-600" />
               </div>
             )}
             {!loading && failed && (

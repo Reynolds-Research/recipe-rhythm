@@ -34,7 +34,7 @@ export default function MealNameConfirmSheet({
         <Sheet.Header />
         <Sheet.Content>
           <div className="px-6 pt-2 pb-safe" role="dialog" aria-label="Confirm spelling">
-            <p className="section-heading text-brand-700 mb-3 flex items-center gap-2">
+            <p className="section-heading text-brand-600 mb-3 flex items-center gap-2">
               <Sparkles size={12} />
               Did you mean…?
             </p>
@@ -45,7 +45,7 @@ export default function MealNameConfirmSheet({
                 <p className="text-sm text-gray-500 line-through">{original}</p>
               </div>
               <div className="rounded-2xl border border-brand-200 bg-brand-50/60 p-4">
-                <p className="text-xs font-bold text-brand-700 uppercase tracking-wider mb-1">Suggested</p>
+                <p className="text-xs font-bold text-brand-600 uppercase tracking-wider mb-1">Suggested</p>
                 <p className="text-base font-medium text-gray-900">{corrected}</p>
               </div>
             </div>

@@ -46,7 +46,7 @@ export default function RecipeSearchInput({ value, onChange, placeholder = 'Sear
           type="button"
           onClick={() => onChange('')}
           aria-label="Clear search"
-          className="absolute right-0 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-700 transition-colors"
+          className="absolute right-0 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-600 transition-colors"
         >
           <X size={18} strokeWidth={2.5} />
         </button>

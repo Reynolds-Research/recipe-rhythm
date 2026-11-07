@@ -13,7 +13,7 @@ function line(i) {
 /** "cooking.nytimes.com/…" style label for a saved link. */
 const shortLink = (url) => url.replace(/^https?:\/\/(www\.)?/, '')
 
-const ACTION = 'inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-700 hover:text-brand-800 cursor-pointer'
+const ACTION = 'inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700 cursor-pointer'
 const QUIET = 'min-h-[44px] text-sm font-semibold text-gray-700 hover:text-gray-900 underline'
 
 /**
@@ -90,7 +90,7 @@ export default function RecipeSource({
     </span>
   ) : fromShots && justRead ? null : fromShots ? (
     <div className="flex items-center gap-2 min-h-[44px]">
-      <ScanText size={14} className="text-brand-700 shrink-0" aria-hidden="true" />
+      <ScanText size={14} className="text-brand-600 shrink-0" aria-hidden="true" />
       <span className="flex-1 text-sm text-gray-900">
         {readSummary ?? 'Amounts from your screenshots'}{serves}
       </span>
@@ -118,14 +118,14 @@ export default function RecipeSource({
             autoFocus
             className="input-base flex-1 min-w-0"
           />
-          <button type="button" onClick={saveLink} className="min-h-[44px] text-sm font-semibold text-brand-700">Save</button>
+          <button type="button" onClick={saveLink} className="min-h-[44px] text-sm font-semibold text-brand-600">Save</button>
           <button type="button" onClick={() => setEditing(false)} className="min-h-[44px] text-sm font-semibold text-gray-700">Cancel</button>
         </div>
       ) : link ? (
         <div className="flex items-center gap-2 min-h-[44px]">
-          <ExternalLink size={14} className="text-brand-700 shrink-0" aria-hidden="true" />
+          <ExternalLink size={14} className="text-brand-600 shrink-0" aria-hidden="true" />
           <a href={link} target="_blank" rel="noopener noreferrer"
-            className="flex-1 min-w-0 truncate text-sm font-medium text-brand-700 hover:text-brand-800">
+            className="flex-1 min-w-0 truncate text-sm font-medium text-brand-600 hover:text-brand-700">
             {shortLink(link)}
           </a>
           <button type="button" onClick={startLink} className={QUIET}>Change</button>
@@ -150,7 +150,7 @@ export default function RecipeSource({
           </ul>
           <div className="flex items-center justify-between">
             <span className="helper-text">Saved for your grocery list.</span>
-            <button type="button" onClick={onDismissRead} className="min-h-[44px] text-sm font-semibold text-brand-700">Looks right</button>
+            <button type="button" onClick={onDismissRead} className="min-h-[44px] text-sm font-semibold text-brand-600">Looks right</button>
           </div>
         </div>
       )}

@@ -242,7 +242,7 @@ export default function DateRangePicker({
             if (edge) {
               cls = `${base} bg-brand-500 text-white font-bold`
             } else if (inRange) {
-              cls = `${base} bg-brand-100 ${cell.inMonth ? 'text-brand-700' : 'text-brand-400'} font-semibold`
+              cls = `${base} bg-brand-100 ${cell.inMonth ? 'text-brand-600' : 'text-brand-400'} font-semibold`
             } else if (!cell.inMonth) {
               cls = `${base} text-gray-500`
             } else {

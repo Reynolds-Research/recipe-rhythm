@@ -255,7 +255,7 @@ export default function Vault({ userId }) {
           <div className="w-11 shrink-0" aria-hidden="true" />
           <div className="flex-1 flex flex-col items-center text-center">
             <Logo className="w-8 h-8 mb-2" />
-            <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
+            <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
             <p className="text-lg text-gray-900 mt-1 font-serif italic">
               {searching && `${visibleRecipes.length} of `}
               {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}
@@ -394,7 +394,7 @@ export default function Vault({ userId }) {
                     className="chip disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {addingSuggestion === name
-                      ? <Loader2 size={14} className="animate-spin text-brand-700" />
+                      ? <Loader2 size={14} className="animate-spin text-brand-600" />
                       : <BookmarkPlus size={14} className="text-gray-700" />
                     }
                     {name}

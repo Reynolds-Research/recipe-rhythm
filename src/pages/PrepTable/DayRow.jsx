@@ -68,7 +68,7 @@ function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, on
         {isPast && !meal.cooked && <span className="block text-xs text-gray-700">Not cooked</span>}
       </span>
       <button type="button" onClick={() => onMove(meal)} disabled={busy} aria-label={`Move ${meal.name}`}
-        className="w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-700">
+        className="w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-600">
         <ArrowRightLeft size={16} />
       </button>
       <button type="button" onClick={() => onRemove(meal)} disabled={busy} aria-label={`Remove ${meal.name}`}
@@ -137,10 +137,10 @@ export default function DayRow({
       <header className="flex items-center justify-between gap-2">
         <h3 className="font-bold text-gray-900">
           {weekday} <span className="font-medium text-gray-700">{monthDay}</span>
-          {isToday && <span className="ml-2 text-xs font-bold uppercase tracking-wider text-brand-700">Today</span>}
+          {isToday && <span className="ml-2 text-xs font-bold uppercase tracking-wider text-brand-600">Today</span>}
         </h3>
         {swapName && (
-          <span className="text-sm font-semibold text-brand-700" data-testid="swap-hint">⇄ Swap with {swapName}</span>
+          <span className="text-sm font-semibold text-brand-600" data-testid="swap-hint">⇄ Swap with {swapName}</span>
         )}
         {!empty && !swapName && (
           <button type="button" onClick={onAdd} disabled={busy} aria-label={`Add another meal on ${weekday}`}
@@ -157,17 +157,17 @@ export default function DayRow({
 
       {empty && proposal && (
         <div className="flex items-center gap-2 rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 px-3 py-2 min-h-[48px]">
-          <Sparkles size={16} className="shrink-0 text-brand-700" aria-hidden="true" />
+          <Sparkles size={16} className="shrink-0 text-brand-600" aria-hidden="true" />
           <span className="flex-1 min-w-0 font-medium text-gray-900">
             {proposal.name}
             <span className="block text-xs text-gray-700">Suggestion · not saved yet</span>
           </span>
           <button type="button" onClick={onAccept} disabled={busy} aria-label={`Keep ${proposal.name}`}
-            className="w-11 h-11 rounded-full bg-brand-700 text-white flex items-center justify-center">
+            className="w-11 h-11 rounded-full bg-brand-500 text-white flex items-center justify-center">
             <Check size={18} strokeWidth={3} />
           </button>
           <button type="button" onClick={onSuggest} disabled={busy} aria-label="Suggest something else"
-            className="w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-700">
+            className="w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-600">
             <RefreshCw size={16} />
           </button>
           <button type="button" onClick={onDismiss} disabled={busy} aria-label={`Not ${proposal.name}`}
@@ -180,12 +180,12 @@ export default function DayRow({
       {empty && !proposal && (
         <div className="flex gap-2">
           <button type="button" onClick={onAdd} disabled={busy}
-            className="flex-1 min-h-[44px] rounded-xl border-2 border-dashed border-cream-200 text-brand-700 font-semibold text-sm">
+            className="flex-1 min-h-[44px] rounded-xl border-2 border-dashed border-cream-200 text-brand-600 font-semibold text-sm">
             + add
           </button>
           {!isPast && (
             <button type="button" onClick={onSuggest} disabled={busy || !canSuggest}
-              className="flex-1 min-h-[44px] rounded-xl border-2 border-dashed border-cream-200 text-brand-700 font-semibold text-sm disabled:text-gray-500">
+              className="flex-1 min-h-[44px] rounded-xl border-2 border-dashed border-cream-200 text-brand-600 font-semibold text-sm disabled:text-gray-500">
               ✨ suggest
             </button>
           )}

@@ -214,7 +214,7 @@ export default function RecipeCard({
         aria-expanded={expanded}
       >
         <div className="flex-1 min-w-0">
-          <p className="text-base font-medium text-gray-900 truncate leading-tight group-hover:text-brand-700 transition-colors">
+          <p className="text-base font-medium text-gray-900 truncate leading-tight group-hover:text-brand-600 transition-colors">
             {recipe.name}
           </p>
           <div className="flex flex-wrap items-center gap-x-1.5 mt-1">
@@ -268,7 +268,7 @@ export default function RecipeCard({
             )
           })()}
         </div>
-        <div className="flex items-center gap-2 shrink-0 text-gray-500 group-hover:text-brand-700 transition-colors">
+        <div className="flex items-center gap-2 shrink-0 text-gray-500 group-hover:text-brand-600 transition-colors">
           {expanded
             ? <ChevronUp size={20} strokeWidth={2.5} />
             : <ChevronDown size={20} strokeWidth={2.5} />
@@ -424,7 +424,7 @@ export default function RecipeCard({
               <div className="flex items-center gap-2 pt-2 border-t border-cream-100 mt-2">
                 <button
                   onClick={() => onStartEdit(recipe)}
-                  className="py-3 px-3 text-sm font-bold text-brand-700 bg-brand-50 rounded-lg uppercase tracking-wide hover:bg-brand-100 transition-colors flex-1 text-center"
+                  className="py-3 px-3 text-sm font-bold text-brand-600 bg-brand-50 rounded-lg uppercase tracking-wide hover:bg-brand-100 transition-colors flex-1 text-center"
                 >
                   Edit components
                 </button>

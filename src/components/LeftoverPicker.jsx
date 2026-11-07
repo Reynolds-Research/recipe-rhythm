@@ -79,7 +79,7 @@ export default function LeftoverPicker({
       data-testid="leftover-picker"
     >
       <div className="w-full max-w-sm bg-cream-50 rounded-t-3xl sm:rounded-3xl px-6 pt-6 pb-8 shadow-2xl border-t border-cream-200 max-h-[90vh] flex flex-col">
-        <p className="section-heading text-brand-700 mb-1">
+        <p className="section-heading text-brand-600 mb-1">
           Roll Forward
         </p>
         <p className="text-base font-serif italic text-gray-700 mb-4">
@@ -98,7 +98,7 @@ export default function LeftoverPicker({
                 <span
                   className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
                     checked
-                      ? 'bg-brand-700 border-brand-700'
+                      ? 'bg-brand-500 border-brand-500'
                       : 'bg-white border-gray-500'
                   }`}
                   aria-hidden="true"
@@ -112,13 +112,13 @@ export default function LeftoverPicker({
                   className="sr-only"
                   aria-label={`Include ${item.name}`}
                 />
-                <span className="text-sm font-bold text-brand-700 w-12 shrink-0 tracking-tighter uppercase">
+                <span className="text-sm font-bold text-brand-600 w-12 shrink-0 tracking-tighter uppercase">
                   {formatShortDate(item.scheduled_date)}
                 </span>
                 <span className="text-base flex-1 text-gray-900 font-medium leading-snug flex items-center gap-2">
                   {item.name}
                   {item.is_wildcard && (
-                    <span className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
+                    <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
                       <Sparkles size={10} />
                       New
                     </span>

@@ -10,7 +10,7 @@ export default function GroceryListSheet({ isOpen, userId, onClose }) {
         <Sheet.Content>
           <div className="px-5 pt-2 pb-safe max-h-[85vh] overflow-y-auto" role="dialog" aria-label="Grocery list">
             <div className="flex items-center justify-between mb-3">
-              <p className="section-heading text-brand-700 flex items-center gap-2">
+              <p className="section-heading text-brand-600 flex items-center gap-2">
                 <ShoppingCart size={14} />
                 Grocery list
               </p>

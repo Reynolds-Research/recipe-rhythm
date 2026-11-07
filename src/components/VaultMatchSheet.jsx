@@ -29,7 +29,7 @@ export default function VaultMatchSheet({
         <Sheet.Header />
         <Sheet.Content>
           <div className="px-6 pt-2 pb-safe" role="dialog" aria-label="Pick a Cookbook recipe">
-            <p className="section-heading text-brand-700 mb-1">
+            <p className="section-heading text-brand-600 mb-1">
               Did you mean…?
             </p>
             <p className="text-base font-serif italic text-gray-700 mb-5 truncate">
@@ -51,7 +51,7 @@ export default function VaultMatchSheet({
                     />
                   ) : (
                     <div className="w-12 h-12 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0">
-                      <BookOpen size={18} className="text-brand-700" />
+                      <BookOpen size={18} className="text-brand-600" />
                     </div>
                   )}
                   <span className="text-base text-gray-900 font-medium flex-1 min-w-0 truncate">

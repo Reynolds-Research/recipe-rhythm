@@ -66,7 +66,7 @@ export default function SortableMealItem({ slot, isServed, onToggleCooked, onMov
         <span className="line-clamp-2 w-full break-words">{slot.name}</span>
         {slot.is_wildcard && (
           <div className="flex items-center gap-2">
-            <span className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
+            <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1">
               <Sparkles size={10} />
               New
             </span>
@@ -75,7 +75,7 @@ export default function SortableMealItem({ slot, isServed, onToggleCooked, onMov
                 href={slot.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-brand-700 hover:text-brand-800 transition-colors"
+                className="text-brand-600 hover:text-brand-700 transition-colors"
                 title="View Recipe"
                 aria-label={`View recipe for ${slot.name}`}
               >
@@ -90,14 +90,14 @@ export default function SortableMealItem({ slot, isServed, onToggleCooked, onMov
           onClick={() => onMoveToMaybe(slot.item_id)}
           aria-label="Move to Maybe"
           title="Move to Maybe"
-          className="shrink-0 w-11 h-11 -mr-2 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
+          className="shrink-0 w-11 h-11 -mr-2 flex items-center justify-center text-brand-600 hover:text-brand-700 transition-colors"
         >
           <BookmarkPlus size={18} strokeWidth={2} />
         </button>
       )}
       {showCookedToggle && (
         <label className="shrink-0 flex items-center gap-2 cursor-pointer">
-          <span className="text-sm font-bold text-brand-700 uppercase tracking-wide">
+          <span className="text-sm font-bold text-brand-600 uppercase tracking-wide">
             Cooked
           </span>
           <input
