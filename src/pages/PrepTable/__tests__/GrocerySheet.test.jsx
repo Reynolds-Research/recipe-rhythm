@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GrocerySheet from '../GrocerySheet'
+import { guessNote } from '../labels'
 
 // Her real Nov 1–7 list, in the new shape (a few lines of it).
 const ITEMS = [
@@ -188,5 +189,42 @@ describe('GrocerySheet — Added by you', () => {
   it('recipe lines have no remove button', () => {
     renderSheet({ items: OWN })
     expect(screen.queryByRole('button', { name: 'Remove Avocado' })).not.toBeInTheDocument()
+  })
+})
+
+// Her first real week (2026-11-06): amounts from a guessed ingredient list
+// looked exactly like real ones.
+describe('GrocerySheet — guessed amounts', () => {
+  it('names the recipes whose amounts are estimates, with what to do', () => {
+    renderSheet({ guessed: ['One Pan Turkey Sweet Potato Skillet', 'Butternut Squash Mac n Cheese'] })
+    expect(screen.getByTestId('guessed-note')).toHaveTextContent(
+      'Amounts for One Pan Turkey Sweet Potato Skillet and Butternut Squash Mac n Cheese are estimates. '
+      + 'For exact amounts, add a screenshot of the recipe in your Cookbook, then Update list.',
+    )
+  })
+
+  it('says nothing when every recipe has its real amounts', () => {
+    renderSheet({ guessed: [] })
+    expect(screen.queryByTestId('guessed-note')).not.toBeInTheDocument()
+  })
+
+  it('three or more names read as a list', () => {
+    expect(guessNote(['A', 'B', 'C'])).toBe(
+      'Amounts for A, B and C are estimates. For exact amounts, add a screenshot of the recipe in your Cookbook, then Update list.',
+    )
+  })
+
+  it('Update list is always there, and waits while it runs', async () => {
+    const user = userEvent.setup()
+    const onUpdateList = vi.fn()
+    const { rerender } = renderSheet({ onUpdateList })
+    await user.click(screen.getByRole('button', { name: 'Update list' }))
+    expect(onUpdateList).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <GrocerySheet open loading={false} items={ITEMS} staples={[]} leftOff={[]}
+        onUpdateList={onUpdateList} updating onClose={() => {}} />,
+    )
+    expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled()
   })
 })

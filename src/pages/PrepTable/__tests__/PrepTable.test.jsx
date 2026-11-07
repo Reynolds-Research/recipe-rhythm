@@ -804,6 +804,29 @@ describe('Confirm the week', () => {
     await waitFor(() => expect(within(own).queryByText('Paper towels')).not.toBeInTheDocument())
   })
 
+  it('names the recipes whose amounts are guesses, and Update list remakes the list from the sheet', async () => {
+    // Green curry's list came from her screenshots; the others are guesses.
+    VAULT[0].ingredients_source = 'screenshot'
+    try {
+      setWeek({ meals: FULL_WEEK })
+      wg.loadConfirmation.mockResolvedValue(CONF)
+      wg.loadGroceryItems.mockResolvedValue(ITEMS)
+      wg.makeWeekGroceryList.mockResolvedValue({ listId: 'L2', notInCookbook: [], noIngredients: [], noList: [] })
+      renderPage()
+      await userEvent.click(await screen.findByRole('button', { name: /Grocery list/ }))
+      const sheet = await screen.findByTestId('grocery-sheet')
+      const note = within(sheet).getByTestId('guessed-note')
+      expect(note).toHaveTextContent('Amounts for Sheet-pan gnocchi and Turkey tacos are estimates.')
+      expect(note).not.toHaveTextContent('Green curry')
+
+      await userEvent.click(within(sheet).getByRole('button', { name: 'Update list' }))
+      expect(wg.makeWeekGroceryList).toHaveBeenCalledWith(supabase, 'u1', CONF)
+      await waitFor(() => expect(wg.loadGroceryItems).toHaveBeenCalledWith(supabase, 'L2'))
+    } finally {
+      delete VAULT[0].ingredients_source
+    }
+  })
+
   it('empty nights are told, never blocking: "Not yet" waits, "Confirm anyway" confirms', async () => {
     setWeek({ meals: [FULL_WEEK[0]] }) // only Monday has a meal
     renderPage()

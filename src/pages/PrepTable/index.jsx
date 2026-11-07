@@ -248,6 +248,9 @@ export default function PrepTable({ userId, today }) {
         staples={pt.groceries.staples}
         subtitle={pt.groceries.open ? groceriesSubtitle(pt) : null}
         leftOff={pt.leftOff}
+        guessed={pt.guessed}
+        updating={pt.making}
+        onUpdateList={pt.updateList}
         onSetAssumed={pt.setItemAssumed}
         onSetAlwaysHave={pt.setAlwaysHave}
         onAddOwn={pt.addOwnItem}

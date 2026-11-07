@@ -3,6 +3,7 @@ import { Sheet } from 'react-modal-sheet'
 import { ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import { GROCERY_SECTIONS } from '../../lib/constants'
 import { showRecipeLine, splitList } from '../../lib/groceryAmounts'
+import { guessNote } from './labels'
 
 const ACTION = 'inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-700 hover:text-brand-800 disabled:opacity-50'
 const QUIET_ACTION = 'inline-flex items-center min-h-[44px] text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50'
@@ -235,6 +236,7 @@ function OwnItems({ items, onAdd, onRemove }) {
  *   staples?: string[], subtitle?: string|null, leftOff: string[],
  *   onSetAssumed?: (item: object, assumed: boolean) => Promise<void>,
  *   onSetAlwaysHave?: (item: object, on: boolean) => Promise<void>,
+ *   guessed?: string[], updating?: boolean, onUpdateList?: () => void,
  *   onAddOwn?: (name: string) => Promise<void>,
  *   onRemoveOwn?: (item: object) => Promise<void>,
  *   onClose: () => void,
@@ -244,6 +246,7 @@ export default function GrocerySheet({
   open, loading, failed = false, items = [], staples = [], subtitle = null, leftOff = [],
   onSetAssumed = async () => {}, onSetAlwaysHave = async () => {},
   onAddOwn = async () => {}, onRemoveOwn = async () => {}, onClose,
+  guessed = [], updating = false, onUpdateList,
 }) {
   const { onList: listed } = splitList(items, staples)
   const onList = listed.filter((i) => !i.is_adhoc)
@@ -263,6 +266,12 @@ export default function GrocerySheet({
               </div>
               <button type="button" onClick={onClose} aria-label="Close" className="btn-icon"><X size={18} /></button>
             </div>
+
+            {ready && guessed.length > 0 && (
+              <p className="helper-text" data-testid="guessed-note">
+                {guessNote(guessed)}
+              </p>
+            )}
 
             {loading && (
               <div className="flex justify-center py-8" role="status" aria-label="Loading the grocery list">
@@ -303,6 +312,15 @@ export default function GrocerySheet({
 
             {ready && open && (
               <OwnItems items={own} onAdd={onAddOwn} onRemove={onRemoveOwn} />
+            )}
+
+            {ready && onUpdateList && (
+              <div className="flex items-center justify-between gap-3 border-t border-cream-200 pt-2">
+                <p className="helper-text">Changed a recipe in your Cookbook?</p>
+                <button type="button" onClick={onUpdateList} disabled={updating} className={ACTION}>
+                  {updating ? 'Updating…' : 'Update list'}
+                </button>
+              </div>
             )}
 
             {!loading && leftOff.length > 0 && (
