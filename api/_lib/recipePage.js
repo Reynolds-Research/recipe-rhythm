@@ -31,6 +31,7 @@ import { lookup as dnsLookupCb } from 'node:dns'
 import { isIP } from 'node:net'
 import http from 'node:http'
 import https from 'node:https'
+import zlib from 'node:zlib'
 
 const UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
@@ -120,29 +121,40 @@ const checkedLookup = makeCheckedLookup()
  * The default fetch: Node http(s) with checkedLookup, no redirects followed,
  * body read up to MAX_BYTES. Returns { status, ok, headers: { get }, text() }.
  */
-export function guardedFetch(href, { headers = {}, signal } = {}) {
+export function guardedFetch(href, { headers = {}, signal, lookup = checkedLookup } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(href)
     const lib = url.protocol === 'https:' ? https : http
-    const req = lib.request(url, { method: 'GET', headers, lookup: checkedLookup, signal }, (res) => {
+    const req = lib.request(url, { method: 'GET', headers, lookup, signal }, (res) => {
+      // Some sites compress even when asked not to (NYT sends gzip): unpack,
+      // and count the unpacked size against the limit.
+      const enc = String(res.headers['content-encoding'] || '').toLowerCase()
+      const unpack = enc === 'gzip' || enc === 'x-gzip' ? zlib.createGunzip()
+        : enc === 'deflate' ? zlib.createInflate()
+          : enc === 'br' ? zlib.createBrotliDecompress() : null
+      const body = unpack ? res.pipe(unpack) : res
+      if (unpack) unpack.on('error', reject)
       const chunks = []
       let size = 0
-      res.on('data', (c) => {
+      let finished = false
+      body.on('data', (c) => {
         size += c.length
         if (size <= MAX_BYTES) chunks.push(c)
-        else res.destroy()
+        else { res.destroy(); body.destroy?.() }
       })
       const done = () => {
-        const body = Buffer.concat(chunks).subarray(0, MAX_BYTES).toString('utf8')
+        if (finished) return
+        finished = true
+        const text = Buffer.concat(chunks).subarray(0, MAX_BYTES).toString('utf8')
         resolve({
           status: res.statusCode,
           ok: res.statusCode >= 200 && res.statusCode < 300,
           headers: { get: (k) => { const v = res.headers[k.toLowerCase()]; return Array.isArray(v) ? v[0] : v ?? null } },
-          text: async () => body,
+          text: async () => text,
         })
       }
-      res.on('end', done)
-      res.on('close', done)
+      body.on('end', done)
+      body.on('close', done)
       res.on('error', reject)
     })
     req.on('error', reject)
@@ -195,7 +207,7 @@ export async function fetchPage(raw, { fetchImpl = guardedFetch, lookup = dnsLoo
     try {
       res = await fetchImpl(url.href, {
         redirect: 'manual',
-        headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml', 'accept-language': 'en-US,en;q=0.9', 'accept-encoding': 'identity' },
+        headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml', 'accept-language': 'en-US,en;q=0.9', 'accept-encoding': 'gzip, deflate, br' },
         signal,
       })
     } catch (err) {

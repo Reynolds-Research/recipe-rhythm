@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
+import http from 'node:http'
+import zlib from 'node:zlib'
 import {
-  checkPublicUrl, fetchPage, isPrivateAddress, makeCheckedLookup, readRecipePage, recipeFromBlock, recipeFromText,
+  checkPublicUrl, fetchPage, guardedFetch, isPrivateAddress, makeCheckedLookup, readRecipePage, recipeFromBlock, recipeFromText,
   servingsFromYield, MAX_TEXT_CHARS,
 } from '../../../api/_lib/recipePage.js'
 
@@ -137,5 +139,38 @@ describe('finding the recipe in a page', () => {
     expect(await readRecipePage('https://b.example/', { lookup: publicLookup, fetchImpl: page(TEXT_PAGE) })).toMatchObject({ kind: 'text' })
     expect(await readRecipePage('https://c.example/', { lookup: publicLookup, fetchImpl: page('<p>hi</p>') })).toEqual({ kind: null, reason: 'no_recipe' })
     expect(await readRecipePage('http://localhost/', { lookup: publicLookup, fetchImpl: page(BLOCK_PAGE) })).toEqual({ kind: null, reason: 'unsafe' })
+  })
+})
+
+describe('guardedFetch (the real fetch, on a local test server)', () => {
+  async function serve(handler) {
+    const server = http.createServer(handler)
+    await new Promise((r) => server.listen(0, '127.0.0.1', r))
+    return { server, url: `http://127.0.0.1:${server.address().port}/` }
+  }
+  const allowLocal = (host, opts, cb) => (opts?.all ? cb(null, [{ address: '127.0.0.1', family: 4 }]) : cb(null, '127.0.0.1', 4))
+
+  it('unpacks gzip (NYT sends it even when asked not to) and never follows a redirect itself', async () => {
+    const { server, url } = await serve((req, res) => {
+      if (req.url === '/moved') { res.writeHead(302, { location: '/elsewhere' }); return res.end() }
+      res.writeHead(200, { 'content-type': 'text/html', 'content-encoding': 'gzip' })
+      res.end(zlib.gzipSync('<p>1 tablespoon chili powder</p>'))
+    })
+    try {
+      const r = await guardedFetch(url, { lookup: allowLocal })
+      expect(r.status).toBe(200)
+      expect(await r.text()).toContain('1 tablespoon chili powder')
+      const moved = await guardedFetch(`${url}moved`, { lookup: allowLocal })
+      expect(moved.status).toBe(302)
+      expect(moved.headers.get('location')).toBe('/elsewhere')
+    } finally { server.close() }
+  })
+
+  it('by default refuses to connect to this machine, whatever the address check said', async () => {
+    const { server } = await serve((req, res) => res.end('secret'))
+    try {
+      // "localtest.me"-style rebinding, simulated: the hostname resolves to 127.0.0.1 at connect time.
+      await expect(guardedFetch(`http://localhost:${server.address().port}/`)).rejects.toMatchObject({ code: 'EPRIVATE' })
+    } finally { server.close() }
   })
 })
