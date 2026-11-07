@@ -14,7 +14,9 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 **Open / owed (Matt):** merge #235 then this PR; apply `20261108000001` on prod + run its verify; react to the mockup (with Sara).
 
-**Next:** 3b screens once the mockup is agreed.
+**Then 3b (same session):** mockup agreed (one suggestion at a time on his night). Built on `feat/prd-008-matts-nights-screens`: "Give to Matt" / "Matt's night" on each day, his "Your night · Pick something" with a ready suggestion, "Suggest the empty days" skips his nights, Confirm names his empty night ("Wait for Matt"), Settings → Your name. Vitest 1218/1218; lockout explorer + grocery touch specs 8/8 with the switch on.
+
+**Next:** Matt applies 3a on prod, merges #235 → #236 → 3b; both set names in Settings; try a real handoff on two phones; then 3c (two-account Playwright handoff).
 
 ---
 

@@ -16,7 +16,7 @@
  * The new Prep Table's tables (PRD-008 2c) are here too: planned_meals,
  * week_confirmations and week_days, with the database's "changed since
  * confirmed" trigger (a meal added, moved or removed inside a confirmed week
- * stamps that week's changed_at).
+ * stamps that week's changed_at). Phase 3: cook_nights (whose night a date is).
  *
  * It only understands the query shapes this app sends (eq/neq/gt/gte/lt/lte,
  * is.null, not.is.null, in.(), order, limit, single/maybeSingle, insert,
@@ -29,7 +29,8 @@ import { randomUUID } from 'node:crypto'
 const USER = { id: 'test-user', email: 'test@example.com' }
 export const HOUSEHOLD = 'test-household'
 const KITCHEN = ['vault', 'meals', 'meal_plans', 'meal_plan_items', 'household_preferences',
-  'plan_drafts', 'grocery_lists', 'vault_options', 'planned_meals', 'week_confirmations', 'week_days']
+  'plan_drafts', 'grocery_lists', 'vault_options', 'planned_meals', 'week_confirmations', 'week_days',
+  'cook_nights']
 
 export function ymd(date) {
   const y = date.getFullYear()
@@ -150,6 +151,7 @@ export async function installFakeSupabase(page, { now, seed = {} } = {}) {
     planned_meals: [],
     week_confirmations: [],
     week_days: [],
+    cook_nights: [],
     ...structuredClone(seed),
     household_members: [{ household_id: HOUSEHOLD, user_id: USER.id }],
   }

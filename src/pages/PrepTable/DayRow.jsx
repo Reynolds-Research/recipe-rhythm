@@ -1,4 +1,4 @@
-import { Check, Plus, Sparkles, X, ArrowRightLeft, RefreshCw, GripVertical } from 'lucide-react'
+import { Check, Plus, Sparkles, X, ArrowRightLeft, RefreshCw, GripVertical, User } from 'lucide-react'
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { dateLabel } from './labels'
@@ -11,7 +11,7 @@ import { dayDropId, mealDragId, slotDropId } from './dragDrop'
  * the old Prep Table. Keyboard dragging starts only from the grip, so Space
  * / Enter on the buttons inside still press those buttons.
  */
-function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, onRemove }) {
+function DraggableMeal({ meal, isPast, isToday, busy, pickedBy, onToggleCooked, onMove, onRemove }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: mealDragId(meal.id),
     disabled: busy,
@@ -66,6 +66,7 @@ function DraggableMeal({ meal, isPast, isToday, busy, onToggleCooked, onMove, on
       <span className={`flex-1 min-w-0 font-medium ${isPast && !meal.cooked ? 'text-gray-700' : 'text-gray-900'}`}>
         {meal.name}
         {isPast && !meal.cooked && <span className="block text-xs text-gray-700">Not cooked</span>}
+        {pickedBy && <span className="block text-sm font-normal text-gray-700">{pickedBy}</span>}
       </span>
       <button type="button" onClick={() => onMove(meal)} disabled={busy} aria-label={`Move ${meal.name}`}
         className="w-11 h-11 flex items-center justify-center text-gray-700 hover:text-brand-600">
@@ -97,6 +98,31 @@ function swapTargetName({ active, over }, date, meals) {
 }
 
 /**
+ * Whose night it is, in the day's header (phase 3): a filled chip when the
+ * night is handed over (tap to take it back), else "Give to Matt" on days
+ * from today on. Nothing when there's nobody to give it to.
+ */
+function NightButton({ label, giveLabel, isPast, busy, weekday, onToggle }) {
+  if (label) {
+    return (
+      <button type="button" onClick={onToggle} disabled={busy}
+        aria-label={`${label} on ${weekday}. Tap to take it back`}
+        className="min-h-[44px] px-3 rounded-full bg-brand-600 text-white text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50">
+        <User size={14} strokeWidth={2.5} aria-hidden="true" /> {label}
+      </button>
+    )
+  }
+  if (!giveLabel || isPast) return null
+  return (
+    <button type="button" onClick={onToggle} disabled={busy}
+      aria-label={`${giveLabel}: ${weekday}`}
+      className="min-h-[44px] px-3 rounded-full border border-cream-200 bg-white text-gray-700 text-sm font-semibold inline-flex items-center gap-1.5 disabled:opacity-50">
+      <User size={14} strokeWidth={2.5} aria-hidden="true" /> {giveLabel}
+    </button>
+  )
+}
+
+/**
  * One day of the week: its meals, or for an empty day "+ add" and "✨ suggest".
  * Must sit inside the page's <DndContext>: meals can be dragged onto any day.
  * A ✨ proposal shows dashed with ✓ (save it) / ↻ (another) / ✕ (not this) —
@@ -116,8 +142,14 @@ export default function DayRow({
   onToggleCooked,
   onMove,
   onRemove,
+  nightLabel = null,     // "Matt's night" / "Your night" / null (phase 3)
+  giveLabel = null,      // "Give to Matt" / null
+  onToggleNight,
+  pickedBy = () => null, // meal → "Matt picked this" / null
 }) {
   const { weekday, monthDay } = dateLabel(date)
+  const mine = nightLabel === 'Your night'
+  const theirs = Boolean(nightLabel) && !mine
   const isPast = date < today
   const isToday = date === today
   const empty = meals.length === 0
@@ -132,7 +164,7 @@ export default function DayRow({
       aria-label={`${weekday} ${monthDay}`}
       data-date={date}
       data-drop-over={isOver || undefined}
-      className={`card p-3 space-y-2 transition-colors ${isOver ? 'bg-brand-50' : ''}`}
+      className={`card p-3 space-y-2 transition-colors ${isOver ? 'bg-brand-50' : ''} ${mine && empty && !isPast ? 'border-2 border-brand-600' : ''}`}
     >
       <header className="flex items-center justify-between gap-2">
         <h3 className="font-bold text-gray-900">
@@ -142,20 +174,35 @@ export default function DayRow({
         {swapName && (
           <span className="text-sm font-semibold text-brand-600" data-testid="swap-hint">⇄ Swap with {swapName}</span>
         )}
-        {!empty && !swapName && (
-          <button type="button" onClick={onAdd} disabled={busy} aria-label={`Add another meal on ${weekday}`}
-            className="btn-icon shadow-none">
-            <Plus size={18} />
-          </button>
+        {!swapName && (
+          <span className="flex items-center gap-1">
+            <NightButton label={nightLabel} giveLabel={giveLabel} isPast={isPast} busy={busy}
+              weekday={weekday} onToggle={onToggleNight} />
+            {!empty && (
+              <button type="button" onClick={onAdd} disabled={busy} aria-label={`Add another meal on ${weekday}`}
+                className="btn-icon shadow-none">
+                <Plus size={18} />
+              </button>
+            )}
+          </span>
         )}
       </header>
 
       {meals.map((meal) => (
         <DraggableMeal key={meal.id} meal={meal} isPast={isPast} isToday={isToday} busy={busy}
-          onToggleCooked={onToggleCooked} onMove={onMove} onRemove={onRemove} />
+          pickedBy={pickedBy(meal)} onToggleCooked={onToggleCooked} onMove={onMove} onRemove={onRemove} />
       ))}
 
-      {empty && proposal && (
+      {empty && mine && !isPast && <p className="font-semibold text-gray-900">Pick something</p>}
+
+      {empty && theirs && !isPast && (
+        <div className="rounded-xl border-2 border-dashed border-cream-200 px-3 py-2 min-h-[48px] flex flex-col justify-center">
+          <span className="font-medium text-gray-900">{nightLabel.replace(/'s night$/, '')}’s picking</span>
+          <span className="text-sm text-gray-700">It shows on their phone too. Tap “{nightLabel}” to take it back.</span>
+        </div>
+      )}
+
+      {empty && proposal && !(theirs && !isPast) && (
         <div className="flex items-center gap-2 rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 px-3 py-2 min-h-[48px]">
           <Sparkles size={16} className="shrink-0 text-brand-600" aria-hidden="true" />
           <span className="flex-1 min-w-0 font-medium text-gray-900">
@@ -177,7 +224,7 @@ export default function DayRow({
         </div>
       )}
 
-      {empty && !proposal && (
+      {empty && !proposal && !(theirs && !isPast) && (
         <div className="flex gap-2">
           <button type="button" onClick={onAdd} disabled={busy}
             className="flex-1 min-h-[44px] rounded-xl border-2 border-dashed border-cream-200 text-brand-600 font-semibold text-sm">
