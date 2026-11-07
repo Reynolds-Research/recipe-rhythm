@@ -195,7 +195,7 @@ export async function fetchPage(raw, { fetchImpl = guardedFetch, lookup = dnsLoo
     try {
       res = await fetchImpl(url.href, {
         redirect: 'manual',
-        headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml', 'accept-language': 'en-US,en;q=0.9' },
+        headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml', 'accept-language': 'en-US,en;q=0.9', 'accept-encoding': 'identity' },
         signal,
       })
     } catch (err) {
