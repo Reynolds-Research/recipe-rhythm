@@ -118,3 +118,36 @@ export function groceryPrefs(prefs) {
   const pantryStaples = Array.isArray(prefs?.pantry_staples) ? prefs.pantry_staples : []
   return { householdSize, pantryStaples }
 }
+
+/**
+ * Where a recipe's amounts are REAL: copied from the recipe itself. Today that
+ * is only her screenshots; "From the recipe page" joins when links are read.
+ * Anything else is the AI's guess from the recipe's name and tags: lists marked
+ * 'estimated', the May 2026 backfill's lists (no source; the script sent the
+ * name only), and recipes with no list at all. Matches the Cookbook card's
+ * "Amounts estimated" (src/pages/Vault/RecipeSource.jsx) for every recipe with
+ * a list; one edge differs: a 'screenshot' recipe with no list is not named
+ * here (it adds nothing to the list; the card says "No amounts saved yet").
+ * When links are read ("From the recipe page"), add that source here.
+ */
+export const EXACT_SOURCES = ['screenshot']
+
+export function amountsAreGuess(recipe) {
+  return !EXACT_SOURCES.includes(recipe?.ingredients_source)
+}
+
+/**
+ * The week's cookbook recipes whose amounts are guesses, by name, once each,
+ * in the order they're planned. `meals` are planned_meals rows; `vault` is the
+ * household cookbook (needs id, name, ingredients_source). Meals with no
+ * recipe aren't here: they're already named as "not on the list".
+ */
+export function guessedRecipeNames(meals = [], vault = []) {
+  const byId = new Map(vault.map((v) => [v.id, v]))
+  const names = []
+  for (const meal of meals) {
+    const recipe = meal?.vault_id ? byId.get(meal.vault_id) : null
+    if (recipe && amountsAreGuess(recipe) && !names.includes(recipe.name)) names.push(recipe.name)
+  }
+  return names
+}

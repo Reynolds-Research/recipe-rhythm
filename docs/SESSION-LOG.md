@@ -6,6 +6,19 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-06 (evening) — Her first real week on the new Prep Table; guessed amounts
+
+**Done:** #229 merged and live (production `77ce6f1`, switch on; checked in the live app's code). Prod copy run by Matt: 06a 1 row, 06b 21 + 9, 06c 9/9 (re-checked read-only), second copy zeros. #230 (TASKS: guessed amounts; links never opened). This PR, `feat/grocery-guessed-amounts`: the grocery sheet names recipes whose amounts are guesses and always offers "Update list".
+- Her report: chili powder / cumin lower than the recipe. Cause (prod read-only): One Pan Turkey Sweet Potato Skillet's list is `estimated` (AI from the name); the recipe link is saved but never opened (`analyze-recipe` gets it as text). Also found: after fixing a recipe there was no way to remake the list unless the week changed — hence the always-there "Update list".
+
+**Verified:** see the PR.
+
+**Open / owed (Matt):** merge #230, then this PR; she adds a screenshot to the skillet and taps Update list. Tick 2c / phase 2 after her phone check (she used it today: positive).
+
+**Next:** **Read the real recipe from a link** with the page-text fallback (moved up); then **Label the May ingredient lists as guesses**.
+
+---
+
 ## 2026-11-06 (later) — PRD-008 2c, Switch-over: built, rehearsed, waiting on the prod run
 
 **Done:** #228 (ticked "Reconnect Vercel to GitHub": #227's merge built production from Git in 3 s, no manual step). This PR, branch `feat/prd-008-switch-over`, everything behind `VITE_NEW_PREP_TABLE`:

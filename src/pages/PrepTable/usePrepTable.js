@@ -43,6 +43,7 @@ import {
   removeOwnItem as deleteOwnItem,
   WeekGroceryError,
 } from '../../lib/weekGroceries'
+import { guessedRecipeNames } from '../../lib/groceryRecipes'
 
 /**
  * Says which recipes the list couldn't really use, so a gap is never silent:
@@ -65,7 +66,8 @@ function without(obj, key) {
 
 const VAULT_COLUMNS =
   'id, name, cuisine_type, flavor_profile, is_wildcard, proteins, cooking_method, main_carb, ' +
-  'vegetables, dairy_components, fruits, family_rating, prep_time_minutes, dietary_tags, notes'
+  'vegetables, dairy_components, fruits, family_rating, prep_time_minutes, dietary_tags, notes, ' +
+  'ingredients_source'
 
 /** Cookbook, recent meal log and preferences: loaded once per visit. */
 async function loadKitchen(userId) {
@@ -400,6 +402,9 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   /** Shown days from today on with no meal: told before confirming, never blocking. */
   const emptyDays = emptyUpcoming
 
+  /** This week's recipes whose amounts are the AI's guess (shown on the grocery sheet). */
+  const guessed = useMemo(() => guessedRecipeNames(meals, kitchen.vault), [meals, kitchen.vault])
+
   /** Meals this week that can't go on the list (no cookbook recipe). */
   const leftOff = useMemo(() => meals.filter((m) => !m.vault_id).map((m) => m.name), [meals])
 
@@ -523,6 +528,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     weekStart,
     weekEnd: addDays(weekStart, 6),
     mealCount: meals.length,
+    guessed,
     loading: !current,
     error,
     clearError: () => setError(null),

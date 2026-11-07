@@ -18,3 +18,15 @@ export function weekTitle(start, end) {
   const b = dateLabel(end).monthDay
   return a.split(' ')[0] === b.split(' ')[0] ? `${a} – ${b.split(' ')[1]}` : `${a} – ${b}`
 }
+
+/**
+ * "Amounts for X are estimates…": recipes whose ingredient list is the AI's
+ * guess, not copied from the recipe (her first real week, 2026-11-06: chili
+ * powder 1 tsp on the list, 1 tbsp in the recipe).
+ */
+export function guessNote(names) {
+  const list = names.length <= 1
+    ? names.join('')
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  return `Amounts for ${list} are estimates. For exact amounts, add a screenshot of the recipe in your Cookbook, then Update list.`
+}
