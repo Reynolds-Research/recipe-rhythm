@@ -4,9 +4,9 @@
  * `passesPreferences(item, preferences)` is a PURE predicate — no Supabase
  * calls, no fetch, no React hooks. The recommender (`recommendations.js`)
  * runs every vault candidate AND every AI candidate through this filter
- * BEFORE scoring; violators are dropped silently. The DayPicker's "Maybe"
- * section is the one carve-out: we never filter user-shortlisted items
- * (PRD-002 P0.3 — respect explicit user intent).
+ * BEFORE scoring; violators are dropped silently. Things she put on a list
+ * herself (the Maybe list) are never filtered (PRD-002 P0.3 — respect
+ * explicit user intent).
  *
  * Filter rules apply in order; first failure wins:
  *   1. max_prep_time_minutes  — null/undefined skips. Items with null

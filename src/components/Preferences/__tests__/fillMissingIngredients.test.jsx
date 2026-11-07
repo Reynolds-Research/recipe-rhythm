@@ -6,7 +6,6 @@ import userEvent from '@testing-library/user-event'
 // Replaced the old "re-extract every recipe" button, which also rewrote
 // recipes that were fine. The lib is tested in recipeIngredients.test.js.
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(), upsertPreferences: vi.fn() }))
-vi.mock('../../../lib/mealPlanItems', () => ({ getActivePeriodItems: vi.fn(), deleteMealPlanItems: vi.fn() }))
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }))
 vi.mock('../../../hooks/useHaptics', () => ({ useHaptics: () => ({ trigger: vi.fn() }) }))
 vi.mock('../../../lib/recipeIngredients', () => ({

@@ -82,7 +82,7 @@ function api(items = [{ name: 'Tortillas', quantity: '8', section: 'Bakery' }], 
 }
 
 // ---------------------------------------------------------------------------
-describe('groceryRecipes (moved from GroceryListBody)', () => {
+describe('groceryRecipes (moved from the old Groceries tab)', () => {
   it('formats structured ingredients with quantity, unit and notes', () => {
     expect(formatStructuredIngredient({ name: 'olive oil', quantity: '2', unit: 'tbsp' })).toBe('olive oil: 2 tbsp')
     expect(formatStructuredIngredient({ name: 'garlic', quantity: '3', notes: 'minced' })).toBe('garlic: 3, minced')

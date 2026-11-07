@@ -1,12 +1,10 @@
-/* global process */
 import { test, expect } from '@playwright/test'
 import { installFakeSupabase, signIn, ymd, addDaysYmd, HOUSEHOLD } from './support/fakeSupabase.js'
 
-// Guards real phone taps inside the Prep Table's grocery sheet (needs the dev
-// server started with VITE_NEW_PREP_TABLE=true). A real thumb moves a few
-// pixels during a tap; the sheet's content is also a drag target, so a tap
+// Guards real phone taps inside the Prep Table's grocery sheet. A real thumb
+// moves a few pixels during a tap; the sheet's content is also a drag target, so a tap
 // with a little movement could be taken as the start of a drag and lost.
-// Drives raw touch events through CDP, like prep-table-touch-drag.spec.js.
+// Drives raw touch events through CDP.
 
 const today = ymd(new Date())
 const d = new Date()
@@ -59,9 +57,6 @@ async function fingerTap(page, locator, drift) {
 
 test.describe('Grocery sheet: real phone taps', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
-  // The new Prep Table only exists with the switch on:
-  //   VITE_NEW_PREP_TABLE=true npx playwright test e2e/grocery-sheet-touch.spec.js
-  test.skip(process.env.VITE_NEW_PREP_TABLE !== 'true', 'needs VITE_NEW_PREP_TABLE=true')
 
   async function openSheet(page) {
     await installFakeSupabase(page, { now: () => new Date(), seed })

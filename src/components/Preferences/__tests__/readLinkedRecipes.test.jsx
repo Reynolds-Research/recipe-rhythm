@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event'
 // Settings: "Read N recipes from their links" (2026-11-06). Her recipes had
 // links saved but guessed amounts; this reads every page once.
 vi.mock('../../../lib/preferences', () => ({ getPreferences: vi.fn(), upsertPreferences: vi.fn() }))
-vi.mock('../../../lib/mealPlanItems', () => ({ getActivePeriodItems: vi.fn(), deleteMealPlanItems: vi.fn() }))
 vi.mock('../../../lib/supabase', () => ({ supabase: {} }))
 vi.mock('../../../hooks/useHaptics', () => ({ useHaptics: () => ({ trigger: vi.fn() }) }))
 vi.mock('../../../lib/recipeIngredients', () => ({
