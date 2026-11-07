@@ -309,6 +309,13 @@ describe('Vault — PRD-001 P0.5 soft-delete', () => {
     const removeButton = await screen.findByRole('button', { name: /Remove/i })
     await user.click(removeButton)
 
+    // Remove asks first (ship-first fix P0-2): nothing is written until she
+    // confirms in the sheet. The sheet's button comes after the card's.
+    await screen.findByText('Remove Old Soup?')
+    expect(updateSpy).not.toHaveBeenCalled()
+    const confirmButtons = screen.getAllByRole('button', { name: /^Remove$/ })
+    await user.click(confirmButtons[confirmButtons.length - 1])
+
     await waitFor(() => {
       expect(updateSpy).toHaveBeenCalled()
       expect(capturedPayload).toMatchObject({ deleted_at: expect.any(String) })

@@ -74,7 +74,7 @@ async function queryRecipes(userId) {
 /**
  * useVault — the data layer for the vault page. Owns Supabase fetches and
  * mutations: fetchRecipes, the vault_options migrate-then-fetch pair, plus
- * addRecipe / addSuggestion / updateRecipe / deleteRecipe / setRating /
+ * addRecipe / addSuggestion / updateRecipe / deleteRecipe / restoreRecipe / setRating /
  * addExtra. Returns plain async actions; the page component owns UI state
  * (saving flags, which recipe is expanded, etc.).
  *
@@ -326,11 +326,27 @@ export function useVault(userId) {
    * meals.vault_id and meal_plan_items.vault_id still resolve.
    */
   const deleteRecipe = async (id) => {
-    await supabase.from('vault')
+    const { error } = await supabase.from('vault')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
       .eq('household_id', await getHouseholdId(supabase, userId))
+    if (error) return { ok: false, error }
     setRecipes(prev => prev.filter(r => r.id !== id))
+    return { ok: true }
+  }
+
+  /**
+   * Undo a Remove: clear `deleted_at` (the delete above is soft, so the whole
+   * record — tags, ingredients, rating — comes back as it was).
+   */
+  const restoreRecipe = async (id) => {
+    const { error } = await supabase.from('vault')
+      .update({ deleted_at: null })
+      .eq('id', id)
+      .eq('household_id', await getHouseholdId(supabase, userId))
+    if (error) return { ok: false, error }
+    await fetchRecipes()
+    return { ok: true }
   }
 
   const updateRecipe = async (id, fields) => {
@@ -594,6 +610,7 @@ export function useVault(userId) {
     addRecipe,
     addSuggestion,
     deleteRecipe,
+    restoreRecipe,
     updateRecipe,
     setRating,
     setIngredientEssentiality,

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Plus, X, Loader2, BookmarkPlus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Sheet } from 'react-modal-sheet'
+import { Plus, X, Loader2, BookmarkPlus, Trash2 } from 'lucide-react'
 import Logo from '../../components/Logo'
 import { useHaptics } from '../../hooks/useHaptics'
 import RecipeForm from './RecipeForm'
@@ -38,6 +39,8 @@ const STARTER_SUGGESTIONS = [
   'Chicken Fajitas', 'Caprese Pasta', 'Tom Yum Soup',
 ]
 
+const UNDO_MS = 8000
+
 export default function Vault({ userId }) {
   const {
     recipes,
@@ -49,6 +52,7 @@ export default function Vault({ userId }) {
     addRecipe,
     addSuggestion,
     deleteRecipe,
+    restoreRecipe,
     updateRecipe,
     setRating,
     setIngredientEssentiality,
@@ -76,7 +80,22 @@ export default function Vault({ userId }) {
   const [screenshotStatus, setScreenshotStatus] = useState(null)
   // Search text. Page state only — not in the URL or localStorage.
   const [query, setQuery] = useState('')
+  // Remove asks first, then offers Undo for a few seconds (ship-first fix,
+  // UXR audit 2026-08-02): the delete is soft, so Undo brings the whole
+  // recipe back. confirmRemove: the recipe being asked about | null.
+  // removed: { id, name } after a Remove, until Undo or the timer | null.
+  const [confirmRemove, setConfirmRemove] = useState(null)
+  const [removing, setRemoving]           = useState(false)
+  const [removeError, setRemoveError]     = useState(null)
+  const [removed, setRemoved]             = useState(null)
   const { trigger } = useHaptics()
+
+  // The Undo bar goes away on its own after 8 seconds.
+  useEffect(() => {
+    if (!removed) return undefined
+    const timer = setTimeout(() => setRemoved(null), UNDO_MS)
+    return () => clearTimeout(timer)
+  }, [removed])
 
   const trimmedQuery = query.trim()
   const searching = trimmedQuery !== ''
@@ -113,9 +132,38 @@ export default function Vault({ userId }) {
   const handleSaveLink = (recipeId, url) =>
     saveLinkThenRead(recipeId, url, { save: setRecipeLink, read: handleReadLink })
 
-  const handleDelete = async (id) => {
+  // Remove on a card opens the confirm sheet; nothing is deleted yet.
+  const handleDelete = (id) => {
+    const recipe = recipes.find((r) => r.id === id)
+    if (!recipe) return
+    setRemoveError(null)
+    setConfirmRemove(recipe)
+  }
+
+  const handleConfirmRemove = async () => {
+    if (!confirmRemove || removing) return
     trigger('medium')
-    await deleteRecipe(id)
+    setRemoving(true)
+    const result = await deleteRecipe(confirmRemove.id)
+    setRemoving(false)
+    if (!result?.ok) {
+      setRemoveError('Couldn’t remove it. Try again.')
+      return
+    }
+    setRemoved({ id: confirmRemove.id, name: confirmRemove.name })
+    setConfirmRemove(null)
+  }
+
+  const handleUndoRemove = async () => {
+    if (!removed) return
+    const { id, name } = removed
+    setRemoved(null)
+    const result = await restoreRecipe(id)
+    if (!result?.ok) {
+      // Keep Undo on screen so she can try again.
+      setVaultError(`Couldn’t bring back ${name}. Tap Undo to try again.`)
+      setRemoved({ id, name })
+    }
   }
 
   const handleAddSuggestion = async (suggestionName) => {
@@ -406,6 +454,47 @@ export default function Vault({ userId }) {
         })()}
 
       </div>
+
+      {/* Remove: confirm first. */}
+      <Sheet isOpen={!!confirmRemove} onClose={() => !removing && setConfirmRemove(null)}>
+        <Sheet.Container className="!rounded-t-3xl !bg-cream-50 shadow-2xl border-t border-cream-200">
+          <Sheet.Header />
+          <Sheet.Content>
+            <div className="px-6 py-2 pb-safe">
+              <p className="section-heading text-red-700 mb-1">Remove {confirmRemove?.name}?</p>
+              <p className="helper-text mb-6">
+                It leaves your Cookbook. Meals you’ve logged keep their name. You can undo right after.
+              </p>
+              {removeError && <p role="alert" className="text-sm text-red-800 text-center mb-3">{removeError}</p>}
+              <button
+                onClick={handleConfirmRemove}
+                disabled={removing}
+                className="w-full py-3 min-h-[44px] rounded-2xl border border-red-200 bg-red-50 text-sm font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {removing
+                  ? <><Loader2 size={16} className="animate-spin" /> Removing…</>
+                  : <><Trash2 size={16} /> Remove</>}
+              </button>
+              <button onClick={() => setConfirmRemove(null)} disabled={removing} className="btn-secondary mt-2 disabled:opacity-40">
+                Cancel
+              </button>
+            </div>
+          </Sheet.Content>
+        </Sheet.Container>
+        <Sheet.Backdrop onClick={() => !removing && setConfirmRemove(null)} />
+      </Sheet>
+
+      {/* Undo, for a few seconds after a Remove. Sits above the bottom nav. */}
+      {removed && (
+        <div className="fixed bottom-20 left-0 right-0 mx-auto max-w-md px-4 z-40">
+          <div role="status" className="flex items-center justify-between gap-3 rounded-2xl bg-gray-900 text-white px-4 py-2 shadow-lg">
+            <span className="text-sm truncate">{removed.name} removed</span>
+            <button onClick={handleUndoRemove} className="min-h-[44px] px-2 text-sm font-semibold text-brand-300 shrink-0">
+              Undo
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
