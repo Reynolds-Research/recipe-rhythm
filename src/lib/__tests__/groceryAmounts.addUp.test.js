@@ -43,6 +43,34 @@ describe('addUpAmount — adds what the AI left as "+"', () => {
     expect(addUpAmount('to taste + 1 tsp')).toBe('to taste + 1 tsp')
   })
 
+  // Found by the independent review: each of these used to give a wrong
+  // number or drop the unit. Leaving them as written is always safe.
+  it.each([
+    '1 lb 8 oz + 8 oz', // a second amount inside one part
+    '6 oz + 1 lb 4 oz',
+    '1 to 2 tsp + 1 to 2 tsp', // a range
+    '2 tsp or to taste + 1 tsp',
+    '1 heaping tbsp + 1 heaping tbsp', // can't be added exactly
+    '1 scant cup + 1 scant cup',
+    '1 T + 1 t', // too short to know the unit
+    '1 fl oz + 1 fl oz',
+    '1 (15 oz) can + 1 (28 oz) can', // can sizes
+    '1 (14 oz) can + 1 (14 oz) can',
+    '2 slices bacon + 1 slice bacon',
+    '1 onion + 1 red onion', // a different variety
+  ])('leaves "%s" as written', (text) => {
+    expect(addUpAmount(text)).toBe(text)
+  })
+
+  it('still adds the plain cases the review checked', () => {
+    expect(addUpAmount('1 tbs + 1 tbs')).toBe('2 tbsp')
+    expect(addUpAmount('1 tbsp + 1½ tsp')).toBe('1½ tbsp')
+    expect(addUpAmount('2 tbsp + 1 tbsp, divided')).toBe('3 tbsp')
+    expect(addUpAmount('1 lb trimmed + 8 oz')).toBe('1½ lb')
+    expect(addUpAmount('2 large eggs + 1 egg')).toBe('3')
+    expect(addUpAmount('2 + 1')).toBe('3')
+  })
+
   it('passes ordinary amounts and empty values through untouched', () => {
     expect(addUpAmount('2¼ tsp')).toBe('2¼ tsp')
     expect(addUpAmount(null)).toBe(null)
