@@ -85,7 +85,9 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     setEditableText('')
     setNote('')
     setTranscript('')
-    onSave?.()
+    // The meal is saved; a problem refreshing the list afterwards must not
+    // show "Couldn't save".
+    try { onSave?.() } catch (err) { console.error('After-save refresh failed:', err?.message || err) }
   }
 
   // Continue the save flow with a fully-normalized name (already spell-checked

@@ -73,6 +73,9 @@ describe('Cookbook — Remove asks first', () => {
     await user.click(await screen.findByRole('button', { name: /^Remove$/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t remove it')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    // The confirm stays open so she can try again.
+    expect(screen.getByText('Remove Chicken Piccata?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Remove$/ })).toBeEnabled()
   })
 })
 
@@ -85,6 +88,18 @@ describe('Cookbook — Undo after Remove', () => {
     await user.click(await screen.findByRole('button', { name: 'Undo' }))
     expect(restoreRecipe).toHaveBeenCalledWith('r1')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('a failed Undo says so and keeps Undo on screen to try again', async () => {
+    const user = userEvent.setup()
+    const { restoreRecipe } = setup({ restoreResult: { ok: false } })
+    const { setVaultError } = useVault.mock.results.at(-1).value
+    await user.click(screen.getByRole('button', { name: 'Remove Chicken Piccata' }))
+    await user.click(await screen.findByRole('button', { name: /^Remove$/ }))
+    await user.click(await screen.findByRole('button', { name: 'Undo' }))
+    expect(restoreRecipe).toHaveBeenCalledWith('r1')
+    expect(setVaultError).toHaveBeenCalledWith(expect.stringContaining('Couldn’t bring back Chicken Piccata'))
+    expect(await screen.findByRole('status')).toHaveTextContent('Chicken Piccata removed')
   })
 
   it('the Undo bar goes away after 8 seconds', async () => {
