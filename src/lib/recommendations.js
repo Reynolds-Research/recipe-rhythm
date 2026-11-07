@@ -178,8 +178,8 @@ function scoreVaultItem(
  *                                   and frequency scoring.
  * @param {Object} options         - PRD-002 P0.5 / P0.8 options bag.
  *   @param {Array}  options.excludeIds   - Vault ids to hard-exclude (treated like recently-eaten).
- *                                          Used by BrainstormMode to suppress current-plan + prior-batch
- *                                          items so "regenerate" / single-slot picks return new candidates.
+ *                                          Used by ✨ suggest (weekSuggest.js) to skip the week's meals and
+ *                                          anything already proposed or dismissed.
  *   @param {Object} options.preferences  - Household preferences (PRD-002 P0.3).
  *                                          When provided (non-null), every vault candidate AND every
  *                                          AI candidate is run through `passesPreferences` BEFORE

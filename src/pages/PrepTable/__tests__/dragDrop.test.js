@@ -47,7 +47,7 @@ describe('resolveDrop — only the dragged meal moves; a taken spot swaps', () =
 })
 
 describe('feel matches the old Prep Table', () => {
-  it('same mouse distance and touch press-and-hold as useBrainstorm.js', () => {
+  it('same mouse distance and touch press-and-hold as the old Prep Table (retired in phase 4)', () => {
     expect(DRAG_SENSOR_OPTIONS.mouse).toEqual({ activationConstraint: { distance: 8 } })
     expect(DRAG_SENSOR_OPTIONS.touch).toEqual({ activationConstraint: { delay: 250, tolerance: 5 } })
   })

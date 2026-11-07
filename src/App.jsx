@@ -5,11 +5,8 @@ import { supabase } from './lib/supabase'
 import { getHouseholdId, clearHouseholdCache } from './lib/household'
 import Auth from './components/Auth'
 import LogMode from './pages/LogMode'
-import BrainstormMode from './pages/BrainstormMode'
 import PrepTable from './pages/PrepTable'
-import { isNewPrepTableEnabled } from './lib/featureFlags'
 import Vault from './pages/Vault'
-import GroceryList from './pages/GroceryList'
 import CalendarView from './components/CalendarView'
 import Preferences from './components/Preferences'
 import AppMenuSheet from './components/AppMenuSheet'
@@ -104,8 +101,7 @@ export default function App() {
           <LogMode recentMeals={recentMeals} onSave={fetchRecentMeals} userId={userId} />
         )}
         {page === 'brainstorm' && (
-          // PRD-008 2b: the new calendar Prep Table behind VITE_NEW_PREP_TABLE.
-          isNewPrepTableEnabled() ? <PrepTable userId={userId} /> : <BrainstormMode userId={userId} />
+          <PrepTable userId={userId} />
         )}
         {page === 'calendar' && (
           <CalendarView userId={userId} />
@@ -113,10 +109,7 @@ export default function App() {
         {page === 'vault' && (
           <Vault userId={userId} />
         )}
-        {page === 'grocery' && (
-          <GroceryList userId={userId} />
-        )}
-        {/* TODO (post-PRD-003): convert page-state routing to <NavLink> + <Route>. PRD-003 P0.11 introduced react-router for the public share route only. */}
+        {/* TODO: convert page-state routing to <NavLink> + <Route> (react-router is already installed). */}
         {page === 'settings' && (
           <Preferences userId={userId} onOpenAbout={() => setPage('about')} />
         )}
@@ -125,7 +118,7 @@ export default function App() {
         )}
       </main>
       </ErrorBoundary>
-      {/* TODO (post-PRD-003): convert nav entries to <NavLink>. PRD-003 P0.11 introduced react-router for the public share route only. */}
+      {/* TODO: convert nav entries to <NavLink>. */}
       <nav className="max-w-md mx-auto fixed bottom-0 left-0 right-0 bg-cream-50/80 backdrop-blur-md border-t border-cream-100 flex pb-safe z-50">
         {[
           { id: 'log',        label: 'Log',        Icon: Pencil  },

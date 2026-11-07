@@ -7,7 +7,7 @@
  * places: `week_days` (weeks she changed) and `household_preferences.usual_days`.
  *
  * Every function takes the supabase client first, so tests pass a fake
- * (same pattern as preferences.js / planDraft.js). Reads and adds scope by
+ * (same pattern as preferences.js). Reads and adds scope by
  * household through getHouseholdId(); edits by id rely on the security rules,
  * which only let household members touch a row.
  *
@@ -23,8 +23,8 @@
  *   loadCalendarRange(supabase, userId, from, to) → Calendar tab (2c)
  *   loadUpcomingMeals / removeMeals            → Preferences' rule check (2c)
  *
- * Nothing here writes to the old plan tables. The screens that use these are
- * behind VITE_NEW_PREP_TABLE (src/lib/featureFlags.js).
+ * Nothing here touches the old plan tables (the period screens that used
+ * them were retired in PRD-008 phase 4).
  */
 
 import { getHouseholdId } from './household'

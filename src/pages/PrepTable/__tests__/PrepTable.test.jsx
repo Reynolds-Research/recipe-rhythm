@@ -405,7 +405,7 @@ describe('drag and drop between days', () => {
     const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
     expect(within(mon).getByLabelText('Drag Sheet-pan gnocchi to another day')).toHaveAttribute('aria-roledescription', 'draggable')
     // Mouse + touch + keyboard — NOT PointerSensor, which claims touch presses and
-    // breaks scrolling (see useBrainstorm.js).
+    // breaks scrolling (as on the old Prep Table, retired in phase 4).
     expect(dnd.sensors.map((d) => d.sensor)).toEqual([MouseSensor, TouchSensor, KeyboardSensor])
   })
 

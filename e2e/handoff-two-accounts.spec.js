@@ -1,4 +1,3 @@
-/* global process */
 import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -16,14 +15,13 @@ import {
  *   her phone   sees "Matt picked this", confirms the week
  *               → the grocery list is made from the week, his pick included
  *
- * Run it with the switch on:
- *   VITE_NEW_PREP_TABLE=true npx playwright test e2e/handoff-two-accounts.spec.js
+ * Run it:
+ *   npx playwright test e2e/handoff-two-accounts.spec.js
  *
  * A screenshot per step goes to e2e-results/handoff/<scenario>/.
  * Simulated day: Monday 2026-11-02 (week Sun Nov 1 – Sat Nov 7).
  */
 
-test.skip(process.env.VITE_NEW_PREP_TABLE !== 'true', 'needs VITE_NEW_PREP_TABLE=true')
 
 const OUT = path.join('e2e-results', 'handoff')
 const MON = '2026-11-02'

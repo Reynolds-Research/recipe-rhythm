@@ -9,7 +9,7 @@ Recipe-Rhythm is a mobile-first meal-planning, grocery-tracking, and recipe-stor
 The app has three primary user-facing surfaces:
 - **Vault** (`src/pages/Vault/`) — the recipe library; chip-picker categorical tagging, AI-suggest, image upload. Decomposed in PRD-001 P0.9 into `index.jsx` (page shell), `RecipeForm.jsx` (add/edit form), `RecipeCard.jsx` (list row), `ChipPicker.jsx` (the picker), `useVault.js` (data hook + Supabase calls). `App.jsx` imports the default export from `./pages/Vault` — Vite resolves to `Vault/index.jsx`.
 - **LogMode** (`src/pages/LogMode.jsx`) — the daily voice-first "what did you eat" journal
-- **BrainstormMode** (`src/pages/BrainstormMode.jsx`) — the meal-planning surface; drag-and-drop, recommendations, period-based planning per ADR-001
+- **Prep Table** (`src/pages/PrepTable/`) — the meal-planning surface (PRD-008): a Sun–Sat week of dated meals (`planned_meals`), ✨ suggest, drag between days, Maybe list, "Didn't get to these", Matt's nights (`cook_nights`), Confirm the week + grocery sheet. The old period-based BrainstormMode was retired in PRD-008 phase 4.
 
 ## Tech stack (verified against `package.json`)
 
@@ -17,14 +17,14 @@ The app has three primary user-facing surfaces:
 - **Backend:** Supabase (DB + Auth + Storage) with owner-scoped RLS on every table; local Express proxy at `api-server.mjs`; Vercel serverless mirror at `api/` (keep both in sync)
 - **AI:** `@anthropic-ai/sdk` 0.93. Endpoints: `/api/analyze-recipe` (Sonnet 4.6) for recipe parsing; `/api/swap-suggestions`, `/api/grocery-list`, `/api/classify-ingredients`, `/api/normalize-meal-name` (all Haiku 4.5). Each Express route in `api-server.mjs` has a Vercel mirror in `api/` — keep both in sync.
 - **Testing:** Vitest 4 + React Testing Library + `@testing-library/user-event` (unit/integration); Playwright (e2e)
-- **Routing:** None today. `App.jsx` uses `page` state + conditional rendering. `react-router-dom` is planned in PRD-003 P0.11.
+- **Routing:** `App.jsx` uses `page` state + conditional rendering inside a single `react-router-dom` catch-all route (the public share route was retired in PRD-008 phase 4).
 - **No TypeScript.** JS only.
 
 ## Repo layout
 
-- `src/pages/` — top-level surfaces: Vault, LogMode, BrainstormMode, PeriodReview
-- `src/components/` — shared UI: CalendarView, DateRangePicker, DateStripPicker, GapDayView, LeftoverPicker, VaultMatchSheet, Auth, Logo, ChefKnife
-- `src/lib/` — non-UI utilities: `supabase.js` (client), `recommendations.js`, `mealPlanReader.js`, `mealPlanWriter.js`, `analyzeRecipe.js`, `vaultMatch.js`
+- `src/pages/` — top-level surfaces: Vault, LogMode, PrepTable
+- `src/components/` — shared UI: CalendarView, Preferences, VaultMatchSheet, MealNameConfirmSheet, Auth, Logo, ChefKnife
+- `src/lib/` — non-UI utilities: `supabase.js` (client), `household.js`, `plannedMeals.js`, `weekRange.js`, `weekSuggest.js`, `weekGroceries.js`, `cookNights.js`, `recommendations.js`, `analyzeRecipe.js`, `vaultMatch.js`
 - `src/hooks/` — custom hooks: `useSpeech.js`, `useHaptics.js`
 - `src/lib/__tests__/` and `src/pages/__tests__/` and `src/components/__tests__/` — Vitest tests, colocated next to what they test
 - `e2e/` — Playwright end-to-end tests
@@ -185,7 +185,7 @@ If either MCP errors or appears unreachable, **ask the user** — don't silently
 
 Lean on visuals to keep ideas legible — this project is built by a user researcher learning to build with GenAI, so a well-placed picture often beats a paragraph. **Trigger at key moments, not every step:** default to a visual at decision points (show competing approaches side by side rather than describing them in prose), at milestones (when a screen, feature, or analysis reaches a reviewable state), and when explaining something structural or an unfamiliar technical concept. Skip visuals for routine small steps — a one-line fix, a lookup, a yes/no answer; when unsure whether a moment qualifies, offer one in a sentence rather than forcing it.
 
-**Three default methods:** (1) **UI mockups & wireframes** — before building a screen or component (Vault, LogMode, BrainstormMode surfaces), render an HTML mockup to eyeball and react to, rather than describing the layout; (2) **data & results charts** — turn metrics, research data, and test results into charts rendered inline for review, rather than tables of numbers; (3) **concept sketches & analogies** — for unfamiliar mechanics, a simple diagram or visual analogy, since the developer is actively learning the technical side. Flow/architecture diagrams (Mermaid) are welcome when a flow is genuinely complex, but they are optional, not a default. **Always pair a visual with a one-line plain-language explanation** of what it shows and why.
+**Three default methods:** (1) **UI mockups & wireframes** — before building a screen or component (Vault, LogMode, Prep Table surfaces), render an HTML mockup to eyeball and react to, rather than describing the layout; (2) **data & results charts** — turn metrics, research data, and test results into charts rendered inline for review, rather than tables of numbers; (3) **concept sketches & analogies** — for unfamiliar mechanics, a simple diagram or visual analogy, since the developer is actively learning the technical side. Flow/architecture diagrams (Mermaid) are welcome when a flow is genuinely complex, but they are optional, not a default. **Always pair a visual with a one-line plain-language explanation** of what it shows and why.
 
 ## When in doubt
 
