@@ -11,6 +11,12 @@
  *
  * Suggestions (✨) are the one thing kept only in memory, on purpose (D3):
  * they're proposals until she taps ✓.
+ *
+ * Nights (phase 3, "Matt's nights"): a day can be handed to the other person
+ * (cookNights.js). "Suggest the empty days" leaves someone else's nights for
+ * them (Matt, 2026-11-07); your own empty nights get one suggestion straight
+ * away ("pick something"). Nights load alongside the week but never stop it
+ * loading: if they can't be read, the week just shows no nights.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -44,6 +50,17 @@ import {
   WeekGroceryError,
 } from '../../lib/weekGroceries'
 import { guessedRecipeNames } from '../../lib/groceryRecipes'
+import {
+  giveLabel as giveLabelFor,
+  giveNight,
+  loadMembers,
+  loadNights,
+  memberName,
+  nightLabel,
+  nightsToPick,
+  otherMember,
+  takeBackNight,
+} from '../../lib/cookNights'
 
 /**
  * Says which recipes the list couldn't really use, so a gap is never silent:
@@ -91,6 +108,8 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const [maybe, setMaybe] = useState([])
   const [tray, setTray] = useState([])
   const [kitchen, setKitchen] = useState({ vault: [], recentMeals: [], preferences: null })
+  const [members, setMembers] = useState([])      // household members + names (for "Matt's night")
+  const autoProposed = useRef(new Set())          // own nights already given a first suggestion this week
   const [proposals, setProposals] = useState({})  // date → recipe (not saved)
   const [skipped, setSkipped] = useState([])      // recipe ids dismissed this visit
   const [error, setError] = useState(null)
@@ -111,12 +130,16 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     loadMaybeList(supabase, userId),
     loadDidntGetTo(supabase, userId, today),
     loadConfirmation(supabase, userId, start),
+    loadNights(supabase, userId, start, addDays(start, 6)).catch((err) => {
+      console.warn('[PrepTable] nights load failed; showing none', err?.message || err)
+      return []
+    }),
   ]), [userId, today])
 
   /** Show a load's result, unless a newer load has started since. */
-  const applyLoad = useCallback((seq, start, [w, m, t, c]) => {
+  const applyLoad = useCallback((seq, start, [w, m, t, c, n]) => {
     if (seq !== loadSeq.current) return
-    setWeek({ ...w, weekStart: start, confirmation: c ?? null })
+    setWeek({ ...w, weekStart: start, confirmation: c ?? null, nights: n ?? [] })
     setMaybe(m)
     setTray(t)
     setError(null)
@@ -150,6 +173,16 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     return () => { cancelled = true }
   }, [queryWeek, applyLoad, loadFailed, weekStart])
 
+  // Household members (names for nights): once. Without them, nights still
+  // work; there's just no "Give to …" button.
+  useEffect(() => {
+    let cancelled = false
+    loadMembers(supabase, userId)
+      .then((m) => { if (!cancelled) setMembers(m) })
+      .catch((err) => console.warn('[PrepTable] members load failed', err?.message || err))
+    return () => { cancelled = true }
+  }, [userId])
+
   // Cookbook etc.: once.
   useEffect(() => {
     let cancelled = false
@@ -175,6 +208,11 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     for (const m of meals) (by[m.planned_on] ||= []).push(m)
     return by
   }, [meals])
+  const nightsByDate = useMemo(() => {
+    const by = {}
+    for (const n of current?.nights ?? []) by[n.cooks_on] = n
+    return by
+  }, [current])
 
   /** Run one write, then reload. Shows a plain message if it fails. */
   const act = useCallback(async (fn, failMsg) => {
@@ -194,6 +232,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
 
   const leaveWeek = () => {
     setProposals({})
+    autoProposed.current = new Set()
     setNotice(null)
     setGroceries((g) => ({ ...g, open: false }))
   }
@@ -359,8 +398,64 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     return fresh
   }
 
-  /** ✨ for the whole visible week: every empty day from today on. */
-  const suggestEmptyDays = () => propose(emptyUpcoming.filter((d) => !proposals[d]))
+  /** Empty days ✨ may fill: not someone else's night (theirs to pick). */
+  const suggestable = useMemo(
+    () => emptyUpcoming.filter((d) => !nightsByDate[d] || nightsByDate[d].cook_id === userId),
+    [emptyUpcoming, nightsByDate, userId],
+  )
+
+  /** ✨ for the whole visible week: every empty day from today on, except other people's nights. */
+  const suggestEmptyDays = () => propose(suggestable.filter((d) => !proposals[d]))
+
+  /** Your own nights still to pick (the banner, and a first suggestion on each). */
+  const toPick = useMemo(
+    () => nightsToPick({ dates, today, nightsByDate, mealsByDate, viewerId: userId }),
+    [dates, today, nightsByDate, mealsByDate, userId],
+  )
+
+  // "Pick something": each of your empty nights gets one suggestion as soon as
+  // the week and cookbook are in — once per night per visit, so ✕ sticks.
+  useEffect(() => {
+    if (!kitchen.vault.length) return
+    const fresh = toPick.filter((d) => !autoProposed.current.has(d) && !proposals[d])
+    if (!fresh.length) return
+    for (const d of fresh) autoProposed.current.add(d)
+    const taken = Object.values(proposals).map((r) => r.id)
+    const picks = suggestForDays({
+      dates: fresh,
+      vault: kitchen.vault,
+      recentMeals: kitchen.recentMeals,
+      weekMeals: meals,
+      preferences: kitchen.preferences,
+      skipIds: [...skipped, ...taken],
+    })
+    if (Object.keys(picks).length) setProposals((p) => ({ ...p, ...picks }))
+  }, [toPick, kitchen, meals, proposals, skipped])
+
+  // ---- Nights (phase 3) ---------------------------------------------------
+  const other = otherMember(members, userId)
+
+  /** Hand a night to the other person, or take it back if it's already handed over. */
+  const toggleNight = (date) => {
+    if (busy) return false
+    if (nightsByDate[date]) {
+      return act(() => takeBackNight(supabase, userId, date), "Couldn't take that night back. Try again.")
+    }
+    if (!other) return false
+    // A suggestion sitting on that day is the other person's choice now.
+    setProposals((p) => without(p, date))
+    return act(() => giveNight(supabase, userId, date, other.user_id), "Couldn't hand that night over. Try again.")
+  }
+
+  /** "Matt's night" / "Your night" for a date, or null. */
+  const nightLabelOn = (date) => nightLabel(nightsByDate[date], userId, members)
+
+  /** Under a meal on someone else's night that they picked: "Matt picked this". */
+  const pickedBy = (meal) => {
+    const night = nightsByDate[meal.planned_on]
+    if (!night || night.cook_id === userId || meal.user_id !== night.cook_id) return null
+    return `${memberName(members, night.cook_id)} picked this`
+  }
 
   /** ✨ for one day; tapping again swaps in a different recipe. */
   const suggestDay = (date) => {
@@ -401,6 +496,12 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
 
   /** Shown days from today on with no meal: told before confirming, never blocking. */
   const emptyDays = emptyUpcoming
+  /** The same days, saying whose night each is (null = an ordinary night). */
+  const emptyDetails = useMemo(() => emptyUpcoming.map((date) => {
+    const night = nightsByDate[date]
+    if (!night) return { date, who: null }
+    return { date, who: night.cook_id === userId ? 'you' : memberName(members, night.cook_id) }
+  }), [emptyUpcoming, nightsByDate, userId, members])
 
   /** This week's recipes whose amounts are the AI's guess (shown on the grocery sheet). */
   const guessed = useMemo(() => guessedRecipeNames(meals, kitchen.vault), [meals, kitchen.vault])
@@ -540,7 +641,14 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     tray,
     vault: kitchen.vault,
     proposals,
-    canSuggest: kitchen.vault.length > 0 && emptyUpcoming.length > 0,
+    canSuggest: kitchen.vault.length > 0 && suggestable.length > 0,
+    nightsByDate,
+    nightLabelOn,
+    giveLabel: giveLabelFor(members, userId),
+    toggleNight,
+    pickedBy,
+    toPick,
+    userId,
     goWeek,
     goThisWeek,
     toggleDay,
@@ -559,6 +667,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     changedSinceConfirmed: Boolean(confirmation?.changed_at),
     canConfirm: !confirmation && meals.length > 0 && addDays(weekStart, 6) >= today,
     emptyDays,
+    emptyDetails,
     leftOff,
     making,
     notice,

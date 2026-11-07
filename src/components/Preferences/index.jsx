@@ -19,6 +19,7 @@ import {
 } from '../../lib/recipeIngredients'
 import ChipPicker from '../../pages/Vault/ChipPicker'
 import Logo from '../Logo'
+import YourName from './YourName'
 import { useHaptics } from '../../hooks/useHaptics'
 
 /**
@@ -488,6 +489,8 @@ export default function Preferences({ userId, onOpenAbout }) {
             ariaLabel="Max prep time"
           />
         </Section>
+
+        <YourName userId={userId} />
 
         <Section
           fields={['adults', 'children']}

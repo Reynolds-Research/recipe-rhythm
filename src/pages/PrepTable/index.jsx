@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { DndContext } from '@dnd-kit/core'
-import { ChevronLeft, ChevronRight, Loader2, Sparkles, Bookmark, X, CalendarPlus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Sparkles, Bookmark, X, CalendarPlus, User } from 'lucide-react'
 import Logo from '../../components/Logo'
 import { usePrepTable } from './usePrepTable'
 import DayButtons from './DayButtons'
@@ -15,8 +15,16 @@ import { dayUnderPointer, dragAnnouncements, resolveDrop, usePrepTableSensors } 
 /**
  * The new Prep Table (PRD-008 P0.4, phase 2b-2), shown when VITE_NEW_PREP_TABLE
  * is "true". Meals sit on dates; nothing locks. "Confirm the week" stamps the
- * week and makes its grocery list (2b-3); Matt's nights come in phase 3.
+ * week and makes its grocery list (2b-3). Phase 3: a day can be handed to the
+ * other person ("Matt's night"); on their phone it reads "Your night · Pick
+ * something", with one suggestion ready.
  */
+
+/** "Tue" / "Tue and Thu" / "Mon, Tue and Thu". */
+function weekdays(dates) {
+  const names = dates.map((d) => dateLabel(d).weekday)
+  return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
 /** "Nov 1 – 7 · 5 dinners" under the grocery sheet's title. */
 function groceriesSubtitle(pt) {
   const n = pt.mealCount ?? 0
@@ -99,6 +107,15 @@ export default function PrepTable({ userId, today }) {
               </div>
             ) : (
               <>
+                {pt.toPick.length > 0 && (
+                  <section aria-label="Your nights to pick" className="card p-3 flex items-center gap-3">
+                    <User size={18} className="text-brand-600 shrink-0" aria-hidden="true" />
+                    <p className="text-sm text-gray-900">
+                      <strong>{pt.toPick.length} {pt.toPick.length === 1 ? 'night' : 'nights'} to pick</strong> this week: {weekdays(pt.toPick)}.
+                    </p>
+                  </section>
+                )}
+
                 {pt.changedSinceConfirmed && !pt.making && (
                   <ChangedBanner busy={pt.busy} onUpdate={pt.updateList} onKeep={pt.keepAsIs} />
                 )}
@@ -149,6 +166,10 @@ export default function PrepTable({ userId, today }) {
                       onToggleCooked={pt.toggleCooked}
                       onMove={(meal) => setChoosing({ meal, kind: 'move' })}
                       onRemove={pt.remove}
+                      nightLabel={pt.nightLabelOn(date)}
+                      giveLabel={pt.giveLabel}
+                      onToggleNight={() => pt.toggleNight(date)}
+                      pickedBy={pt.pickedBy}
                     />
                   ))}
                 </div>
@@ -159,6 +180,7 @@ export default function PrepTable({ userId, today }) {
                   confirmation={pt.confirmation}
                   canConfirm={pt.canConfirm}
                   emptyDays={pt.emptyDays}
+                  emptyDetails={pt.emptyDetails}
                   busy={pt.busy}
                   making={pt.making}
                   notice={pt.notice}

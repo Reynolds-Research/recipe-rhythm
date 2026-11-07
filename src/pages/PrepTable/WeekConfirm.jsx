@@ -42,7 +42,7 @@ export function ChangedBanner({ busy, onUpdate, onKeep }) {
  * showing, the first tap explains and offers "Confirm anyway" / "Not yet".
  */
 export default function WeekConfirm({
-  confirmation, canConfirm, emptyDays = [], busy, making, notice,
+  confirmation, canConfirm, emptyDays = [], emptyDetails = null, busy, making, notice,
   onConfirm, onMakeList, onOpenList,
 }) {
   const [asking, setAsking] = useState(false)
@@ -85,11 +85,27 @@ export default function WeekConfirm({
   if (!canConfirm) return null
 
   if (asking && emptyDays.length > 0) {
+    // Phase 3: someone's empty night is named as theirs ("Tue is Matt's
+    // night. Nothing picked yet."); ordinary empty days read as before.
+    const details = emptyDetails ?? emptyDays.map((date) => ({ date, who: null }))
+    const plain = details.filter((d) => !d.who).map((d) => d.date)
+    const nights = details.filter((d) => d.who)
     const one = emptyDays.length === 1
+    const waitFor = nights.find((d) => d.who !== 'you')?.who
     return (
       <section aria-label="Confirm the week" className="card p-4 space-y-3">
+        {nights.length > 0 && (
+          <ul className="text-sm text-gray-900 space-y-1">
+            {nights.map(({ date, who }) => (
+              <li key={date}>
+                <strong>{dateLabel(date).weekday} {dateLabel(date).monthDay}</strong> is {who === 'you' ? 'your' : `${who}’s`} night. Nothing picked yet.
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="text-sm text-gray-900">
-          {listDays(emptyDays)} {one ? 'has' : 'have'} no meal yet. The grocery list will skip {one ? 'it' : 'them'}.
+          {plain.length > 0 && <>{listDays(plain)} {plain.length === 1 ? 'has' : 'have'} no meal yet. </>}
+          The grocery list will skip {one ? 'it' : 'them'}.
         </p>
         <div className="flex gap-2">
           <button type="button" disabled={busy} className="btn-primary flex-1 py-3"
@@ -97,7 +113,7 @@ export default function WeekConfirm({
             Confirm anyway
           </button>
           <button type="button" onClick={() => setAsking(false)} className="btn-secondary flex-1 py-3">
-            Not yet
+            {waitFor ? `Wait for ${waitFor}` : 'Not yet'}
           </button>
         </div>
       </section>
