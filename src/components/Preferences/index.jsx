@@ -168,7 +168,7 @@ export default function Preferences({ userId, onOpenAbout }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-brand-700" size={32} />
+        <Loader2 className="animate-spin text-brand-600" size={32} />
         <span className="sr-only">Loading preferences…</span>
       </div>
     )
@@ -302,7 +302,7 @@ export default function Preferences({ userId, onOpenAbout }) {
     <div className="min-h-screen bg-cream-50 pb-32">
       <header className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center pt-[max(20px,env(safe-area-inset-top))]">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">Preferences</p>
         <p className="helper-text mt-2">
           These rules filter every brainstorm. Changes save automatically.
@@ -513,7 +513,7 @@ export default function Preferences({ userId, onOpenAbout }) {
                   type="button"
                   onClick={runFillMissing}
                   disabled={fillState.running}
-                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-700 text-white rounded-full hover:bg-brand-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm font-semibold bg-brand-500 text-white rounded-full hover:bg-brand-600 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {fillState.running ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   {fillState.running
@@ -609,7 +609,7 @@ function Section({ field, fields, label, savedField, errorField, children }) {
         </h2>
         {isSaved && (
           <span
-            className="text-sm font-semibold text-brand-700 transition-opacity"
+            className="text-sm font-semibold text-brand-600 transition-opacity"
             role="status"
           >
             Saved

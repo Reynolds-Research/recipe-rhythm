@@ -291,7 +291,7 @@ export default function DayPicker({
           <div className="px-6 py-2 pb-safe" data-testid="day-picker">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="section-heading text-brand-700">
+                <p className="section-heading text-brand-600">
                   Schedule for
                 </p>
                 <p className="text-base font-serif italic text-gray-700">
@@ -355,9 +355,9 @@ export default function DayPicker({
                     <div className="flex items-center gap-2 px-5 py-2 first:rounded-t-2xl last:rounded-b-2xl">
                       <button
                         onClick={handleAddAsIs}
-                        className="flex-1 flex items-center gap-2 min-h-[44px] py-2 text-left hover:text-brand-700 transition-colors min-w-0"
+                        className="flex-1 flex items-center gap-2 min-h-[44px] py-2 text-left hover:text-brand-600 transition-colors min-w-0"
                       >
-                        <Plus size={16} strokeWidth={2.5} className="text-brand-700 shrink-0" />
+                        <Plus size={16} strokeWidth={2.5} className="text-brand-600 shrink-0" />
                         <span className="text-base font-medium text-gray-900 truncate">
                           Add &quot;{trimmedQuery}&quot; as-is
                         </span>
@@ -391,7 +391,7 @@ export default function DayPicker({
                         <Bookmark
                           size={16}
                           strokeWidth={2}
-                          className="text-brand-700 shrink-0"
+                          className="text-brand-600 shrink-0"
                           fill="currentColor"
                         />
                         <span className="text-base font-medium text-gray-900 flex-1 truncate">
@@ -456,16 +456,16 @@ function CandidateRow({ item, onSelect, onBookmark }) {
     <div className="flex items-center gap-2 px-5 py-2 first:rounded-t-2xl last:rounded-b-2xl">
       <button
         onClick={() => onSelect(item)}
-        className="flex-1 flex items-center gap-2 min-h-[44px] py-2 text-left hover:text-brand-700 transition-colors min-w-0"
+        className="flex-1 flex items-center gap-2 min-h-[44px] py-2 text-left hover:text-brand-600 transition-colors min-w-0"
       >
-        <Plus size={16} strokeWidth={2.5} className="text-brand-700 shrink-0" />
+        <Plus size={16} strokeWidth={2.5} className="text-brand-600 shrink-0" />
         <span className="text-base font-medium text-gray-900 truncate">
           {item.name}
         </span>
         {isAi && (
           <span
             data-testid="ai-new-badge"
-            className="bg-brand-100 text-brand-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1 shrink-0"
+            className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded uppercase tracking-tighter shadow-sm flex items-center gap-1 shrink-0"
           >
             <Sparkles size={10} />
             New
@@ -477,7 +477,7 @@ function CandidateRow({ item, onSelect, onBookmark }) {
           onClick={() => onBookmark(item)}
           aria-label="Add to Maybe"
           title="Add to Maybe"
-          className="shrink-0 w-11 h-11 flex items-center justify-center text-brand-700 hover:text-brand-800 transition-colors"
+          className="shrink-0 w-11 h-11 flex items-center justify-center text-brand-600 hover:text-brand-700 transition-colors"
         >
           <Bookmark size={18} strokeWidth={2} />
         </button>

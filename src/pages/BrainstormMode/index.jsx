@@ -156,7 +156,7 @@ export default function BrainstormMode({ userId }) {
         {startingPeriod && (
           <div className="fixed inset-0 bg-black/30 z-[70] flex items-center justify-center">
             <div className="bg-white rounded-xl px-5 py-3 shadow-lg flex items-center gap-2">
-              <Loader2 size={16} className="animate-spin text-brand-700" />
+              <Loader2 size={16} className="animate-spin text-brand-600" />
               <span className="text-sm text-gray-700">Starting new period…</span>
             </div>
           </div>
@@ -171,7 +171,7 @@ export default function BrainstormMode({ userId }) {
       {/* Header */}
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">Brainstorm meals</p>
       </div>
 
@@ -189,8 +189,8 @@ export default function BrainstormMode({ userId }) {
             onClick={() => setActiveTab('thisWeek')}
             className={`py-3 min-h-[44px] rounded-full text-sm font-bold uppercase tracking-wider transition-colors ${
               activeTab === 'thisWeek'
-                ? 'bg-white text-brand-700 shadow-sm'
-                : 'text-gray-700 hover:text-brand-700'
+                ? 'bg-white text-brand-600 shadow-sm'
+                : 'text-gray-700 hover:text-brand-600'
             }`}
           >
             This Week
@@ -201,13 +201,13 @@ export default function BrainstormMode({ userId }) {
             onClick={() => setActiveTab('maybe')}
             className={`py-3 min-h-[44px] rounded-full text-sm font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 ${
               activeTab === 'maybe'
-                ? 'bg-white text-brand-700 shadow-sm'
-                : 'text-gray-700 hover:text-brand-700'
+                ? 'bg-white text-brand-600 shadow-sm'
+                : 'text-gray-700 hover:text-brand-600'
             }`}
           >
             Maybe
             {shortlist.length > 0 && (
-              <span className="text-sm font-bold px-2 py-1 rounded-full bg-brand-50 text-brand-700">
+              <span className="text-sm font-bold px-2 py-1 rounded-full bg-brand-50 text-brand-600">
                 {shortlist.length}
               </span>
             )}
@@ -230,7 +230,7 @@ export default function BrainstormMode({ userId }) {
             className="bg-brand-50 border border-brand-200 rounded-2xl px-4 py-4 shadow-sm space-y-3"
           >
             <div>
-              <p className="section-heading text-brand-700 mb-1">
+              <p className="section-heading text-brand-600 mb-1">
                 Your period has ended
               </p>
               <p className="body-text">
@@ -470,7 +470,7 @@ export default function BrainstormMode({ userId }) {
           <Sheet.Header />
           <Sheet.Content>
             <div className="px-6 py-2 pb-safe">
-              <p className="section-heading text-brand-700 mb-1">
+              <p className="section-heading text-brand-600 mb-1">
                 Lock in this plan?
               </p>
 

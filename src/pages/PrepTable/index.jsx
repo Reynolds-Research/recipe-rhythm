@@ -49,7 +49,7 @@ export default function PrepTable({ userId, today }) {
     <div className="mobile-screen pb-28">
       <div className="bg-cream-100/30 border-b border-cream-100 px-5 py-5 text-center flex flex-col items-center">
         <Logo className="w-8 h-8 mb-2" />
-        <h1 className="text-sm text-brand-700 font-bold tracking-widest uppercase">For My Wife</h1>
+        <h1 className="text-sm text-brand-600 font-bold tracking-widest uppercase">For My Wife</h1>
         <p className="text-lg text-gray-900 mt-1 font-serif italic">Plan the week</p>
       </div>
 
@@ -58,10 +58,10 @@ export default function PrepTable({ userId, today }) {
           {[['week', 'Week'], ['maybe', 'Maybe']].map(([id, label]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
               className={`py-3 min-h-[44px] rounded-full text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2 ${
-                tab === id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-700 hover:text-brand-700'}`}>
+                tab === id ? 'bg-white text-brand-600 shadow-sm' : 'text-gray-700 hover:text-brand-600'}`}>
               {label}
               {id === 'maybe' && pt.maybe.length > 0 && (
-                <span className="text-sm font-bold px-2 py-1 rounded-full bg-brand-50 text-brand-700">{pt.maybe.length}</span>
+                <span className="text-sm font-bold px-2 py-1 rounded-full bg-brand-50 text-brand-600">{pt.maybe.length}</span>
               )}
             </button>
           ))}
@@ -83,7 +83,7 @@ export default function PrepTable({ userId, today }) {
               <div className="text-center">
                 <p className="font-bold text-gray-900" data-testid="week-title">{weekTitle(pt.dayArgs.weekStart, pt.weekEnd)}</p>
                 {!isThisWeek && (
-                  <button type="button" onClick={pt.goThisWeek} disabled={pt.busy} className="text-sm font-semibold text-brand-700 min-h-[44px] px-3">
+                  <button type="button" onClick={pt.goThisWeek} disabled={pt.busy} className="text-sm font-semibold text-brand-600 min-h-[44px] px-3">
                     Back to this week
                   </button>
                 )}
@@ -95,7 +95,7 @@ export default function PrepTable({ userId, today }) {
 
             {pt.loading ? (
               <div className="flex justify-center py-10" role="status" aria-label="Loading the week">
-                <Loader2 className="animate-spin text-brand-700" />
+                <Loader2 className="animate-spin text-brand-600" />
               </div>
             ) : (
               <>
@@ -180,7 +180,7 @@ export default function PrepTable({ userId, today }) {
                           <li key={meal.id}>
                             <button type="button" onClick={() => setChoosing({ meal, kind: 'replan' })} disabled={pt.busy}
                               className="w-full text-left card p-3 min-h-[48px] flex items-center gap-2">
-                              <CalendarPlus size={16} className="text-brand-700 shrink-0" aria-hidden="true" />
+                              <CalendarPlus size={16} className="text-brand-600 shrink-0" aria-hidden="true" />
                               <span className="flex-1 font-medium text-gray-900">{meal.name}</span>
                               <span className="text-xs text-gray-700">{dateLabel(meal.planned_on).weekday} {dateLabel(meal.planned_on).monthDay}</span>
                             </button>
@@ -202,7 +202,7 @@ export default function PrepTable({ userId, today }) {
             <ul className="space-y-2">
               {pt.maybe.map((meal) => (
                 <li key={meal.id} className="card p-3 flex items-center gap-2 min-h-[48px]">
-                  <Bookmark size={16} className="text-brand-700 shrink-0" aria-hidden="true" />
+                  <Bookmark size={16} className="text-brand-600 shrink-0" aria-hidden="true" />
                   <button type="button" onClick={() => setChoosing({ meal, kind: 'fromMaybe' })} disabled={pt.busy}
                     className="flex-1 text-left font-medium text-gray-900 min-h-[44px]">
                     {meal.name}

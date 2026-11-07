@@ -21,6 +21,7 @@ _From the 2026-08-02 UXR audit ([`audits/2026-08-02-uxr-heuristic-evaluation.md`
   - **Done when:** Remove asks to confirm, and an undo snackbar restores the recipe by clearing `deleted_at`; a test covers both paths (= ROADMAP VP-5).
 - [ ] **P0-3 · Brand orange fails AA contrast on every primary button** — white on `#EF4D23` = 3.64:1 (need 4.5:1); as 12px text on cream = 3.46:1. Hits `.btn-primary` app-wide. Fix: darken the brand fill token to ~`#C63D1C` (note `index.html:10` already uses the darker `#D74520` for `theme-color`). Effort: XS (one token) + extend `lint:ds` to guard the pair.
   - **Done when:** white on the primary fill measures ≥ 4.5:1, and `lint:ds` fails if the old `#EF4D23` pair comes back.
+  - **Deferred 2026-11-06:** Sara prefers the original orange, so the darker `brand-700` contrast shades were rolled back app-wide (fills → `brand-500`, brand text → `brand-600`) and Design System Lint now bans `brand-700/800/900` outside `hover:`. The AA failure is accepted. Runner-up if revisited: keep the orange fill and switch button labels to near-black `gray-900`. **Revisit when:** a household member says a button or label is hard to read, or before sharing the app beyond the household.
 
 ## 🧭 Shared household & calendar planning (PRD-008)
 

@@ -85,7 +85,7 @@ export default function ChipPicker({
             type="button"
             onClick={() => toggle(key)}
             aria-pressed={multi ? active : undefined}
-            className={active ? 'chip chip-selected' : 'chip hover:border-brand-300 hover:text-brand-700'}
+            className={active ? 'chip chip-selected' : 'chip hover:border-brand-300 hover:text-brand-600'}
           >
             {label}
           </button>
@@ -119,7 +119,7 @@ export default function ChipPicker({
         <button
           type="button"
           onClick={() => { trigger('light'); setShowAdd(true) }}
-          className="chip border-dashed text-gray-700 hover:border-brand-300 hover:text-brand-700"
+          className="chip border-dashed text-gray-700 hover:border-brand-300 hover:text-brand-600"
         >
           + custom
         </button>

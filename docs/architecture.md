@@ -137,8 +137,8 @@ the safe-area bottom-nav clearance is allowed; document in code where used.
 | Secondary text | `text-gray-700` | 9.79:1 |
 | Tertiary / metadata | `text-gray-600` | 7.18:1 |
 | Disabled / placeholder | `text-gray-500` (MINIMUM) | 4.59:1 (just clears AA) |
-| Brand text on cream/white | `text-brand-700` (NOT 600 or 500) | 7.76:1 |
-| White text on brand bg | only on `bg-brand-600` (4.41:1, OK at ≥18px bold) or `bg-brand-700` (8.17:1, safe at any size) | varies |
+| Brand text on cream/white | `text-brand-600` — the original orange Sara prefers; `brand-700`/`800` only as `hover:` states (enforced by Design System Lint) | 4.19:1 (below AA — accepted, see TASKS P0-3) |
+| White text on brand bg | `bg-brand-500` (original fill, 3.65:1) or `bg-brand-600` for a deeper-shade contrast state (4.41:1) | below AA — accepted, see TASKS P0-3 |
 
 **Banned for any text:** `text-gray-400`, `text-gray-300`, `text-gray-200`. May
 still be used for decorative (non-text) borders/dividers.
@@ -175,10 +175,10 @@ building blocks. New buttons / inputs / cards / chips compose these rather
 than reinventing the styling:
 
 - `.mobile-screen` — page shell with safe-area top, `pb-16` bottom nav clearance.
-- `.btn-primary` — full-width primary action; white-on-`brand-600`.
-- `.btn-secondary` — full-width secondary action; `brand-700` outline + text on white.
+- `.btn-primary` — full-width primary action; white-on-`brand-500`.
+- `.btn-secondary` — full-width secondary action; `brand-500` outline + `brand-600` text on white.
 - `.btn-icon` / `.btn-icon-brand` — 44×44 round icon buttons (neutral / brand).
-- `.btn-text` — inline text-action with brand-700; meets 44px touch target via `py-3`.
+- `.btn-text` — inline text-action with brand-600; meets 44px touch target via `py-3`.
 - `.input-base` — text inputs.
 - `.card` — content card.
 - `.chip` / `.chip-selected` — selectable pill, 44px hit area.

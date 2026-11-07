@@ -247,15 +247,15 @@ export default function RecipeForm({
 
       {/* Form header with AI status */}
       <div className="flex items-center justify-between gap-3">
-        <p className="section-heading text-brand-700">Add a new recipe</p>
+        <p className="section-heading text-brand-600">Add a new recipe</p>
         {suggesting && (
-          <div className="flex items-center gap-1.5 text-xs text-brand-700 font-medium">
+          <div className="flex items-center gap-1.5 text-xs text-brand-600 font-medium">
             <Loader2 size={12} className="animate-spin" />
             Analyzing…
           </div>
         )}
         {aiApplied && !suggesting && (
-          <div className="flex items-center gap-1 text-xs text-brand-700 font-medium">
+          <div className="flex items-center gap-1 text-xs text-brand-600 font-medium">
             <Sparkles size={12} />
             AI filled — tweak as needed
           </div>

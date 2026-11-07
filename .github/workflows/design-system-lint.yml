@@ -43,4 +43,11 @@ jobs:
             FAIL=1
           fi
 
+          # Sara prefers the original brand orange (brand-500 fills, brand-600 text).
+          # The darker brand-700/800 "contrast" shades are hover states only.
+          if grep -En '(^|[^:a-z-])(bg|text|border|ring)-brand-(700|800|900)' $FILES; then
+            echo "::error::BAN: dark brand orange (brand-700/800/900) outside hover: — use brand-500 fills / brand-600 text"
+            FAIL=1
+          fi
+
           exit $FAIL

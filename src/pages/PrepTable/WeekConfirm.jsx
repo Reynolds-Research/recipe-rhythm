@@ -50,7 +50,7 @@ export default function WeekConfirm({
   if (making) {
     return (
       <div role="status" className="card p-4 flex items-center justify-center gap-2 text-gray-900">
-        <Loader2 size={18} className="animate-spin text-brand-700" aria-hidden="true" />
+        <Loader2 size={18} className="animate-spin text-brand-600" aria-hidden="true" />
         <span className="font-medium">Making the grocery list…</span>
       </div>
     )

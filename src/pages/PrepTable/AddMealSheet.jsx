@@ -38,7 +38,7 @@ export default function AddMealSheet({ target, vault = [], maybe = [], onPickRec
           <div className="px-6 py-2 pb-safe space-y-4" data-testid="add-meal-sheet">
             <div className="flex items-center justify-between">
               <div>
-                <p className="section-heading text-brand-700">Add a meal</p>
+                <p className="section-heading text-brand-600">Add a meal</p>
                 <p className="text-lg font-semibold text-gray-900">{title}</p>
               </div>
               <button type="button" onClick={close} aria-label="Close" className="btn-icon"><X size={18} /></button>
@@ -59,7 +59,7 @@ export default function AddMealSheet({ target, vault = [], maybe = [], onPickRec
                 ))}
                 <li>
                   <button type="button" onClick={() => pick(onAddAsIs)(trimmed)}
-                    className="w-full text-left rounded-2xl border-2 border-dashed border-cream-200 p-3 min-h-[48px] font-semibold text-brand-700 flex items-center gap-2">
+                    className="w-full text-left rounded-2xl border-2 border-dashed border-cream-200 p-3 min-h-[48px] font-semibold text-brand-600 flex items-center gap-2">
                     <Plus size={16} /> Add “{trimmed}” as-is
                   </button>
                 </li>
@@ -74,7 +74,7 @@ export default function AddMealSheet({ target, vault = [], maybe = [], onPickRec
                     <li key={meal.id}>
                       <button type="button" onClick={() => pick(onPickMaybe)(meal)}
                         className="w-full text-left card p-3 min-h-[48px] font-medium text-gray-900 flex items-center gap-2">
-                        <Bookmark size={16} className="text-brand-700" aria-hidden="true" /> {meal.name}
+                        <Bookmark size={16} className="text-brand-600" aria-hidden="true" /> {meal.name}
                       </button>
                     </li>
                   ))}
