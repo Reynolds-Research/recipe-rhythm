@@ -376,8 +376,8 @@ Derived from `src/pages/BrainstormMode.jsx:274,435` and the [ADR-001 Phase 1 mig
 |---|---|---|
 | `household_id` | `uuid` NOT NULL | Default `current_household_id()`. FK `households` `ON DELETE CASCADE`. PK part 1. |
 | `cooks_on` | `date` NOT NULL | The night. PK part 2: one cook per date. |
-| `cook_id` | `uuid` NOT NULL | Whose night. FK `auth.users` `ON DELETE CASCADE`. Must be a member of the household: trigger `cook_nights_cook_is_member` → `rr_cook_is_member()` (also stops admin inserts). |
-| `user_id` | `uuid` nullable | Who handed it over. Default `auth.uid()`, FK `auth.users` `ON DELETE SET NULL`. |
+| `cook_id` | `uuid` NOT NULL | Whose night. FK `auth.users` `ON DELETE CASCADE`. Must be a member of the household: trigger `cook_nights_cook_is_member` → `rr_cook_is_member()` (SECURITY INVOKER, so an outsider can't probe membership; also stops admin inserts). |
+| `user_id` | `uuid` nullable | Who handed it over. Default `auth.uid()`, FK `auth.users` `ON DELETE SET NULL`. Either member may change it (both edit everything). |
 | `assigned_at` | `timestamptz` NOT NULL | When it was handed over (default `now()`). Restarted by `cook_nights_reassigned` → `rr_cook_nights_reassigned()` when `cook_id` changes. With the first meal's `created_at` on that date it measures "nights filled within 2 days" (P1.1). |
 | `created_at`, `updated_at` | `timestamptz` NOT NULL | `updated_at` maintained by `cook_nights_set_updated_at` (`rr_set_updated_at()`). |
 

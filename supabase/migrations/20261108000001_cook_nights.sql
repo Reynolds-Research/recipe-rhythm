@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS public.cook_nights (
                   REFERENCES public.households(id) ON DELETE CASCADE,
   cooks_on      date NOT NULL,
   cook_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,   -- whose night
-  user_id       uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL, -- who handed it over
+  user_id       uuid DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL, -- who handed it over (either member may change it: both edit everything)
   assigned_at   timestamptz NOT NULL DEFAULT now(),
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now(),
@@ -97,9 +97,12 @@ CREATE TRIGGER cook_nights_reassigned BEFORE UPDATE ON public.cook_nights
   FOR EACH ROW EXECUTE FUNCTION public.rr_cook_nights_reassigned();
 
 -- The cook must belong to the household. A trigger (not only a security
--- rule) so even an admin insert can't hand a night to an outsider.
+-- rule) so even an admin insert can't hand a night to an outsider. It runs
+-- with the caller's own rights (not elevated): members can read their own
+-- member list, and an outsider sees no members at all, so the error never
+-- reveals who belongs to someone else's household.
 CREATE OR REPLACE FUNCTION public.rr_cook_is_member()
-RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.household_members m
                   WHERE m.household_id = NEW.household_id AND m.user_id = NEW.cook_id) THEN

@@ -108,6 +108,19 @@ attempts(ord, attempt, expected, actual) AS (
              format('@INSERT INTO public.cook_nights (user_id, cooks_on, cook_id) VALUES (%L, %L, %L)', her, tue, matt),
              format('@INSERT INTO public.cook_nights (user_id, cooks_on, cook_id) VALUES (%L, %L, %L)', her, tue, her)],
            'SELECT ''saved''') FROM ids
+  UNION ALL SELECT 26, 'she can''t hand an existing night over to someone outside the household', 'denied',
+         pg_temp.rr_scenario(her, ARRAY[
+             format('INSERT INTO public.cook_nights (household_id, user_id, cooks_on, cook_id) VALUES (%L, %L, %L, %L)', home, her, tue, matt),
+             format('@UPDATE public.cook_nights SET cook_id = %L WHERE cooks_on = %L', other, tue)],
+           'SELECT ''saved''') FROM ids
+  UNION ALL SELECT 27, 'an outsider gets the same refusal whoever the cook is (no membership leak)', 'same',
+         CASE WHEN pg_temp.rr_scenario(other, ARRAY[
+                     format('@INSERT INTO public.cook_nights (household_id, user_id, cooks_on, cook_id) VALUES (%L, %L, %L, %L)', home, other, tue, matt)],
+                   'SELECT ''saved''')
+                 = pg_temp.rr_scenario(other, ARRAY[
+                     format('@INSERT INTO public.cook_nights (household_id, user_id, cooks_on, cook_id) VALUES (%L, %L, %L, %L)', home, other, tue, other)],
+                   'SELECT ''saved''')
+              THEN 'same' ELSE 'different' END FROM ids
   UNION ALL SELECT 25, 'an outsider''s delete of her night changes nothing', '1',
          pg_temp.rr_scenario(other, ARRAY[
              format('INSERT INTO public.cook_nights (household_id, user_id, cooks_on, cook_id) VALUES (%L, %L, %L, %L)', home, her, tue, matt),
