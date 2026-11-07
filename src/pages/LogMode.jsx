@@ -12,6 +12,8 @@ import VaultMatchSheet from '../components/VaultMatchSheet'
 import MealNameConfirmSheet from '../components/MealNameConfirmSheet'
 import { useHaptics } from '../hooks/useHaptics'
 
+const SAVE_FAILED = 'Couldn’t save this meal. It’s still here — try again.'
+
 /**
  * LogMode
  * The Mon–Fri screen. Low friction meal logging with voice-first input.
@@ -23,6 +25,9 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
   const [note, setNote]                 = useState('')
   const [saved, setSaved]               = useState(false)
   const [saving, setSaving]             = useState(false)
+  // A failed save keeps what she typed and says so by the button (UXR audit
+  // 2026-08-02: it used to drop back to "Save to log" with no message).
+  const [saveError, setSaveError]       = useState(null)
   const [savedMealName, setSavedMealName] = useState('')
   const [savedMealNote, setSavedMealNote] = useState('')
 
@@ -64,6 +69,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
 
     if (dbError) {
       console.error('Save failed:', dbError.message)
+      setSaveError(SAVE_FAILED)
       return
     }
 
@@ -79,7 +85,9 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     setEditableText('')
     setNote('')
     setTranscript('')
-    onSave?.()
+    // The meal is saved; a problem refreshing the list afterwards must not
+    // show "Couldn't save".
+    try { onSave?.() } catch (err) { console.error('After-save refresh failed:', err?.message || err) }
   }
 
   // Continue the save flow with a fully-normalized name (already spell-checked
@@ -100,25 +108,40 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     await finalizeSave(finalName, finalNote, resolvedVaultId)
   }
 
+  // Any step of the save that throws (no network, say) ends the same way as
+  // a refused insert: her text stays and the message shows.
+  const guardSave = async (run) => {
+    try {
+      await run()
+    } catch (err) {
+      console.error('Save failed:', err?.message || err)
+      setSaving(false)
+      setSaveError(SAVE_FAILED)
+    }
+  }
+
   const handleSave = async () => {
     const rawName = editableText.trim()
     if (!rawName) return
     trigger('success')
+    setSaveError(null)
     setSaving(true)
 
-    const finalNote = note.trim()
-    const { corrected, hasChanges } = await normalizeMealName(rawName)
+    await guardSave(async () => {
+      const finalNote = note.trim()
+      const { corrected, hasChanges } = await normalizeMealName(rawName)
 
-    if (hasChanges) {
-      // Pause for user confirmation — the confirm sheet's callbacks will
-      // resume the save with their chosen name.
-      setNameConfirm({ original: rawName, corrected, note: finalNote })
-      setSaving(false)
-      return
-    }
+      if (hasChanges) {
+        // Pause for user confirmation — the confirm sheet's callbacks will
+        // resume the save with their chosen name.
+        setNameConfirm({ original: rawName, corrected, note: finalNote })
+        setSaving(false)
+        return
+      }
 
-    // No spelling/casing changes — corrected is already Title-cased.
-    await continueSave(corrected || toTitleCase(rawName), finalNote)
+      // No spelling/casing changes — corrected is already Title-cased.
+      await continueSave(corrected || toTitleCase(rawName), finalNote)
+    })
   }
 
   const handleNameConfirmAccept = async () => {
@@ -126,7 +149,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     const { corrected, note: pendingNote } = nameConfirm
     setNameConfirm(null)
     setSaving(true)
-    await continueSave(corrected, pendingNote)
+    await guardSave(() => continueSave(corrected, pendingNote))
   }
 
   const handleNameConfirmReject = async () => {
@@ -136,7 +159,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     const { original, note: pendingNote } = nameConfirm
     setNameConfirm(null)
     setSaving(true)
-    await continueSave(toTitleCase(original), pendingNote)
+    await guardSave(() => continueSave(toTitleCase(original), pendingNote))
   }
 
   const handleSheetSelect = async (vaultId) => {
@@ -146,7 +169,7 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
     const { name, note: pendingNote } = pendingSave
     setPendingSave(null)
     setPendingMatches([])
-    await finalizeSave(name, pendingNote, vaultId)
+    await guardSave(() => finalizeSave(name, pendingNote, vaultId))
   }
 
   const handleSheetClose = () => {
@@ -357,6 +380,9 @@ export default function LogMode({ recentMeals = [], onSave, userId }) {
         >
           {saving ? 'Saving…' : 'Save to log'}
         </button>
+        {saveError && (
+          <p role="alert" className="text-sm text-red-800 text-center">{saveError}</p>
+        )}
 
       </div>
 

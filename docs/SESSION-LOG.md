@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-07 (evening) — Two ship-first fixes: meal-log errors, recipe Remove confirm + Undo
+
+**Done:** #234 merged (grocery amounts added up). This PR, `fix/ship-first-meal-log-and-delete`: a failed meal-log save now says so and keeps her text (Meal-log save fails silently, P0-1); Remove on a Cookbook card asks first, then offers Undo for 8 seconds (Recipe delete has no confirm and no undo, P0-2). "Label the May ingredient lists as guesses" re-scoped: no migration (the app already treats unlabelled lists as guesses); what's left is Sara's screenshots.
+
+**Verified:** Vitest (new tests fail without the fixes); build; independent reviewer (see PR).
+
+**Open / owed:** the brand-orange contrast item (P0-3) stays deferred by Sara's choice. Pre-existing: `ingredient_classifications_cache` table missing on prod.
+
+**Next:** "Grocery list: don't round a clean pound up" can likely close — her Nov 8 list buys 1 lb for 1 lb (turkey, shrimp, Brussels sprouts); watch one more week. Then Phase 3 (Matt's nights).
+
+---
+
 ## 2026-11-07 (later) — Recipes read from their links on prod; grocery amounts added up
 
 **Done:** "Read the real recipe from a link" ticked (#233 live; migration `20261107000001` on prod). This PR, `fix/grocery-add-up-amounts`: the grocery list adds amounts the AI left as "+" (`addUpAmount`, used when saving and when showing), and the prompt asks for one total.
