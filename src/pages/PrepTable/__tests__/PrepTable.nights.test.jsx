@@ -97,6 +97,18 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
+// Freeze the clock on TODAY. The page takes `today` as a prop, but the
+// recommender's "already this week" variety check still measures from the real
+// clock (recommendations.js buildWeeklyAttributes), so these fixed November
+// dates stopped counting as "this week" once the real date moved past
+// TODAY + 7 days and the suggestion tests went red on 2026-11-09 with no code
+// change. Only Date is faked, so userEvent and findBy* timers stay real.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(`${TODAY}T12:00:00`))
+})
+afterEach(() => vi.useRealTimers())
+
 describe('her phone: handing a night to Matt', () => {
   it('"Give to Matt" on an upcoming day hands that night to him', async () => {
     renderAs(HER)
