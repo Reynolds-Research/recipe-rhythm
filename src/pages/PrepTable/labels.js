@@ -26,16 +26,16 @@ function andList(names) {
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
-/**
- * The sheet's note for add-ons and meals with no recipe ("Meal shapes"): the
- * list guessed their amounts from the words alone. She can check them, or
- * type an amount into the add-on ("1 lb shrimp"), which the list then uses.
- */
 /** Add-ons the list doesn't have yet (made before the add-on was set). */
 export function missingNote(names) {
   return `${andList(names)} ${names.length === 1 ? "isn't" : "aren't"} on this list yet. Tap Update list to add ${names.length === 1 ? 'it' : 'them'}.`
 }
 
+/**
+ * The sheet's note for add-ons and meals with no recipe ("Meal shapes"): the
+ * list guessed their amounts from the words alone. She can check them, or
+ * type an amount into the add-on ("1 lb shrimp"), which the list then uses.
+ */
 export function extrasNote(names) {
   return `Amounts for ${andList(names)} are estimates (not from a recipe). Check them before you order.`
 }
