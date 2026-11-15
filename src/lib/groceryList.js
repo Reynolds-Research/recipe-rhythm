@@ -21,6 +21,7 @@
  */
 import { GROCERY_SECTIONS } from './constants.js'
 import { addUpAmount, friendlyAmount } from './groceryAmounts.js'
+import { isOnList } from './extraMatch.js'
 
 const MODEL = 'claude-haiku-4-5-20251001'
 
@@ -67,7 +68,7 @@ function buildExtrasBlock(extras, householdSize) {
   })
   return `
 
-Estimate these — they have no ingredient list, so estimate a sensible amount (a pound of shrimp in a 4-serving pasta, not a handful). If a word gives an amount ("1 lb shrimp"), use it. Never add ingredients the words don't name. A night that isn't cooked at home (eating out, takeout, leftovers) adds nothing. Consolidate them with the recipes' items like any other ingredient:
+Estimate these — they have no ingredient list, so estimate a sensible amount (a pound of shrimp in a 4-serving pasta, not a handful). If a word gives an amount ("1 lb shrimp"), use it. Never add ingredients the words don't name. A night that isn't cooked at home (eating out, takeout, leftovers) adds nothing. Every item named here MUST be on the list (as its own line, or summed into a matching line). Consolidate them with the recipes' items like any other ingredient:
 ${lines.join('\n')}`
 }
 
@@ -109,6 +110,62 @@ Instructions:
 
 Respond with valid JSON ONLY — no prose, no markdown fences, no explanation:
 {"items": [{"name": "<ingredient name>", "quantity": "<what to buy, or null>", "recipe_quantity": "<what the recipes use, or null>", "section": "<one of the sections>", "assumed": <true or false>}, ...]}`
+}
+
+/**
+ * The AI's items → clean list lines: pantry staples dropped, sections from
+ * the fixed list (else 'Other'), amounts tidied. `exactStaples` drops only an
+ * exact staple name (for add-ons she typed: "garlic bread" is not "garlic").
+ */
+function parseItems(raw, stapleTokens, { exactStaples = false } = {}) {
+  const sectionSet = new Set(GROCERY_SECTIONS)
+  const items = []
+  for (const entry of raw) {
+    if (!entry || typeof entry.name !== 'string' || !entry.name.trim()) continue
+    const name = entry.name.trim()
+
+    // Defense in depth: skip pantry staples even if the LLM ignored the
+    // instruction. Substring match keeps "salt" from leaking through as
+    // "kosher salt" / "sea salt" etc.
+    const lowerName = name.toLowerCase()
+    if (exactStaples ? stapleTokens.includes(lowerName) : stapleTokens.some(t => lowerName.includes(t))) continue
+
+    // PRD-003 OQ.E: out-of-vocabulary section → coerce to 'Other' and warn.
+    // We do NOT fail the whole request — one mis-categorized item is much
+    // less disruptive than a 502 the user has to retry.
+    let section = typeof entry.section === 'string' ? entry.section.trim() : ''
+    if (!sectionSet.has(section)) {
+      console.warn(
+        `[grocery-list] LLM returned out-of-vocabulary section ${JSON.stringify(entry.section)} for "${name}" — coercing to 'Other'`,
+      )
+      section = 'Other'
+    }
+
+    // Amounts are free-text per OQ.A. Empty / "null" string → null; any
+    // decimal the model slipped in becomes a kitchen fraction (1.125 → 1⅛).
+    const quantity = amountOrNull(entry.quantity)
+    const recipe_quantity = amountOrNull(entry.recipe_quantity)
+    // Only a real `true` counts: anything else stays on the list.
+    const assumed = entry.assumed === true
+
+    items.push({ name, quantity, recipe_quantity, section, assumed })
+  }
+  return items
+}
+
+/** The follow-up question for add-ons the first answer left out. */
+function buildMissingMessage(missing, householdSize) {
+  const lines = missing.map(x => {
+    const f = scaleFactor(householdSize, x.servings)
+    return `- "${x.name}" added to ${x.with} (yields ${x.servings} servings; multiply by ${f})`
+  })
+  return `A grocery list left out these add-ons. Each is ONE item added to a recipe the household cooks whole for ${householdSize} eaters. Estimate how much to buy of each (a pound of shrimp in a 4-serving pasta, not a handful). If the words give an amount, use it.
+${lines.join('\n')}
+
+Use these grocery store sections, spelled exactly: ${GROCERY_SECTIONS.join(' | ')}. Fractions as ½ ¼ ¾, never decimals.
+
+Respond with valid JSON ONLY:
+{"items": [{"name": "<the item, e.g. Italian sausage>", "quantity": "<what to buy, e.g. 1 lb>", "recipe_quantity": "<what the recipe uses>", "section": "<one of the sections>", "assumed": false}]}`
 }
 
 /** Free-text amount → trimmed friendly string, or null. */
@@ -243,42 +300,38 @@ export async function buildGroceryList({
     )
   }
 
-  const sectionSet = new Set(GROCERY_SECTIONS)
   const stapleTokens = pantryStaples
     .filter(s => typeof s === 'string')
     .map(s => s.toLowerCase().trim())
     .filter(Boolean)
+  const items = parseItems(parsed.items, stapleTokens)
 
-  const items = []
-  for (const entry of parsed.items) {
-    if (!entry || typeof entry.name !== 'string' || !entry.name.trim()) continue
-    const name = entry.name.trim()
-
-    // Defense in depth: skip pantry staples even if the LLM ignored the
-    // instruction. Substring match keeps "salt" from leaking through as
-    // "kosher salt" / "sea salt" etc.
-    const lowerName = name.toLowerCase()
-    if (stapleTokens.some(t => lowerName.includes(t))) continue
-
-    // PRD-003 OQ.E: out-of-vocabulary section → coerce to 'Other' and warn.
-    // We do NOT fail the whole request — one mis-categorized item is much
-    // less disruptive than a 502 the user has to retry.
-    let section = typeof entry.section === 'string' ? entry.section.trim() : ''
-    if (!sectionSet.has(section)) {
-      console.warn(
-        `[grocery-list] LLM returned out-of-vocabulary section ${JSON.stringify(entry.section)} for "${name}" — coercing to 'Other'`,
-      )
-      section = 'Other'
+  // Every add-on must be on the list ("Meal shapes", found 2026-11-15: her
+  // "Penne alla Vodka + Italian sausage" list had no sausage — the AI left it
+  // out and nothing checked). Missing ones get one short follow-up question;
+  // anything still missing is added as a plain line, so it's never silent.
+  const missing = resolvedExtras.filter(x => x.with && !isOnList(x.name, items.map(i => i.name)))
+  if (missing.length) {
+    let found = []
+    try {
+      const followUp = await anthropicClient.messages.create({
+        model: MODEL,
+        max_tokens: 400,
+        messages: [{ role: 'user', content: buildMissingMessage(missing, householdSize) }],
+      })
+      const more = parseJsonLoose(followUp?.content?.[0]?.text ?? '')
+      // She typed the add-on herself: only an exact staple match keeps it off.
+      if (more && Array.isArray(more.items)) found = parseItems(more.items, stapleTokens, { exactStaples: true })
+    } catch (err) {
+      console.warn('[grocery-list] follow-up for missing add-ons failed', err?.message || err)
     }
-
-    // Amounts are free-text per OQ.A. Empty / "null" string → null; any
-    // decimal the model slipped in becomes a kitchen fraction (1.125 → 1⅛).
-    const quantity = amountOrNull(entry.quantity)
-    const recipe_quantity = amountOrNull(entry.recipe_quantity)
-    // Only a real `true` counts: anything else stays on the list.
-    const assumed = entry.assumed === true
-
-    items.push({ name, quantity, recipe_quantity, section, assumed })
+    for (const x of missing) {
+      const hit = found.filter(i => isOnList(x.name, [i.name]))
+      if (hit.length) items.push(...hit)
+      else if (!stapleTokens.includes(x.name.toLowerCase())) {
+        items.push({ name: x.name, quantity: 'check amount', recipe_quantity: null, section: 'Other', assumed: false })
+      }
+    }
   }
 
   return { items }

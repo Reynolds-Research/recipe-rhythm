@@ -3,7 +3,7 @@ import { Sheet } from 'react-modal-sheet'
 import { ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import { GROCERY_SECTIONS } from '../../lib/constants'
 import { addUpAmount, showRecipeLine, splitList } from '../../lib/groceryAmounts'
-import { extrasNote, guessNote } from './labels'
+import { extrasNote, guessNote, missingNote } from './labels'
 
 const ACTION = 'inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700 disabled:opacity-50'
 const QUIET_ACTION = 'inline-flex items-center min-h-[44px] text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50'
@@ -236,7 +236,7 @@ function OwnItems({ items, onAdd, onRemove }) {
  *   staples?: string[], subtitle?: string|null,
  *   onSetAssumed?: (item: object, assumed: boolean) => Promise<void>,
  *   onSetAlwaysHave?: (item: object, on: boolean) => Promise<void>,
- *   guessed?: string[], estimatedExtras?: string[], nightsOff?: string[], updating?: boolean, onUpdateList?: () => void,
+ *   guessed?: string[], estimatedExtras?: string[], missingExtras?: string[], nightsOff?: string[], updating?: boolean, onUpdateList?: () => void,
  *   onAddOwn?: (name: string) => Promise<void>,
  *   onRemoveOwn?: (item: object) => Promise<void>,
  *   onClose: () => void,
@@ -246,7 +246,7 @@ export default function GrocerySheet({
   open, loading, failed = false, items = [], staples = [], subtitle = null,
   onSetAssumed = async () => {}, onSetAlwaysHave = async () => {},
   onAddOwn = async () => {}, onRemoveOwn = async () => {}, onClose,
-  guessed = [], estimatedExtras = [], nightsOff = [], updating = false, onUpdateList,
+  guessed = [], estimatedExtras = [], missingExtras = [], nightsOff = [], updating = false, onUpdateList,
 }) {
   const { onList: listed } = splitList(items, staples)
   const onList = listed.filter((i) => !i.is_adhoc)
@@ -275,6 +275,11 @@ export default function GrocerySheet({
             {ready && estimatedExtras.length > 0 && (
               <p className="helper-text" data-testid="extras-note">
                 {extrasNote(estimatedExtras)}
+              </p>
+            )}
+            {ready && missingExtras.length > 0 && (
+              <p className="text-sm font-medium text-gray-900" data-testid="missing-note">
+                {missingNote(missingExtras)}
               </p>
             )}
 

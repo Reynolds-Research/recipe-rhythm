@@ -44,7 +44,10 @@ function AddOn({ meal, canEdit, busy, onSave }) {
           placeholder="shrimp, garlic bread…"
           aria-label={`Add something to ${meal.name}`}
           autoFocus
-          className="flex-1 min-w-0 min-h-[36px] rounded-lg border border-cream-200 bg-white px-2 text-sm font-normal text-gray-900"
+          // 16px on phones: iPhone zooms the whole page into any text box under
+          // 16px and stays zoomed — her sheet ran off the screen (2026-11-15).
+          // Same rule as the app's .input-base (text-base sm:text-sm).
+          className="flex-1 min-w-0 min-h-[36px] rounded-lg border border-cream-200 bg-white px-2 text-base sm:text-sm font-normal text-gray-900"
         />
         <button type="submit" disabled={busy} aria-label="Save"
           className="w-11 h-11 shrink-0 flex items-center justify-center text-brand-600">

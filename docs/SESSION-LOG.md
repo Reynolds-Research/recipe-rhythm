@@ -6,6 +6,18 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-15 — Add-on missing from her list; sheet off the screen on iPhone
+
+**Done:** #247 merged and `20261114000001` applied (Matt; prod verify 9/9 re-run read-only). Her first real use: "Italian sausage" on Penne saved fine, but Update list had no sausage, the note still named it, and the sheet ran off her iPhone screen. Branch `fix/grocery-addons-layout`: server-side check that every add-on is on the list (follow-up question, then a "check amount" line), the sheet's notes read the list, the add-on box is 16px on phones (iPhone zoom).
+
+**Verified:** prod read-only (add-on row, list items, staples); Vitest 1056/1056 — the 6 new tests fail on the old code; ESLint + `lint:ds` clean; new `e2e/phone-layout.spec.js` (her week + list at 390 px) passes, but also passed before the fix: Chromium doesn't zoom like iPhone, so the zoom cause stays an inference until she tries it.
+
+**Process note:** #247 was merged ~2 min before the migration ran (merge = deploy on Vercel). No one loaded the app in that window (edge logs).
+
+**Next:** she pinches back out, taps Update list → sausage on the list → tick the Meal shapes item.
+
+---
+
 ## 2026-11-14 — Meal shapes: add-ons on a planned meal; groceries for meals with no recipe
 
 **Done:** branch `feat/meal-add-ons` (PR pending). Matt's decisions: the add-on gets its own column (not text in the name); meals with no recipe go to the grocery AI in the same change. Migration `20261114000001` (`planned_meals.add_on` + the week-changed trigger watches it) with verify + rollback + `rehearsal/08_add_on_checks.sql`. Prep Table: "+ add something" under a recipe meal (today on, recipes only), "+ shrimp" once saved, tap to change or clear; Calendar shows "Recipe + add-on". Groceries: `recipesFromMeals` returns `extras` (add-ons tied to their recipe's servings; meals with no recipe, minus nights out); `/api/grocery-list` takes `extras` (≤ 30) and may have no recipes when there are extras — one handler, so `api-server.mjs` and `api/` stay in step; the sheet's "Not on the list" line replaced by an estimates note.

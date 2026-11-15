@@ -50,7 +50,7 @@ import {
   removeOwnItem as deleteOwnItem,
   WeekGroceryError,
 } from '../../lib/weekGroceries'
-import { estimatedExtraNames, guessedRecipeNames, nightsOffNames } from '../../lib/groceryRecipes'
+import { extrasStatus, guessedRecipeNames, nightsOffNames } from '../../lib/groceryRecipes'
 import {
   giveLabel as giveLabelFor,
   giveNight,
@@ -511,7 +511,11 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   /** This week's recipes whose amounts are the AI's guess (shown on the grocery sheet). */
   const guessed = useMemo(() => guessedRecipeNames(meals, kitchen.vault), [meals, kitchen.vault])
   // Add-ons and meals with no recipe: the list estimates them from the words.
-  const estimatedExtras = useMemo(() => estimatedExtraNames(meals), [meals])
+  // Checked against the list on screen, so the note never names a missing line.
+  const extras = useMemo(
+    () => extrasStatus(meals, groceries.items.map((i) => i.name)),
+    [meals, groceries.items],
+  )
   // Nights off ("Pizza out"): nothing to buy, but named so nothing is silent.
   const nightsOff = useMemo(() => nightsOffNames(meals), [meals])
 
@@ -636,7 +640,8 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     weekEnd: addDays(weekStart, 6),
     mealCount: meals.length,
     guessed,
-    estimatedExtras,
+    estimatedExtras: extras.estimated,
+    missingExtras: extras.notOnList,
     nightsOff,
     loading: !current,
     error,

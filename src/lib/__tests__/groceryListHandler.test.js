@@ -823,3 +823,82 @@ describe('extras: prompt (injected AI client)', () => {
       .rejects.toBeInstanceOf(TypeError)
   })
 })
+
+// ---------- Every add-on ends up on the list (found 2026-11-15) ----------
+// Her "Penne alla Vodka + Italian sausage" list came back with no sausage: the
+// AI left it out, and nothing checked. These fake AIs leave it out on purpose.
+
+describe('add-ons the AI leaves out', () => {
+  const PENNE = [{ name: 'Penne alla Vodka', ingredients: ['penne: 1 lb', 'heavy cream: ¾ cup'], servings: 4 }]
+  const SAUSAGE = [{ name: 'Italian sausage', with: 'Penne alla Vodka', servings: 4 }]
+  const firstAnswer = JSON.stringify({ items: [
+    { name: 'penne pasta', quantity: '1 lb', section: 'Pantry' },
+    { name: 'heavy cream', quantity: '1 pint', section: 'Dairy' },
+  ] })
+  const client = (...answers) => ({
+    messages: { create: vi.fn().mockImplementation(async () => {
+      const a = answers.shift()
+      if (a instanceof Error) throw a
+      return { content: [{ type: 'text', text: a }] }
+    }) },
+  })
+
+  it('missing from the first answer → asked once more, and the answer goes on the list', async () => {
+    const ai = client(firstAnswer, JSON.stringify({ items: [
+      { name: 'Italian sausage', quantity: '1 lb', recipe_quantity: '1 lb', section: 'Meat & Seafood' },
+    ] }))
+    const out = await buildGroceryList({ recipes: PENNE, extras: SAUSAGE, anthropicClient: ai })
+    expect(ai.messages.create).toHaveBeenCalledTimes(2)
+    expect(ai.messages.create.mock.calls[1][0].messages[0].content).toContain('"Italian sausage" added to Penne alla Vodka')
+    expect(out.items).toContainEqual(expect.objectContaining({ name: 'Italian sausage', quantity: '1 lb', section: 'Meat & Seafood' }))
+    expect(out.items.map((i) => i.name)).toEqual(expect.arrayContaining(['penne pasta', 'heavy cream']))
+  })
+
+  it('still missing after asking again → added as a plain line marked "check amount"', async () => {
+    const ai = client(firstAnswer, JSON.stringify({ items: [] }))
+    const out = await buildGroceryList({ recipes: PENNE, extras: SAUSAGE, anthropicClient: ai })
+    expect(out.items).toContainEqual({
+      name: 'Italian sausage', quantity: 'check amount', recipe_quantity: null, section: 'Other', assumed: false,
+    })
+  })
+
+  it('the follow-up fails → still added (the list is never short an add-on)', async () => {
+    const ai = client(firstAnswer, new Error('overloaded'))
+    const out = await buildGroceryList({ recipes: PENNE, extras: SAUSAGE, anthropicClient: ai })
+    expect(out.items.map((i) => i.name)).toContain('Italian sausage')
+  })
+
+  it('on the list the first time → no second question', async () => {
+    const ai = client(JSON.stringify({ items: [
+      { name: 'penne pasta', quantity: '1 lb', section: 'Pantry' },
+      { name: 'chicken sausage', quantity: '1 lb', section: 'Meat & Seafood' },
+    ] }))
+    const out = await buildGroceryList({ recipes: PENNE, extras: [{ name: 'chicken sausage', with: 'Penne alla Vodka', servings: 4 }], anthropicClient: ai })
+    expect(ai.messages.create).toHaveBeenCalledTimes(1)
+    expect(out.items.filter((i) => /sausage/.test(i.name))).toHaveLength(1)
+  })
+
+  it('a staple inside the add-on\'s name ("garlic" in "garlic bread") does not drop the add-on', async () => {
+    const ai = client(
+      JSON.stringify({ items: [{ name: 'garlic bread', quantity: '1 loaf', section: 'Bakery' }] }), // dropped: contains "garlic"
+      JSON.stringify({ items: [{ name: 'garlic bread', quantity: '1 loaf', section: 'Bakery' }] }),
+    )
+    const out = await buildGroceryList({
+      recipes: PENNE, pantryStaples: ['garlic'],
+      extras: [{ name: 'garlic bread', with: 'Penne alla Vodka', servings: 4 }], anthropicClient: ai,
+    })
+    expect(out.items).toContainEqual(expect.objectContaining({ name: 'garlic bread', quantity: '1 loaf' }))
+  })
+
+  it('meals with no recipe are not chased (only add-ons are checked)', async () => {
+    const ai = client(firstAnswer)
+    await buildGroceryList({ recipes: PENNE, extras: [{ name: 'Pork loin and broccoli', with: null }], anthropicClient: ai })
+    expect(ai.messages.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('the first prompt says every add-on must be on the list', async () => {
+    const ai = client(JSON.stringify({ items: [{ name: 'sausage', quantity: '1 lb', section: 'Meat & Seafood' }] }))
+    await buildGroceryList({ recipes: PENNE, extras: SAUSAGE, anthropicClient: ai })
+    expect(ai.messages.create.mock.calls[0][0].messages[0].content).toMatch(/Every item named here MUST be on the list/)
+  })
+})

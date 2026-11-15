@@ -6,6 +6,8 @@
  * Moved here from the old Groceries tab (PRD-008 2b-3), which was retired in phase 4.
  */
 
+import { isOnList } from './extraMatch'
+
 /** Cookbook columns the grocery list needs, for a `vault(...)` join. */
 export const GROCERY_VAULT_COLUMNS =
   'name, servings, ingredients_structured, ingredients_classified, proteins, main_carb, vegetables, dairy_components, fruits'
@@ -169,6 +171,25 @@ export function estimatedExtraNames(meals = []) {
     if (clean && !names.includes(clean)) names.push(clean)
   }
   return names
+}
+
+/**
+ * The sheet's notes, checked against the list itself (2026-11-15: the note
+ * named "Italian sausage" as an estimate while the list had no sausage).
+ *   estimated — add-ons that ARE on the list, and meals with no recipe
+ *   notOnList — add-ons the list doesn't have (a list made before the add-on
+ *               was set, or before the server checked) → "tap Update list"
+ * `itemNames` are the list's line names.
+ */
+export function extrasStatus(meals = [], itemNames = []) {
+  const estimated = []
+  const notOnList = []
+  for (const name of estimatedExtraNames(meals)) {
+    const isAddOn = (meals ?? []).some((m) => m?.vault_id && typeof m.add_on === 'string' && m.add_on.trim() === name)
+    const target = isAddOn && !isOnList(name, itemNames) ? notOnList : estimated
+    if (!target.includes(name)) target.push(name)
+  }
+  return { estimated, notOnList }
 }
 
 /** Household size + pantry staples from preferences (row defaults: 2 adults, 0 children). */

@@ -26,6 +26,11 @@ function andList(names) {
     : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
 }
 
+/** Add-ons the list doesn't have yet (made before the add-on was set). */
+export function missingNote(names) {
+  return `${andList(names)} ${names.length === 1 ? "isn't" : "aren't"} on this list yet. Tap Update list to add ${names.length === 1 ? 'it' : 'them'}.`
+}
+
 /**
  * The sheet's note for add-ons and meals with no recipe ("Meal shapes"): the
  * list guessed their amounts from the words alone. She can check them, or

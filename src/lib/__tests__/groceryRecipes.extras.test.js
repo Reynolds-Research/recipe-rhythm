@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { estimatedExtraNames, isNotCooking, nightsOffNames, recipesFromMeals } from '../groceryRecipes'
+import { estimatedExtraNames, extrasStatus, isNotCooking, nightsOffNames, recipesFromMeals } from '../groceryRecipes'
 
 // Meal shapes (2026-11-14). A planned meal is a name + an optional link to one
 // recipe. What the grocery list can't read from a recipe, it estimates:
@@ -80,5 +80,24 @@ describe('estimatedExtraNames — the sheet\'s note', () => {
       { name: 'Pizza out', vault_id: null },
       { name: 'Shrimp Tacos', vault_id: 'v3', add_on: 'shrimp' },
     ])).toEqual(['shrimp', 'Pork Tenderloin with squash and kale salad'])
+  })
+})
+
+describe('extrasStatus — the sheet only names what the list has (2026-11-15)', () => {
+  const meals = [
+    { name: 'Penne alla Vodka', vault_id: 'v2', add_on: 'Italian sausage' },
+    { name: 'Pork Tenderloin with squash and kale salad', vault_id: null },
+  ]
+  it('her Nov 15 list (no sausage): the add-on is "not on this list yet", not "an estimate"', () => {
+    expect(extrasStatus(meals, ['penne pasta', 'heavy cream'])).toEqual({
+      estimated: ['Pork Tenderloin with squash and kale salad'],
+      notOnList: ['Italian sausage'],
+    })
+  })
+  it('once the list has it, it is named as an estimate', () => {
+    expect(extrasStatus(meals, ['penne pasta', 'Italian sausage'])).toEqual({
+      estimated: ['Italian sausage', 'Pork Tenderloin with squash and kale salad'],
+      notOnList: [],
+    })
   })
 })

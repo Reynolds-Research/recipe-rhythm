@@ -362,6 +362,17 @@ describe('add-ons on a recipe meal (Meal shapes, 2026-11-14)', () => {
     expect(pm.setAddOn).toHaveBeenCalledWith(supabase, 'm1', '')
   })
 
+  it('the add-on box uses 16px text on phones, so iPhone doesn\'t zoom the page (2026-11-15)', async () => {
+    setWeek({ meals: [meal({ name: 'Penne alla Vodka' })] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await userEvent.click(within(mon).getByRole('button', { name: '+ add something' }))
+    const box = within(mon).getByRole('textbox', { name: 'Add something to Penne alla Vodka' })
+    // text-base = 16px; under 16px iPhone zooms in and the sheet runs off the screen.
+    expect(box.className.split(' ')).toContain('text-base')
+    expect(box.className.split(' ')).not.toContain('text-sm')
+  })
+
   it('Cancel (or Escape) saves nothing', async () => {
     setWeek({ meals: [meal({ name: 'Penne alla Vodka' })] })
     renderPage()

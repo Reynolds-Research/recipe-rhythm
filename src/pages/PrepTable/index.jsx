@@ -272,6 +272,7 @@ export default function PrepTable({ userId, today }) {
         subtitle={pt.groceries.open ? groceriesSubtitle(pt) : null}
         guessed={pt.guessed}
         estimatedExtras={pt.estimatedExtras}
+        missingExtras={pt.missingExtras}
         nightsOff={pt.nightsOff}
         updating={pt.making}
         onUpdateList={pt.updateList}
