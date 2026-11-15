@@ -227,6 +227,13 @@ describe('GrocerySheet — guessed amounts', () => {
     )
   })
 
+  it('an add-on missing from the list says so and points to Update list (2026-11-15)', () => {
+    renderSheet({ missingExtras: ['Italian sausage'] })
+    expect(screen.getByTestId('missing-note')).toHaveTextContent(
+      "Italian sausage isn't on this list yet. Tap Update list to add it.",
+    )
+  })
+
   it('no add-ons or one-off meals: no extras note', () => {
     renderSheet({ estimatedExtras: [] })
     expect(screen.queryByTestId('extras-note')).not.toBeInTheDocument()
