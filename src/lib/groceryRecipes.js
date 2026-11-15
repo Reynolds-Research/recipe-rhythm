@@ -66,19 +66,63 @@ export function formatStructuredIngredient(entry) {
  *   noIngredients: string[],     // cookbook recipes with no ingredient data at all
  *   noList: string[],            // cookbook recipes used WITHOUT a saved ingredient list
  *                                //   (names or tags only), so their part is a guess
+ *   extras: Array<{ name: string, with: string|null, servings: number|null }>,
+ *                                // for the AI to estimate ("Meal shapes", 2026-11-14):
+ *                                //   an add-on ("shrimp" with "Penne alla Vodka"), or a
+ *                                //   meal with no recipe (with: null). Before this, a
+ *                                //   meal with no recipe added nothing to the list.
  * }}
  */
+/**
+ * A night that isn't cooked at home: nothing to buy. Matched on the shape of
+ * the whole name, never a word inside a dish, so "Inside-Out Burgers",
+ * "Takeout-Style Orange Chicken" and "Leftover Turkey Pot Pie" are meals:
+ *   - ends in " out": "Pizza out", "Eat out", "Sushi out"
+ *   - is just "Takeout" / "Delivery" / "Leftovers" / "Ordering in" / "Restaurant"
+ *   - starts with "Takeout " / "Delivery ": "Takeout sushi" (not "Takeout-Style …")
+ * Named on the sheet as "Not shopped for", so it's never silent.
+ */
+const NOT_COOKING = [
+  /(^|\s)out\s*$/i,
+  /^\s*(takeout|take-out|take out|delivery|leftovers?|order(ing)? in|restaurant|eating out|dining out)\s*$/i,
+  /^\s*(takeout|take-out|delivery)\s+\S/i,
+]
+export function isNotCooking(name) {
+  return typeof name === 'string' && NOT_COOKING.some((re) => re.test(name))
+}
+
+/** The week's nights off (meals with no recipe that aren't cooked), for the sheet's line. */
+export function nightsOffNames(meals = []) {
+  const names = []
+  for (const meal of meals ?? []) {
+    if (!meal?.vault_id && isNotCooking(meal?.name) && !names.includes(meal.name.trim())) names.push(meal.name.trim())
+  }
+  return names
+}
+
 export function recipesFromMeals(meals = []) {
   const recipes = []
   const notInCookbook = []
   const noIngredients = []
   const noList = []
+  const extras = []
   for (const item of meals ?? []) {
     if (!item.vault_id || !item.vault) {
       notInCookbook.push(item.name)
+      // A meal with no recipe: the AI lists the main things its name says.
+      // Its add-on (rare: the app offers one only on recipes) rides along in the name.
+      const name = item.add_on ? `${item.name} + ${item.add_on}` : item.name
+      if (typeof name === 'string' && name.trim() && !isNotCooking(item.name)) {
+        extras.push({ name: name.trim(), with: null, servings: null })
+      }
       continue
     }
     const v = item.vault
+    // The add-on goes to the AI with the recipe it's added to — even when the
+    // recipe itself has no ingredients to add.
+    if (typeof item.add_on === 'string' && item.add_on.trim()) {
+      extras.push({ name: item.add_on.trim(), with: v.name, servings: v.servings ?? null })
+    }
 
     let ingredients = null
     const structured = v.ingredients_structured
@@ -108,7 +152,23 @@ export function recipesFromMeals(meals = []) {
     }
     recipes.push({ name: v.name, ingredients, servings: v.servings ?? null })
   }
-  return { recipes, notInCookbook, noIngredients, noList }
+  return { recipes, notInCookbook, noIngredients, noList, extras }
+}
+
+/**
+ * What the grocery list estimates from words alone, for the sheet's note:
+ * add-ons ("shrimp") and meals with no recipe, once each, in plan order.
+ */
+export function estimatedExtraNames(meals = []) {
+  const names = []
+  for (const meal of meals ?? []) {
+    const label = !meal?.vault_id
+      ? (isNotCooking(meal?.name) ? null : meal?.name)
+      : meal?.add_on
+    const clean = typeof label === 'string' ? label.trim() : ''
+    if (clean && !names.includes(clean)) names.push(clean)
+  }
+  return names
 }
 
 /** Household size + pantry staples from preferences (row defaults: 2 adults, 0 children). */
@@ -138,7 +198,7 @@ export function amountsAreGuess(recipe) {
  * The week's cookbook recipes whose amounts are guesses, by name, once each,
  * in the order they're planned. `meals` are planned_meals rows; `vault` is the
  * household cookbook (needs id, name, ingredients_source). Meals with no
- * recipe aren't here: they're already named as "not on the list".
+ * recipe and add-ons aren't here: see estimatedExtraNames.
  */
 export function guessedRecipeNames(meals = [], vault = []) {
   const byId = new Map(vault.map((v) => [v.id, v]))

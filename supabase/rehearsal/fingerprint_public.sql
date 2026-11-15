@@ -36,6 +36,9 @@ WITH s AS (
   UNION ALL SELECT 'plan_drafts ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.user_id), '')) FROM public.plan_drafts t
   -- added 2026-11-02 for phase 2b-1, which adds a column here
   UNION ALL SELECT 'household_preferences ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.household_id), '')) FROM public.household_preferences t
+  -- added 2026-11-14 for the add-on migration, which adds a column to planned_meals
+  UNION ALL SELECT 'planned_meals ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.id), '')) FROM public.planned_meals t
+  UNION ALL SELECT 'week_confirmations ' || md5(coalesce(string_agg(t::text, '|' ORDER BY t.id), '')) FROM public.week_confirmations t
 )
 SELECT md5(string_agg(x, E'\n' ORDER BY x)) AS schema_fp, count(*) AS schema_n,
        (SELECT md5(string_agg(x, E'\n' ORDER BY x)) FROM d) AS data_fp

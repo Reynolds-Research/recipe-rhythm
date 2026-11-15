@@ -1,8 +1,83 @@
+import { useState } from 'react'
 import { Check, Plus, Sparkles, X, ArrowRightLeft, RefreshCw, GripVertical, User } from 'lucide-react'
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { dateLabel } from './labels'
 import { dayDropId, mealDragId, slotDropId } from './dragDrop'
+import { ADD_ON_MAX } from '../../lib/constants'
+
+// Keep a press inside the add-on field from starting a drag of the card
+// (dnd-kit's mouse sensor listens to mousedown, the touch sensor to touchstart).
+const stop = (e) => e.stopPropagation()
+const stayPut = { onPointerDown: stop, onMouseDown: stop, onTouchStart: stop }
+
+/**
+ * The add-on on a recipe meal ("Meal shapes", 2026-11-14): a quiet text action
+ * under the name — "+ add something" — that opens one small field. Shown as
+ * "+ shrimp" once saved (tap it to change or clear it). Only `add_on` is
+ * saved; the recipe link stays as it is, and nothing goes in the cookbook.
+ * Kept small on purpose (Matt): a text action, no big button, no dashed box.
+ */
+function AddOn({ meal, canEdit, busy, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState('')
+  const open = () => { setText(meal.add_on ?? ''); setEditing(true) }
+  const save = async () => {
+    const ok = await onSave(meal, text)
+    if (ok !== false) setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <form
+        {...stayPut}
+        onSubmit={(e) => { e.preventDefault(); save() }}
+        className="mt-1 flex items-center gap-1"
+      >
+        <span className="text-sm font-normal text-gray-700" aria-hidden="true">+</span>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Escape') setEditing(false) }}
+          maxLength={ADD_ON_MAX}
+          placeholder="shrimp, garlic bread…"
+          aria-label={`Add something to ${meal.name}`}
+          autoFocus
+          className="flex-1 min-w-0 min-h-[36px] rounded-lg border border-cream-200 bg-white px-2 text-sm font-normal text-gray-900"
+        />
+        <button type="submit" disabled={busy} aria-label="Save"
+          className="w-11 h-11 shrink-0 flex items-center justify-center text-brand-600">
+          <Check size={18} strokeWidth={2.5} />
+        </button>
+        <button type="button" onClick={() => setEditing(false)} aria-label="Cancel"
+          className="w-11 h-11 shrink-0 flex items-center justify-center text-gray-700">
+          <X size={16} />
+        </button>
+      </form>
+    )
+  }
+
+  if (meal.add_on) {
+    if (!canEdit) return <span className="block text-sm font-normal text-gray-700">+ {meal.add_on}</span>
+    return (
+      <button type="button" onClick={open} disabled={busy}
+        aria-label={`Change ${meal.add_on} on ${meal.name}`}
+        className="block -my-2 min-h-[44px] text-left text-sm font-normal text-gray-700">
+        + {meal.add_on}
+      </button>
+    )
+  }
+
+  // Offered only on a cookbook recipe: a one-off meal is already whatever she typed.
+  if (!canEdit || !meal.vault_id) return null
+  return (
+    <button type="button" onClick={open} disabled={busy}
+      className="block -my-2 min-h-[44px] text-left text-sm font-normal text-brand-600">
+      + add something
+    </button>
+  )
+}
 
 /**
  * One planned meal, which can be picked up and dropped on another day — and
@@ -11,7 +86,7 @@ import { dayDropId, mealDragId, slotDropId } from './dragDrop'
  * the old Prep Table. Keyboard dragging starts only from the grip, so Space
  * / Enter on the buttons inside still press those buttons.
  */
-function DraggableMeal({ meal, isPast, isToday, busy, pickedBy, onToggleCooked, onMove, onRemove }) {
+function DraggableMeal({ meal, isPast, isToday, busy, pickedBy, onToggleCooked, onMove, onRemove, onSaveAddOn }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: mealDragId(meal.id),
     disabled: busy,
@@ -65,6 +140,7 @@ function DraggableMeal({ meal, isPast, isToday, busy, pickedBy, onToggleCooked, 
       )}
       <span className={`flex-1 min-w-0 font-medium ${isPast && !meal.cooked ? 'text-gray-700' : 'text-gray-900'}`}>
         {meal.name}
+        <AddOn meal={meal} canEdit={!isPast && Boolean(onSaveAddOn)} busy={busy} onSave={onSaveAddOn} />
         {isPast && !meal.cooked && <span className="block text-xs text-gray-700">Not cooked</span>}
         {pickedBy && <span className="block text-sm font-normal text-gray-700">{pickedBy}</span>}
       </span>
@@ -150,6 +226,7 @@ export default function DayRow({
   onToggleCooked,
   onMove,
   onRemove,
+  onSaveAddOn,           // (meal, text) → saves "+ shrimp" on that meal ('' clears it)
   nightLabel = null,     // "Matt's night" / "Your night" / null (phase 3)
   giveLabel = null,      // "Give to Matt" / null
   onToggleNight,
@@ -198,7 +275,8 @@ export default function DayRow({
 
       {meals.map((meal) => (
         <DraggableMeal key={meal.id} meal={meal} isPast={isPast} isToday={isToday} busy={busy}
-          pickedBy={pickedBy(meal)} onToggleCooked={onToggleCooked} onMove={onMove} onRemove={onRemove} />
+          pickedBy={pickedBy(meal)} onToggleCooked={onToggleCooked} onMove={onMove} onRemove={onRemove}
+          onSaveAddOn={onSaveAddOn} />
       ))}
 
       {empty && mine && !isPast && <p className="font-semibold text-gray-900">Pick something</p>}

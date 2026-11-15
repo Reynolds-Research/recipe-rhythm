@@ -46,7 +46,32 @@ function parseJsonLoose(text) {
   }
 }
 
-function buildUserMessage({ recipes, pantryStaples, householdSize }) {
+/**
+ * The "Estimate these" block ("Meal shapes", 2026-11-14): things on the week
+ * with no ingredient list of their own.
+ *   - an add-on: one item added to a recipe ("shrimp" with Penne alla Vodka).
+ *     Estimated for that recipe's yield × its multiplier, like a recipe line
+ *     with no amount.
+ *   - a meal with no recipe ("Pork Tenderloin with squash and kale salad"):
+ *     the main things its name says, for one dinner for the household.
+ * Returns '' when there's nothing to estimate (the prompt is then unchanged).
+ */
+function buildExtrasBlock(extras, householdSize) {
+  if (!extras.length) return ''
+  const lines = extras.map(x => {
+    if (x.with) {
+      const f = scaleFactor(householdSize, x.servings)
+      return `- "${x.name}" added to ${x.with} (yields ${x.servings} servings; multiply by ${f}): one item — estimate how much of it to add to that recipe.`
+    }
+    return `- "${x.name}" — a whole meal with no recipe: list only the main ingredients its name says, for one dinner for ${householdSize} eaters.`
+  })
+  return `
+
+Estimate these — they have no ingredient list, so estimate a sensible amount (a pound of shrimp in a 4-serving pasta, not a handful). If a word gives an amount ("1 lb shrimp"), use it. Never add ingredients the words don't name. A night that isn't cooked at home (eating out, takeout, leftovers) adds nothing. Consolidate them with the recipes' items like any other ingredient:
+${lines.join('\n')}`
+}
+
+function buildUserMessage({ recipes, pantryStaples, householdSize, extras = [] }) {
   const sectionsLine = GROCERY_SECTIONS.join(' | ')
   const staplesLine = pantryStaples.length ? pantryStaples.join(', ') : 'None'
 
@@ -67,7 +92,7 @@ function buildUserMessage({ recipes, pantryStaples, householdSize }) {
 The household has ${householdSize} eaters. They cook each recipe whole and eat the leftovers, so a recipe is NEVER scaled down — only up, when it yields fewer servings than the household needs. Each recipe line gives the exact number to multiply its amounts by (1 = as written). Then consolidate across recipes.
 
 Recipes:
-${recipeBlocks}
+${recipeBlocks || '(none — only the items below)'}${buildExtrasBlock(extras, householdSize)}
 
 Pantry staples the user already has — EXCLUDE any matching ingredient entirely (case-insensitive substring match): ${staplesLine}
 
@@ -135,6 +160,14 @@ const DEFAULT_SERVINGS = 4
  *                                          (adults + children). Positive integer.
  *                                          Default 2 — matches the
  *                                          household_preferences defaults.
+ * @param {Array<{name: string, with?: string|null, servings?: number|null}>} [args.extras]
+ *                                          Things with no ingredient list, estimated
+ *                                          by the AI ("Meal shapes"): an add-on
+ *                                          ({name: 'shrimp', with: 'Penne alla Vodka',
+ *                                          servings: 4}) or a meal with no recipe
+ *                                          ({name: 'Pork Tenderloin…', with: null}).
+ *                                          Default []. `recipes` may be empty when
+ *                                          there are extras.
  * @param {object}   args.anthropicClient   Instantiated Anthropic SDK client.
  *
  * @returns {Promise<{items: Array<{name: string, quantity: string|null,
@@ -148,10 +181,14 @@ export async function buildGroceryList({
   recipes,
   pantryStaples = [],
   householdSize = DEFAULT_HOUSEHOLD_SIZE,
+  extras = [],
   anthropicClient,
 }) {
-  if (!Array.isArray(recipes) || recipes.length === 0) {
-    throw new TypeError('buildGroceryList: `recipes` must be a non-empty array')
+  if (!Array.isArray(extras)) {
+    throw new TypeError('buildGroceryList: `extras` must be an array (may be empty)')
+  }
+  if (!Array.isArray(recipes) || (recipes.length === 0 && extras.length === 0)) {
+    throw new TypeError('buildGroceryList: `recipes` must be a non-empty array (or there must be extras)')
   }
   if (!Array.isArray(pantryStaples)) {
     throw new TypeError('buildGroceryList: `pantryStaples` must be an array (may be empty)')
@@ -173,7 +210,13 @@ export async function buildGroceryList({
       : DEFAULT_SERVINGS,
   }))
 
-  const userMessage = buildUserMessage({ recipes: resolvedRecipes, pantryStaples, householdSize })
+  const resolvedExtras = extras.map(x => ({
+    name: x.name,
+    with: x.with || null,
+    servings: Number.isInteger(x.servings) && x.servings > 0 ? x.servings : DEFAULT_SERVINGS,
+  }))
+
+  const userMessage = buildUserMessage({ recipes: resolvedRecipes, pantryStaples, householdSize, extras: resolvedExtras })
 
   // Token budget: ~45 tokens per ingredient covers {name, quantity,
   // recipe_quantity, section, assumed}. Floor at 400 for the JSON envelope;
@@ -181,7 +224,7 @@ export async function buildGroceryList({
   const totalIngredients = recipes.reduce(
     (acc, r) => acc + (Array.isArray(r.ingredients) ? r.ingredients.length : 0),
     0,
-  )
+  ) + 3 * extras.length // a meal with no recipe can bring a few items
   const maxTokens = Math.min(3000, Math.max(400, 45 * totalIngredients + 200))
 
   const msg = await anthropicClient.messages.create({

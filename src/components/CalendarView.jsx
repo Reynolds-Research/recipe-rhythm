@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { loadCalendarRange } from '../lib/plannedMeals'
+import { loadCalendarRange, mealLabel } from '../lib/plannedMeals'
 import Logo from './Logo'
 
 // --- Date helpers (UTC-based, AUDIT U8 discipline) -------------------------
@@ -96,7 +96,7 @@ async function fetchMonth(userId, from, to) {
     rows: meals.map((m) => ({
       item_id: m.id,
       scheduled_date: m.planned_on,
-      name: m.name,
+      name: mealLabel(m), // "Penne alla Vodka + shrimp" when it has an add-on
       cooked: !!m.cooked,
     })),
     periods: confirmations.map((c) => ({

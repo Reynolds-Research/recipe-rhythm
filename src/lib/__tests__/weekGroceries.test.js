@@ -181,15 +181,17 @@ describe('makeWeekGroceryList', () => {
       ['eq', 'household_id', HH], ['gte', 'planned_on', '2026-11-08'], ['lte', 'planned_on', '2026-11-14'],
     ])
     expect(read.columns).toMatch(/vault\(.*ingredients_structured/)
+    expect(read.columns).toMatch(/\badd_on\b/)
 
     expect(fetchApi).toHaveBeenCalledTimes(1)
     const body = JSON.parse(fetchApi.mock.calls[0][1].body)
     expect(body).toEqual({
       recipes: [{ name: 'Tacos', ingredients: ['tortillas: 8'], servings: 4 }],
+      extras: [], // "Pizza out" is a night out: nothing to buy
       pantryStaples: ['salt'],
       householdSize: 3,
     })
-    expect(out).toEqual({ listId: 'L2', notInCookbook: ['Pizza out'], noIngredients: [], noList: [] })
+    expect(out).toEqual({ listId: 'L2', notInCookbook: ['Pizza out'], noIngredients: [], noList: [], extras: [] })
 
     const items = sb.calls.find((c) => c.table === 'grocery_list_items' && c.op === 'insert')
     expect(items.payload).toEqual([{
@@ -224,7 +226,59 @@ describe('makeWeekGroceryList', () => {
     expect(sb.calls[6].filters).toEqual([['eq', 'id', 'L1']])
   })
 
-  it('no cookbook recipes with ingredients: says so, calls no AI, writes nothing', async () => {
+  // ---- Meal shapes (2026-11-14): add-ons and meals with no recipe ----------
+
+  it('a recipe + add-on sends the recipe\'s ingredients AND the add-on, linked to that recipe', async () => {
+    const penne = {
+      name: 'Penne alla Vodka', vault_id: 'v2', add_on: 'shrimp',
+      vault: { name: 'Penne alla Vodka', servings: 4, ingredients_structured: [{ name: 'penne', quantity: '1', unit: 'lb' }] },
+    }
+    const sb = makeSupabase({
+      'planned_meals.select': ok([penne]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([{ id: 'c1' }]),
+    })
+    const fetchApi = api()
+    const out = await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi })
+
+    const body = JSON.parse(fetchApi.mock.calls[0][1].body)
+    expect(body.recipes).toEqual([{ name: 'Penne alla Vodka', ingredients: ['penne: 1 lb'], servings: 4 }])
+    expect(body.extras).toEqual([{ name: 'shrimp', with: 'Penne alla Vodka', servings: 4 }])
+    expect(out.extras).toEqual(body.extras)
+    // Nothing is written to the cookbook, ever.
+    expect(sb.calls.some((c) => c.table === 'vault')).toBe(false)
+  })
+
+  it('a meal with no recipe goes to the AI to estimate (it used to add nothing)', async () => {
+    const pork = { name: 'Pork Tenderloin with squash and kale salad', vault_id: null, vault: null }
+    const sb = makeSupabase({
+      'planned_meals.select': ok([TACOS, pork]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([{ id: 'c1' }]),
+    })
+    const fetchApi = api()
+    const out = await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi })
+    const body = JSON.parse(fetchApi.mock.calls[0][1].body)
+    expect(body.extras).toEqual([{ name: 'Pork Tenderloin with squash and kale salad', with: null, servings: null }])
+    expect(out.notInCookbook).toEqual(['Pork Tenderloin with squash and kale salad'])
+  })
+
+  it('a week of only meals with no recipe still makes a list', async () => {
+    const pork = { name: 'Pork Loin with sweet potato and broccoli', vault_id: null, vault: null }
+    const sb = makeSupabase({
+      'planned_meals.select': ok([pork]),
+      'grocery_lists.insert': ok({ id: 'L2' }),
+      'week_confirmations.update': ok([{ id: 'c1' }]),
+    })
+    const fetchApi = api()
+    const out = await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi })
+    const body = JSON.parse(fetchApi.mock.calls[0][1].body)
+    expect(body.recipes).toEqual([])
+    expect(body.extras).toHaveLength(1)
+    expect(out.listId).toBe('L2')
+  })
+
+  it('no cookbook recipes with ingredients and only a night out: says so, calls no AI, writes nothing', async () => {
     const sb = makeSupabase({ 'planned_meals.select': ok([ONE_OFF]) })
     const fetchApi = api()
     const err = await makeWeekGroceryList(sb, USER, confirmation(), { fetchApi }).catch((e) => e)

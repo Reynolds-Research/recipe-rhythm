@@ -3,7 +3,7 @@ import { Sheet } from 'react-modal-sheet'
 import { ChevronDown, ChevronUp, Loader2, X } from 'lucide-react'
 import { GROCERY_SECTIONS } from '../../lib/constants'
 import { addUpAmount, showRecipeLine, splitList } from '../../lib/groceryAmounts'
-import { guessNote } from './labels'
+import { extrasNote, guessNote } from './labels'
 
 const ACTION = 'inline-flex items-center min-h-[44px] text-sm font-semibold text-brand-600 hover:text-brand-700 disabled:opacity-50'
 const QUIET_ACTION = 'inline-flex items-center min-h-[44px] text-sm font-medium text-gray-700 hover:text-gray-900 disabled:opacity-50'
@@ -233,20 +233,20 @@ function OwnItems({ items, onAdd, onRemove }) {
  *
  * @param {{
  *   open: boolean, loading: boolean, failed?: boolean, items: object[],
- *   staples?: string[], subtitle?: string|null, leftOff: string[],
+ *   staples?: string[], subtitle?: string|null,
  *   onSetAssumed?: (item: object, assumed: boolean) => Promise<void>,
  *   onSetAlwaysHave?: (item: object, on: boolean) => Promise<void>,
- *   guessed?: string[], updating?: boolean, onUpdateList?: () => void,
+ *   guessed?: string[], estimatedExtras?: string[], nightsOff?: string[], updating?: boolean, onUpdateList?: () => void,
  *   onAddOwn?: (name: string) => Promise<void>,
  *   onRemoveOwn?: (item: object) => Promise<void>,
  *   onClose: () => void,
  * }} props
  */
 export default function GrocerySheet({
-  open, loading, failed = false, items = [], staples = [], subtitle = null, leftOff = [],
+  open, loading, failed = false, items = [], staples = [], subtitle = null,
   onSetAssumed = async () => {}, onSetAlwaysHave = async () => {},
   onAddOwn = async () => {}, onRemoveOwn = async () => {}, onClose,
-  guessed = [], updating = false, onUpdateList,
+  guessed = [], estimatedExtras = [], nightsOff = [], updating = false, onUpdateList,
 }) {
   const { onList: listed } = splitList(items, staples)
   const onList = listed.filter((i) => !i.is_adhoc)
@@ -270,6 +270,11 @@ export default function GrocerySheet({
             {ready && guessed.length > 0 && (
               <p className="helper-text" data-testid="guessed-note">
                 {guessNote(guessed)}
+              </p>
+            )}
+            {ready && estimatedExtras.length > 0 && (
+              <p className="helper-text" data-testid="extras-note">
+                {extrasNote(estimatedExtras)}
               </p>
             )}
 
@@ -323,9 +328,9 @@ export default function GrocerySheet({
               </div>
             )}
 
-            {!loading && leftOff.length > 0 && (
-              <p className="helper-text border-t border-cream-200 pt-3">
-                Not on the list (not in your Cookbook): {leftOff.join(', ')}.
+            {!loading && nightsOff.length > 0 && (
+              <p className="helper-text border-t border-cream-200 pt-3" data-testid="nights-off">
+                Not shopped for: {nightsOff.join(', ')}.
               </p>
             )}
           </div>
