@@ -79,3 +79,23 @@ a: 1 row (that plan). b: meals added 4 (incl. the Maybe), confirmations added 3.
 Negative control (rolled back): the same copy without the skip fails checks 2, 7 and 8. d: all zeros.
 Then the simulation was removed and the preview restored to its earlier state (planned meals 6,
 confirmations 4, `rr_legacy_copied` 10).
+
+## Meal shapes — add-on on a planned meal (2026-11-14)
+
+`20261114000001_planned_meals_add_on.sql`: one optional text column + the "changed since confirmed"
+trigger also watches it. Before rehearsing, preview was checked against prod (read-only): same
+`planned_meals` columns and rules, and the same `rr_mark_week_changed()` body (md5 `8f426aa7…`), so
+the rollback's restored body is prod's exact one. `fingerprint_public.sql` now also hashes the
+`planned_meals` and `week_confirmations` rows.
+
+| Step | Run | Result on preview, 2026-11-14 |
+|---|---|---|
+| A | `fingerprint_public.sql` | `7ab78a2d…` / 1178 / `ce785e7b…` |
+| 1 | `../migrations/20261114000001_planned_meals_add_on.sql` | Success |
+| 2 | `../migrations/verify_20261114000001.sql` | 9/9 PASS (+1 info: 0 add-ons) |
+| 3 | `08_add_on_checks.sql` | 16/16 pass (all undone) |
+| 4 | `../migrations/rollback_20261114000001.sql` | false, false; trigger body md5 back to `8f426aa7…` |
+| B | `fingerprint_public.sql` | **identical** to A |
+| 5 | step 1 twice (idempotent), then a column/rule/trigger check | 1 column, 1 rule, trigger watches `add_on` |
+
+For prod (Matt, SQL Editor): run step 1, then step 2 — expect 9 PASS + 1 info. Then merge the PR.

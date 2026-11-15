@@ -15,7 +15,7 @@
  *   loadConfirmation(supabase, userId, weekStart) → row | null
  *   confirmWeek(supabase, userId, weekStart)      → row (the existing one if already confirmed)
  *   makeWeekGroceryList(supabase, userId, confirmation, { fetchApi })
- *                                                → { listId, notInCookbook, noIngredients, noList }
+ *                                                → { listId, notInCookbook, noIngredients, noList, extras }
  *   keepListAsIs(supabase, confirmation)          → true if the stamp was cleared
  *   loadGroceryItems(supabase, listId)            → items
  *   setAssumed(supabase, itemId, assumed)         → "Assumed you have" ⇄ on the list
@@ -43,7 +43,8 @@ export const CONFIRMATION_COLUMNS =
 
 /**
  * Why a list couldn't be made. `code`:
- *   'no_recipes' — none of the week's meals are cookbook recipes with ingredients
+ *   'no_recipes' — nothing to make a list from: no cookbook recipe with
+ *                  ingredients, no add-on and no meal to estimate
  *   'api'        — the grocery-list AI call failed
  */
 export class WeekGroceryError extends Error {
@@ -130,7 +131,7 @@ async function loadMealsForList(supabase, userId, start, end) {
   return check(
     await supabase
       .from('planned_meals')
-      .select(`name, vault_id, vault(${GROCERY_VAULT_COLUMNS})`)
+      .select(`name, vault_id, add_on, vault(${GROCERY_VAULT_COLUMNS})`)
       .eq('household_id', householdId)
       .gte('planned_on', start)
       .lte('planned_on', end)
@@ -141,8 +142,9 @@ async function loadMealsForList(supabase, userId, start, end) {
 
 /**
  * Make (or remake) the grocery list for a confirmed week, from exactly that
- * week's meals. Meals that aren't cookbook recipes are left off and named in
- * the result, never a reason to fail.
+ * week's meals. Cookbook recipes bring their ingredients; add-ons and meals
+ * that aren't cookbook recipes go to the AI to estimate ("Meal shapes",
+ * 2026-11-14 — before that they were left off). Never a reason to fail.
  *
  * Order matters (see the top of the file): read the stamp we were given →
  * read the meals → AI → write a new list + items → point the confirmation at
@@ -151,9 +153,9 @@ async function loadMealsForList(supabase, userId, start, end) {
  */
 export async function makeWeekGroceryList(supabase, userId, confirmation, { fetchApi = apiFetch } = {}) {
   const meals = await loadMealsForList(supabase, userId, confirmation.starts_on, confirmation.ends_on)
-  const { recipes, notInCookbook, noIngredients, noList } = recipesFromMeals(meals)
-  if (recipes.length === 0) {
-    throw new WeekGroceryError('no_recipes', 'No cookbook recipes with ingredients this week', {
+  const { recipes, notInCookbook, noIngredients, noList, extras } = recipesFromMeals(meals)
+  if (recipes.length === 0 && extras.length === 0) {
+    throw new WeekGroceryError('no_recipes', 'Nothing to make a list from this week', {
       notInCookbook, noIngredients,
     })
   }
@@ -163,7 +165,8 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
 
   const res = await fetchApi('/api/grocery-list', {
     method: 'POST',
-    body: JSON.stringify({ recipes, pantryStaples, householdSize }),
+    // The server takes at most 30 extras (MAX_EXTRAS); a real week has far fewer.
+    body: JSON.stringify({ recipes, extras: extras.slice(0, 30), pantryStaples, householdSize }),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -245,7 +248,7 @@ export async function makeWeekGroceryList(supabase, userId, confirmation, { fetc
     if (error) console.warn('[weekGroceries] old list not deleted', error)
   }
 
-  return { listId: list.id, notInCookbook, noIngredients, noList }
+  return { listId: list.id, notInCookbook, noIngredients, noList, extras }
 }
 
 /** A list's items, oldest first. */

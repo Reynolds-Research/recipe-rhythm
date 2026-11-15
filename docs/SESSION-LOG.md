@@ -6,6 +6,22 @@ start clean: **Done** (with PR numbers) · **Verified** (what was checked, how) 
 
 ---
 
+## 2026-11-14 — Meal shapes: add-ons on a planned meal; groceries for meals with no recipe
+
+**Done:** branch `feat/meal-add-ons` (PR pending). Matt's decisions: the add-on gets its own column (not text in the name); meals with no recipe go to the grocery AI in the same change. Migration `20261114000001` (`planned_meals.add_on` + the week-changed trigger watches it) with verify + rollback + `rehearsal/08_add_on_checks.sql`. Prep Table: "+ add something" under a recipe meal (today on, recipes only), "+ shrimp" once saved, tap to change or clear; Calendar shows "Recipe + add-on". Groceries: `recipesFromMeals` returns `extras` (add-ons tied to their recipe's servings; meals with no recipe, minus nights out); `/api/grocery-list` takes `extras` (≤ 30) and may have no recipes when there are extras — one handler, so `api-server.mjs` and `api/` stay in step; the sheet's "Not on the list" line replaced by an estimates note.
+
+**Review:** independent reviewer PASS. Fixed from its notes: the night-off rule now matches whole names only (it caught "Inside-Out Burgers"); a mouse press inside the add-on box could drag the card (now stopped; the test fails without the fix); nights off are named "Not shopped for"; one more `cleanAddOn` case. Left as known: a week confirmed before deploy names a one-off as estimated until Update list.
+
+**Verified:** preview matched prod first (columns, rules, trigger body md5 `8f426aa7…`). Rehearsal: fingerprint before = after rollback (`7ab78a2d…` / 1178 / `ce785e7b…`), verify 9/9, write checks 16/16, re-applied twice. Vitest 1031/1031 (new: add-on helpers, page actions, extras mapping, handler + prompt with the injected client, sheet note); ESLint clean; `lint:ds` clean; build OK.
+
+**Found:** the TASKS line "the same way one-off meals work today" was wrong — meals with no recipe added nothing to the list. The new Prep Table can't rename a meal, which answers the "does she rename?" question for today's screens.
+
+**Open / owed (Matt):** apply `20261114000001` on prod + run its verify, then merge (order matters: the app reads `add_on`). Ask her once whether she wanted shrimp on Nov 14's Penne.
+
+**Next:** "Usually with…" add-on suggestions (reads `planned_meals.add_on`), or the Vite advisory.
+
+---
+
 ## 2026-11-07 (night) — 3c handoff test; Phase 2 ticked
 
 **Done:** #237 merged (3b). This PR, `test/prd-008-handoff-e2e`: `e2e/handoff-two-accounts.spec.js` — two browser contexts on one fake database, signed in as her and Matt: she hands Tuesday over → he sees "Your night · Pick something" and keeps the ready suggestion → she sees "Matt picked this" and confirms → the grocery request holds her Monday and his Tuesday, the list is saved. Plus: Confirm before he picks ("Wait for Matt"), and taking a night back. The fake (`e2e/support/fakeSupabase.js`) now serves two accounts and the planned_meals → vault join. Ticked: Phase 2 (2a, 2b, 2b-3, 2c), 3b. STATUS updated.

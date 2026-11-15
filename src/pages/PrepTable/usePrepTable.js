@@ -33,6 +33,7 @@ import {
   moveMeal,
   removeMeal,
   saveWeekDays,
+  setAddOn,
   setCooked,
 } from '../../lib/plannedMeals'
 import { addDays, shiftWeek, shownDates, thisWeekStart, toggleDay as nextDays } from '../../lib/weekRange'
@@ -49,7 +50,7 @@ import {
   removeOwnItem as deleteOwnItem,
   WeekGroceryError,
 } from '../../lib/weekGroceries'
-import { guessedRecipeNames } from '../../lib/groceryRecipes'
+import { estimatedExtraNames, guessedRecipeNames, nightsOffNames } from '../../lib/groceryRecipes'
 import {
   giveLabel as giveLabelFor,
   giveNight,
@@ -378,6 +379,10 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
   const toggleCooked = (meal) =>
     act(() => setCooked(supabase, meal.id, !meal.cooked), "Couldn't update that meal. Try again.")
 
+  /** "+ shrimp" on one meal; '' clears it. The recipe link never changes. */
+  const saveAddOn = (meal, text) =>
+    act(() => setAddOn(supabase, meal.id, text), "Couldn't save that. Try again.")
+
   // ---- ✨ suggest (D3: proposals only) ----------------------------------
   const emptyUpcoming = useMemo(
     () => dates.filter((d) => d >= today && !mealsByDate[d]?.length),
@@ -505,9 +510,10 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
 
   /** This week's recipes whose amounts are the AI's guess (shown on the grocery sheet). */
   const guessed = useMemo(() => guessedRecipeNames(meals, kitchen.vault), [meals, kitchen.vault])
-
-  /** Meals this week that can't go on the list (no cookbook recipe). */
-  const leftOff = useMemo(() => meals.filter((m) => !m.vault_id).map((m) => m.name), [meals])
+  // Add-ons and meals with no recipe: the list estimates them from the words.
+  const estimatedExtras = useMemo(() => estimatedExtraNames(meals), [meals])
+  // Nights off ("Pizza out"): nothing to buy, but named so nothing is silent.
+  const nightsOff = useMemo(() => nightsOffNames(meals), [meals])
 
   const openGroceries = async (listId = confirmation?.grocery_list_id) => {
     if (!listId) return
@@ -568,7 +574,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     } catch (err) {
       console.error('[PrepTable] grocery list failed', err)
       if (err instanceof WeekGroceryError && err.code === 'no_recipes') {
-        setNotice("None of this week's meals are cookbook recipes with ingredients, so there's no grocery list yet.")
+        setNotice("There's nothing on this week to make a grocery list from yet.")
       } else {
         message = failMsg
       }
@@ -630,6 +636,8 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     weekEnd: addDays(weekStart, 6),
     mealCount: meals.length,
     guessed,
+    estimatedExtras,
+    nightsOff,
     loading: !current,
     error,
     clearError: () => setError(null),
@@ -659,6 +667,7 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     replan,
     remove,
     toggleCooked,
+    saveAddOn,
     suggestEmptyDays,
     suggestDay,
     acceptProposal,
@@ -668,7 +677,6 @@ export function usePrepTable(userId, { today = formatLocalDate() } = {}) {
     canConfirm: !confirmation && meals.length > 0 && addDays(weekStart, 6) >= today,
     emptyDays,
     emptyDetails,
-    leftOff,
     making,
     notice,
     groceries,

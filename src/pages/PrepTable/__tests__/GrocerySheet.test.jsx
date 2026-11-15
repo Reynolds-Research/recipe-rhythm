@@ -20,7 +20,7 @@ function renderSheet(props = {}) {
   const onSetAlwaysHave = vi.fn(async () => {})
   const utils = render(
     <GrocerySheet
-      open loading={false} items={ITEMS} staples={['olive oil']} leftOff={[]}
+      open loading={false} items={ITEMS} staples={['olive oil']}
       subtitle="Nov 1 – 7 · 5 dinners"
       onSetAssumed={onSetAssumed} onSetAlwaysHave={onSetAlwaysHave} onClose={() => {}}
       {...props}
@@ -91,7 +91,7 @@ describe('GrocerySheet — Assumed you have', () => {
     // The parent swaps in the saved row (assumed: false).
     const saved = ITEMS.map((i) => (i.id === 'so' ? { ...i, assumed: false } : i))
     rerender(
-      <GrocerySheet open loading={false} items={saved} staples={['olive oil']} leftOff={[]}
+      <GrocerySheet open loading={false} items={saved} staples={['olive oil']}
         onSetAssumed={onSetAssumed} onSetAlwaysHave={vi.fn()} onClose={() => {}} />,
     )
     expect(within(screen.getByRole('region', { name: 'Pantry' })).getByText('1 bottle')).toBeInTheDocument()
@@ -220,6 +220,18 @@ describe('GrocerySheet — guessed amounts', () => {
     expect(screen.queryByTestId('guessed-note')).not.toBeInTheDocument()
   })
 
+  it('names add-ons and meals with no recipe as estimates too (Meal shapes, 2026-11-14)', () => {
+    renderSheet({ estimatedExtras: ['shrimp', 'Pork Tenderloin with squash and kale salad'] })
+    expect(screen.getByTestId('extras-note')).toHaveTextContent(
+      'Amounts for shrimp and Pork Tenderloin with squash and kale salad are estimates (not from a recipe). Check them before you order.',
+    )
+  })
+
+  it('no add-ons or one-off meals: no extras note', () => {
+    renderSheet({ estimatedExtras: [] })
+    expect(screen.queryByTestId('extras-note')).not.toBeInTheDocument()
+  })
+
   it('three or more names read as a list', () => {
     expect(guessNote(['A', 'B', 'C'])).toBe(
       'Amounts for A, B and C are estimates. For exact amounts, add a screenshot of the recipe in your Cookbook, then Update list.',
@@ -234,7 +246,7 @@ describe('GrocerySheet — guessed amounts', () => {
     expect(onUpdateList).toHaveBeenCalledTimes(1)
 
     rerender(
-      <GrocerySheet open loading={false} items={ITEMS} staples={[]} leftOff={[]}
+      <GrocerySheet open loading={false} items={ITEMS} staples={[]}
         onUpdateList={onUpdateList} updating onClose={() => {}} />,
     )
     expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled()

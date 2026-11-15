@@ -712,3 +712,114 @@ describe('Bite γ — buildGroceryList scaling (prompt) — continued', () => {
   })
 })
 
+
+// ---------- Meal shapes (2026-11-14): add-ons + meals with no recipe ----------
+// "Penne alla Vodka" + "shrimp": the recipe brings its ingredients; the add-on
+// has none, so it goes to the AI to estimate, tied to the recipe it's added to.
+
+describe('extras: handler', () => {
+  it('passes extras through to the builder, trimmed, with the recipe they go with', async () => {
+    const buildImpl = vi.fn().mockResolvedValue({ items: [] })
+    const handler = createGroceryListHandler({ anthropic: okClient, buildImpl })
+    const res = mockRes()
+    await handler({ body: {
+      recipes: [{ name: 'Penne alla Vodka', ingredients: ['penne: 1 lb'], servings: 4 }],
+      extras: [
+        { name: ' shrimp ', with: 'Penne alla Vodka', servings: 4 },
+        { name: 'Pork Tenderloin with squash and kale salad', with: null },
+      ],
+      pantryStaples: [],
+    } }, res)
+    expect(res.statusCode).toBe(200)
+    const args = buildImpl.mock.calls[0][0]
+    expect(args.recipes).toEqual([{ name: 'Penne alla Vodka', ingredients: ['penne: 1 lb'], servings: 4 }])
+    expect(args.extras).toEqual([
+      { name: 'shrimp', with: 'Penne alla Vodka', servings: 4 },
+      { name: 'Pork Tenderloin with squash and kale salad', with: null, servings: null },
+    ])
+  })
+
+  it('accepts a week with no recipes when there are extras', async () => {
+    const buildImpl = vi.fn().mockResolvedValue({ items: [] })
+    const handler = createGroceryListHandler({ anthropic: okClient, buildImpl })
+    const res = mockRes()
+    await handler({ body: { recipes: [], extras: [{ name: 'Pork loin and broccoli' }], pantryStaples: [] } }, res)
+    expect(res.statusCode).toBe(200)
+  })
+
+  it('still rejects an empty request (no recipes, no extras)', async () => {
+    const handler = createGroceryListHandler({ anthropic: okClient })
+    const res = mockRes()
+    await handler({ body: { recipes: [], extras: [], pantryStaples: [] } }, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body.error).toBe('invalid_recipes')
+  })
+
+  it.each([
+    ['not an array', 'shrimp'],
+    ['a blank name', [{ name: '  ' }]],
+    ['a bad servings', [{ name: 'shrimp', servings: 0 }]],
+    ['a non-string "with"', [{ name: 'shrimp', with: 3 }]],
+    ['too many', Array.from({ length: 31 }, (_, i) => ({ name: `x${i}` }))],
+  ])('rejects extras that are %s with 400', async (_label, extras) => {
+    const handler = createGroceryListHandler({ anthropic: okClient })
+    const res = mockRes()
+    await handler({ body: { ...validBody(), extras } }, res)
+    expect(res.statusCode).toBe(400)
+    expect(res.body.error).toBe('invalid_extras')
+  })
+})
+
+describe('extras: prompt (injected AI client)', () => {
+  it('the AI is asked for the recipe\'s ingredients AND the add-on, scaled like that recipe', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Penne alla Vodka', ingredients: ['penne: 1 lb', 'vodka: ¼ cup'], servings: 4 }],
+      extras: [{ name: 'shrimp', with: 'Penne alla Vodka', servings: 4 }],
+      householdSize: 2,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('Ingredients: penne: 1 lb, vodka: ¼ cup')
+    expect(prompt).toContain('"shrimp" added to Penne alla Vodka (yields 4 servings; multiply by 1)')
+    expect(prompt).toMatch(/Never add ingredients the words don't name/)
+  })
+
+  it('an add-on to a small recipe for a big household uses the recipe\'s multiplier', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({
+      recipes: [{ name: 'Penne alla Vodka', ingredients: ['penne'], servings: 2 }],
+      extras: [{ name: 'shrimp', with: 'Penne alla Vodka', servings: 2 }],
+      householdSize: 4,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('"shrimp" added to Penne alla Vodka (yields 2 servings; multiply by 2)')
+  })
+
+  it('a meal with no recipe asks for only the main things its name says, for the household', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [{ name: 'Pork tenderloin', quantity: '1½ lb', section: 'Meat & Seafood' }] }))
+    const out = await buildGroceryList({
+      recipes: [],
+      extras: [{ name: 'Pork Tenderloin with squash and kale salad', with: null }],
+      householdSize: 3,
+      anthropicClient: client,
+    })
+    const prompt = client.messages.create.mock.calls[0][0].messages[0].content
+    expect(prompt).toContain('"Pork Tenderloin with squash and kale salad" — a whole meal with no recipe')
+    expect(prompt).toContain('for one dinner for 3 eaters')
+    expect(prompt).toContain('(none — only the items below)')
+    expect(out.items[0].name).toBe('Pork tenderloin')
+  })
+
+  it('no extras: the prompt has no "Estimate these" block (unchanged for recipe-only weeks)', async () => {
+    const client = fakeAnthropic(JSON.stringify({ items: [] }))
+    await buildGroceryList({ recipes: [{ name: 'X', ingredients: ['a'] }], anthropicClient: client })
+    expect(client.messages.create.mock.calls[0][0].messages[0].content).not.toContain('Estimate these')
+  })
+
+  it('still throws when there is nothing at all', async () => {
+    await expect(buildGroceryList({ recipes: [], extras: [], anthropicClient: fakeAnthropic('{}') }))
+      .rejects.toBeInstanceOf(TypeError)
+  })
+})

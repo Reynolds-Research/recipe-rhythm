@@ -16,6 +16,7 @@ vi.mock('../../../lib/plannedMeals', async (importOriginal) => ({
   moveMeal: vi.fn(),
   removeMeal: vi.fn(),
   setCooked: vi.fn(),
+  setAddOn: vi.fn(),
 }))
 // 2b-3: Confirm the week + groceries. Mocked the same way (tested on its own in
 // src/lib/__tests__/weekGroceries.test.js); the error class is the real one.
@@ -98,7 +99,7 @@ beforeEach(() => {
   setWeek()
   pm.loadMaybeList.mockResolvedValue([])
   pm.loadDidntGetTo.mockResolvedValue([])
-  for (const f of ['saveWeekDays', 'addMeal', 'moveMeal', 'removeMeal', 'setCooked']) pm[f].mockResolvedValue({})
+  for (const f of ['saveWeekDays', 'addMeal', 'moveMeal', 'removeMeal', 'setCooked', 'setAddOn']) pm[f].mockResolvedValue({})
   wg.loadConfirmation.mockResolvedValue(null)
   vi.spyOn(Math, 'random').mockReturnValue(0.5)
 })
@@ -330,6 +331,83 @@ describe('+ add', () => {
     await userEvent.click(screen.getByRole('button', { name: /Lemon orzo soup/ }))
     expect(pm.moveMeal).toHaveBeenCalledWith(supabase, 'mx', { plannedOn: '2026-11-04', position: 0 })
     expect(pm.addMeal).not.toHaveBeenCalled()
+  })
+})
+
+describe('add-ons on a recipe meal (Meal shapes, 2026-11-14)', () => {
+  it('"+ add something" saves the add-on on that meal only: no new meal, no cookbook write', async () => {
+    setWeek({ meals: [meal({ name: 'Penne alla Vodka' })] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await userEvent.click(within(mon).getByRole('button', { name: '+ add something' }))
+    await userEvent.type(within(mon).getByRole('textbox', { name: 'Add something to Penne alla Vodka' }), 'shrimp')
+    await userEvent.click(within(mon).getByRole('button', { name: 'Save' }))
+
+    expect(pm.setAddOn).toHaveBeenCalledWith(supabase, 'm1', 'shrimp')
+    expect(pm.addMeal).not.toHaveBeenCalled()
+    // The page's only cookbook access is the read-only load (its fake has no insert/update).
+    await waitFor(() => expect(within(mon).queryByRole('textbox')).not.toBeInTheDocument())
+  })
+
+  it('shows a saved add-on as "+ shrimp"; tapping it lets her change or clear it', async () => {
+    setWeek({ meals: [meal({ name: 'Penne alla Vodka', add_on: 'shrimp' })] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    expect(mon).toHaveTextContent('Penne alla Vodka+ shrimp')
+    await userEvent.click(within(mon).getByRole('button', { name: 'Change shrimp on Penne alla Vodka' }))
+    const box = within(mon).getByRole('textbox', { name: 'Add something to Penne alla Vodka' })
+    expect(box).toHaveValue('shrimp')
+    await userEvent.clear(box)
+    await userEvent.click(within(mon).getByRole('button', { name: 'Save' }))
+    expect(pm.setAddOn).toHaveBeenCalledWith(supabase, 'm1', '')
+  })
+
+  it('Cancel (or Escape) saves nothing', async () => {
+    setWeek({ meals: [meal({ name: 'Penne alla Vodka' })] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await userEvent.click(within(mon).getByRole('button', { name: '+ add something' }))
+    await userEvent.type(within(mon).getByRole('textbox'), 'shrimp')
+    await userEvent.click(within(mon).getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(within(mon).getByRole('button', { name: '+ add something' }))
+    await userEvent.type(within(mon).getByRole('textbox'), 'garlic bread{Escape}')
+    expect(pm.setAddOn).not.toHaveBeenCalled()
+  })
+
+  it('pressing and moving inside the add-on box doesn\'t drag the card (but the card itself still drags)', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    setWeek({ meals: [meal({ name: 'Penne alla Vodka' })] })
+    renderPage()
+    const mon = await screen.findByRole('region', { name: 'Mon Nov 2' })
+    await userEvent.click(within(mon).getByRole('button', { name: '+ add something' }))
+    const card = within(mon).getByTestId('meal-m1')
+    const press = (el) => {
+      fireEvent.mouseDown(el, { button: 0, clientX: 10, clientY: 10 })
+      fireEvent.mouseMove(document, { clientX: 60, clientY: 60 })
+    }
+    const lifted = () => card.className.includes('shadow-lg')
+
+    press(within(mon).getByRole('textbox'))
+    expect(lifted()).toBe(false)
+    fireEvent.mouseUp(document)
+
+    // Control: the same press on the card's name does start a drag, so the check above means something.
+    press(within(card).getByText('Penne alla Vodka'))
+    await waitFor(() => expect(lifted()).toBe(true))
+    fireEvent.mouseUp(document)
+  })
+
+  it('offered only on a recipe, and not on past days', async () => {
+    setWeek({ meals: [
+      meal({ id: 'm1', planned_on: '2026-11-01', name: 'Turkey tacos', vault_id: 'v2' }),          // Sunday: past
+      meal({ id: 'm2', planned_on: '2026-11-03', name: 'Pork loin and broccoli', vault_id: null }), // one-off
+      meal({ id: 'm3', planned_on: '2026-11-04', name: 'Green curry', vault_id: 'v1' }),
+    ], usualDays: [0, 1, 2, 3] })
+    renderPage()
+    const wed = await screen.findByRole('region', { name: 'Wed Nov 4' })
+    expect(within(wed).getByRole('button', { name: '+ add something' })).toBeInTheDocument()
+    expect(within(dayRow('Tue Nov 3')).queryByRole('button', { name: '+ add something' })).not.toBeInTheDocument()
+    expect(within(dayRow('Sun Nov 1')).queryByRole('button', { name: '+ add something' })).not.toBeInTheDocument()
   })
 })
 
@@ -766,7 +844,9 @@ describe('Confirm the week', () => {
     expect(wg.loadGroceryItems).toHaveBeenCalledWith(supabase, 'L1')
     expect(within(sheet).getByRole('region', { name: 'Produce' })).toHaveTextContent('Limes6')
     expect(within(sheet).getByRole('region', { name: 'Meat & Seafood' })).toHaveTextContent('Ground turkey1 lb')
-    expect(sheet).toHaveTextContent('Not on the list (not in your Cookbook): Pizza out.')
+    // "Pizza out" is a night out: nothing estimated for it, but still named.
+    expect(within(sheet).getByTestId('nights-off')).toHaveTextContent('Not shopped for: Pizza out.')
+    expect(within(sheet).queryByTestId('extras-note')).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Week confirmed' })).toHaveTextContent('Confirmed Mon Nov 2')
   })
 
@@ -903,7 +983,7 @@ describe('Confirm the week', () => {
     renderPage()
     await userEvent.click(await confirmButton())
     await userEvent.click(screen.getByRole('button', { name: 'Confirm anyway' }))
-    expect(await screen.findByText(/None of this week's meals are cookbook recipes/)).toBeInTheDocument()
+    expect(await screen.findByText(/nothing on this week to make a grocery list from/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

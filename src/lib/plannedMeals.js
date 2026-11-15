@@ -18,6 +18,8 @@
  *   moveMeal(supabase, mealId, { plannedOn, position })
  *   removeMeal(supabase, mealId)
  *   setCooked(supabase, mealId, cooked)
+ *   setAddOn(supabase, mealId, text)           → "+ shrimp" on one meal (meal shapes)
+ *   cleanAddOn(text) / mealLabel(meal)         → the add-on rule / "Penne alla Vodka + shrimp"
  *   loadMaybeList(supabase, userId)            → meals with no date
  *   loadDidntGetTo(supabase, userId, today)    → "Didn't get to these"
  *   loadCalendarRange(supabase, userId, from, to) → Calendar tab (2c)
@@ -29,11 +31,15 @@
 
 import { getHouseholdId } from './household'
 import { formatLocalDate } from './dateUtils'
+import { ADD_ON_MAX } from './constants'
 import { addDays, dayOfWeek, normalizeDays, weekBounds, weekStartFor, DEFAULT_USUAL_DAYS } from './weekRange'
 
 export const MEAL_COLUMNS =
   'id, household_id, planned_on, position, name, vault_id, is_wildcard, source_url, ' +
-  'cooked, cooked_at, assigned_to, assigned_at, user_id, created_at, updated_at'
+  'cooked, cooked_at, assigned_to, assigned_at, user_id, created_at, updated_at, add_on'
+
+// Longest add-on the database accepts (planned_meals_add_on_valid).
+export { ADD_ON_MAX }
 
 /** How far back "Didn't get to these" looks (PRD-008 §4.7: two weeks). */
 export const DIDNT_GET_TO_DAYS = 14
@@ -245,6 +251,52 @@ export async function setCooked(supabase, mealId, cooked, now = new Date()) {
 }
 
 // ---------------------------------------------------------------------------
+// Add-ons ("Meal shapes", 2026-11-14)
+//
+// A planned meal is a name plus an optional link to ONE cookbook recipe. An
+// add-on is a short bit of plain text on that one meal — "shrimp" on Penne
+// alla Vodka. It never becomes a cookbook recipe, and the recipe link never
+// changes because of it. The grocery list sends it to the AI to estimate.
+// ---------------------------------------------------------------------------
+
+/**
+ * The add-on as it will be saved: spaces tidied, '' → null (no add-on), a
+ * leading "+" or "with" dropped (she may type "+ shrimp"), cut to 80 chars.
+ */
+export function cleanAddOn(text) {
+  if (typeof text !== 'string') return null
+  const t = text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^(\+|with\b|and\b|&)\s*/i, '')
+    .trim()
+    .slice(0, ADD_ON_MAX)
+    .trim()
+  return t === '' ? null : t
+}
+
+/** What to show for a meal: "Penne alla Vodka + shrimp", or just the name. */
+export function mealLabel(meal) {
+  if (!meal) return ''
+  return meal.add_on ? `${meal.name} + ${meal.add_on}` : meal.name
+}
+
+/**
+ * Set (or clear, with '' / null) the add-on on one meal. Only `add_on` is
+ * written: the name and the recipe link stay exactly as they were.
+ */
+export async function setAddOn(supabase, mealId, text) {
+  return check(
+    await supabase
+      .from('planned_meals')
+      .update({ add_on: cleanAddOn(text) })
+      .eq('id', mealId)
+      .select(MEAL_COLUMNS)
+      .single(),
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Maybe list and "Didn't get to these"
 // ---------------------------------------------------------------------------
 
@@ -328,7 +380,7 @@ export async function loadDidntGetTo(supabase, userId, today = formatLocalDate()
  * in the window.
  *
  * @returns {Promise<{
- *   meals: Array<{id: string, planned_on: string, position: number, name: string, cooked: boolean}>,
+ *   meals: Array<{id: string, planned_on: string, position: number, name: string, add_on: string|null, cooked: boolean}>,
  *   confirmations: Array<{id: string, starts_on: string, ends_on: string}>,
  * }>}
  */
@@ -337,7 +389,7 @@ export async function loadCalendarRange(supabase, userId, fromDate, toDate) {
   const [meals, confirmations] = await Promise.all([
     supabase
       .from('planned_meals')
-      .select('id, planned_on, position, name, cooked')
+      .select('id, planned_on, position, name, add_on, cooked')
       .eq('household_id', householdId)
       .gte('planned_on', fromDate)
       .lte('planned_on', toDate)

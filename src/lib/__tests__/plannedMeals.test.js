@@ -15,6 +15,10 @@ import {
   removeMeal,
   saveWeekDays,
   setCooked,
+  setAddOn,
+  cleanAddOn,
+  mealLabel,
+  MEAL_COLUMNS,
 } from '../plannedMeals'
 
 // ---------------------------------------------------------------------------
@@ -310,6 +314,54 @@ describe('removeMeal / setCooked', () => {
   })
 })
 
+// ---- Meal shapes (2026-11-14): an add-on is plain text on ONE planned meal ----
+describe('add-ons', () => {
+  it('setAddOn writes only add_on: the recipe link (vault_id) and the name are untouched, nothing touches the cookbook', async () => {
+    const sb = makeSupabase({ 'planned_meals.update': ok({ id: 'm1', name: 'Penne alla Vodka', vault_id: 'v2', add_on: 'shrimp' }) })
+    const row = await setAddOn(sb, 'm1', '  shrimp ')
+    expect(sb.calls).toHaveLength(1)
+    const [call] = sb.calls
+    expect(call.table).toBe('planned_meals')
+    expect(call.op).toBe('update')
+    expect(call.payload).toEqual({ add_on: 'shrimp' }) // no vault_id, no name
+    expect(call.filters).toEqual([['eq', 'id', 'm1']])
+    expect(row.vault_id).toBe('v2')
+    expect(sb.calls.some((c) => c.table === 'vault')).toBe(false)
+  })
+
+  it('an empty add-on clears it (saved as null, which the database rule expects)', async () => {
+    const sb = makeSupabase({ 'planned_meals.update': ok({ id: 'm1', add_on: null }) })
+    await setAddOn(sb, 'm1', '   ')
+    expect(sb.calls[0].payload).toEqual({ add_on: null })
+  })
+
+  it('cleanAddOn: tidies spaces, drops a leading "+" / "with", caps at 80, blank → null', () => {
+    expect(cleanAddOn('shrimp')).toBe('shrimp')
+    expect(cleanAddOn('  garlic   bread ')).toBe('garlic bread')
+    expect(cleanAddOn('+ shrimp')).toBe('shrimp')
+    expect(cleanAddOn('with shrimp')).toBe('shrimp')
+    expect(cleanAddOn('& a salad')).toBe('a salad')
+    expect(cleanAddOn('and garlic bread')).toBe('garlic bread')
+    expect(cleanAddOn('Andouille sausage')).toBe('Andouille sausage') // "and" only as a whole word
+    expect(cleanAddOn('1 lb shrimp')).toBe('1 lb shrimp')
+    expect(cleanAddOn('withered greens')).toBe('withered greens') // "with" only as a whole word
+    expect(cleanAddOn('')).toBeNull()
+    expect(cleanAddOn('+')).toBeNull()
+    expect(cleanAddOn(null)).toBeNull()
+    expect(cleanAddOn('x'.repeat(100))).toHaveLength(80)
+  })
+
+  it('mealLabel shows "Recipe + add-on", or just the name', () => {
+    expect(mealLabel({ name: 'Penne alla Vodka', add_on: 'shrimp' })).toBe('Penne alla Vodka + shrimp')
+    expect(mealLabel({ name: 'Chicken Enchiladas', add_on: null })).toBe('Chicken Enchiladas')
+    expect(mealLabel(null)).toBe('')
+  })
+
+  it('every meal read for the Prep Table includes add_on', () => {
+    expect(MEAL_COLUMNS.split(',').map((c) => c.trim())).toContain('add_on')
+  })
+})
+
 describe('loadMaybeList', () => {
   it("asks for the household's meals with no date", async () => {
     const sb = makeSupabase({ 'planned_meals.select': ok([meal({ planned_on: null })]) })
@@ -380,6 +432,7 @@ describe('loadCalendarRange', () => {
     const out = await loadCalendarRange(sb, USER, '2026-10-01', '2026-12-31')
     expect(out.meals).toHaveLength(1)
     expect(out.confirmations).toEqual([{ id: 'c1', starts_on: '2026-11-01', ends_on: '2026-11-07' }])
+    expect(sb.calls.find((c) => c.table === 'planned_meals').columns).toMatch(/\badd_on\b/)
 
     const meals = sb.calls.find((c) => c.table === 'planned_meals')
     expect(meals.filters).toEqual([

@@ -164,6 +164,7 @@ export default function PrepTable({ userId, today }) {
                       onAccept={() => pt.acceptProposal(date)}
                       onDismiss={() => pt.dismissProposal(date)}
                       onToggleCooked={pt.toggleCooked}
+                      onSaveAddOn={pt.saveAddOn}
                       onMove={(meal) => setChoosing({ meal, kind: 'move' })}
                       onRemove={pt.remove}
                       nightLabel={pt.nightLabelOn(date)}
@@ -269,8 +270,9 @@ export default function PrepTable({ userId, today }) {
         items={pt.groceries.items}
         staples={pt.groceries.staples}
         subtitle={pt.groceries.open ? groceriesSubtitle(pt) : null}
-        leftOff={pt.leftOff}
         guessed={pt.guessed}
+        estimatedExtras={pt.estimatedExtras}
+        nightsOff={pt.nightsOff}
         updating={pt.making}
         onUpdateList={pt.updateList}
         onSetAssumed={pt.setItemAssumed}

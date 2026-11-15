@@ -32,13 +32,34 @@ function isValidRecipe(r) {
   return true
 }
 
+/** Most extras one request may carry (a week has ~7 dinners; a cap bounds the prompt). */
+export const MAX_EXTRAS = 30
+
+// An extra ("Meal shapes"): {name, with?, servings?} — an add-on to a recipe
+// (`with` = that recipe's name) or a meal with no recipe (`with` null/absent).
+function isValidExtra(x) {
+  if (!x || typeof x !== 'object') return false
+  if (!isNonEmptyString(x.name) || x.name.length > 200) return false
+  if (x.with !== undefined && x.with !== null && !isNonEmptyString(x.with)) return false
+  if (x.servings !== undefined && x.servings !== null) {
+    if (!Number.isInteger(x.servings) || x.servings < 1) return false
+  }
+  return true
+}
+
 export function createGroceryListHandler({ anthropic, buildImpl = buildGroceryList, tag = 'grocery-list' } = {}) {
   return async function groceryListHandler(req, res) {
     if (!anthropic) return res.status(503).json({ error: 'api_key_missing' })
 
-    const { recipes, pantryStaples = [], householdSize } = req.body || {}
+    const { recipes, pantryStaples = [], householdSize, extras = [] } = req.body || {}
 
-    if (!Array.isArray(recipes) || recipes.length === 0) {
+    if (!Array.isArray(extras) || extras.length > MAX_EXTRAS || !extras.every(isValidExtra)) {
+      return res.status(400).json({
+        error: 'invalid_extras',
+        message: `\`extras\`, if present, must be an array of at most ${MAX_EXTRAS} {name, with?, servings?}`,
+      })
+    }
+    if (!Array.isArray(recipes) || (recipes.length === 0 && extras.length === 0)) {
       return res.status(400).json({
         error: 'invalid_recipes',
         message: '`recipes` must be a non-empty array of {name, ingredients[], servings?}',
@@ -77,6 +98,11 @@ export function createGroceryListHandler({ anthropic, buildImpl = buildGroceryLi
         })),
         pantryStaples: pantryStaples.map(s => s.trim()).filter(Boolean),
         householdSize,
+        extras: extras.map(x => ({
+          name: x.name.trim(),
+          with: typeof x.with === 'string' ? x.with.trim() : null,
+          servings: x.servings ?? null,
+        })),
         anthropicClient: anthropic,
       })
       return res.status(200).json(result)

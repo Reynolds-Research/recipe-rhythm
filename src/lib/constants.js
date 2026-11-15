@@ -311,3 +311,6 @@ export function buildAnalyzeRecipePromptBlock() {
   "ingredients_structured": [{"name": ingredient name (required, e.g. "olive oil"), "quantity": measurement value as written (e.g. "2 tbsp", "1/2 cup") or null if not given, "unit": unit of measurement if separable from quantity (e.g. "tbsp", "cup") or null when no unit applies (e.g. for "3 eggs"), "notes": any prep or handling notes for this ingredient (e.g. "diced", "room temperature", "to taste") or null if none}]
 }`
 }
+
+/** Longest add-on on a planned meal ("+ shrimp"); the database rule planned_meals_add_on_valid. */
+export const ADD_ON_MAX = 80
